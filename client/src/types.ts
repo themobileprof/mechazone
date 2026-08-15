@@ -1,3 +1,33 @@
+export type Principal = {
+  user_id: string
+  email: string
+  role: 'super_admin' | 'technician'
+  technician_id?: string
+  technician_name?: string
+  shop_id?: string
+  shop_name?: string
+  freelancer: boolean
+}
+
+export type Shop = {
+  id: string
+  name: string
+  location_country: string
+  location_city: string
+  created_at: string
+}
+
+export type Technician = {
+  id: string
+  shop_id?: string
+  shop_name?: string
+  full_name: string
+  email: string
+  reputation_score: number
+  freelancer: boolean
+  created_at: string
+}
+
 export type HistoryResponse = {
   vehicle: {
     vin: string

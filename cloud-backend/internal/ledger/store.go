@@ -39,39 +39,60 @@ func (s *Store) Close() {
 }
 
 func (s *Store) Migrate(ctx context.Context) error {
-	sql, err := fs.ReadFile(migrations.Files, "001_init.sql")
-	if err != nil {
-		return err
-	}
-	_, err = s.pool.Exec(ctx, `
+	if _, err := s.pool.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS schema_migrations (
 			filename TEXT PRIMARY KEY,
 			applied_at TIMESTAMPTZ DEFAULT NOW()
 		)
-	`)
+	`); err != nil {
+		return err
+	}
+	entries, err := fs.ReadDir(migrations.Files, ".")
 	if err != nil {
 		return err
 	}
-	var applied bool
-	err = s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE filename = '001_init.sql')`).Scan(&applied)
-	if err != nil {
-		return err
+	names := make([]string, 0, len(entries))
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".sql") {
+			names = append(names, e.Name())
+		}
 	}
-	if applied {
-		return nil
+	for i := 0; i < len(names); i++ {
+		for j := i + 1; j < len(names); j++ {
+			if names[j] < names[i] {
+				names[i], names[j] = names[j], names[i]
+			}
+		}
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return err
+	for _, name := range names {
+		var applied bool
+		if err := s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE filename = $1)`, name).Scan(&applied); err != nil {
+			return err
+		}
+		if applied {
+			continue
+		}
+		sql, err := fs.ReadFile(migrations.Files, name)
+		if err != nil {
+			return err
+		}
+		tx, err := s.pool.Begin(ctx)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, string(sql)); err != nil {
+			_ = tx.Rollback(ctx)
+			return fmt.Errorf("apply %s: %w", name, err)
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO schema_migrations (filename) VALUES ($1)`, name); err != nil {
+			_ = tx.Rollback(ctx)
+			return err
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return err
+		}
 	}
-	defer tx.Rollback(ctx)
-	if _, err := tx.Exec(ctx, string(sql)); err != nil {
-		return fmt.Errorf("apply 001_init.sql: %w", err)
-	}
-	if _, err := tx.Exec(ctx, `INSERT INTO schema_migrations (filename) VALUES ('001_init.sql')`); err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (s *Store) SeedDTCs(ctx context.Context, path string) error {
@@ -206,7 +227,7 @@ func (s *Store) History(ctx context.Context, vin string) (History, error) {
 	h.FirstSeen = false
 
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, vin, shop_id, technician_id, mileage, adapter_type, host_os, protocol,
+		SELECT id, vin, COALESCE(shop_id::text, ''), technician_id, mileage, adapter_type, host_os, protocol,
 		       active_dtc_list, freeze_frame_telemetry, COALESCE(raw_hex_excerpt, ''), outcome, created_at
 		FROM diagnostic_sessions
 		WHERE vin = $1
@@ -272,6 +293,10 @@ func (s *Store) InsertSession(ctx context.Context, in SessionIngest) (Session, e
 	if len(ff) == 0 {
 		ff = json.RawMessage("null")
 	}
+	var shop any
+	if strings.TrimSpace(in.ShopID) != "" {
+		shop = in.ShopID
+	}
 	var sess Session
 	var codes []string
 	var rawFF []byte
@@ -280,9 +305,9 @@ func (s *Store) InsertSession(ctx context.Context, in SessionIngest) (Session, e
 			vin, shop_id, technician_id, mileage, adapter_type, host_os, protocol,
 			active_dtc_list, freeze_frame_telemetry, raw_hex_excerpt, outcome
 		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'open')
-		RETURNING id, vin, shop_id, technician_id, mileage, adapter_type, host_os, protocol,
+		RETURNING id, vin, COALESCE(shop_id::text, ''), technician_id, mileage, adapter_type, host_os, protocol,
 		          active_dtc_list, freeze_frame_telemetry, COALESCE(raw_hex_excerpt, ''), outcome, created_at
-	`, in.VIN, in.ShopID, in.TechnicianID, in.MileageKM, in.AdapterType, in.HostOS, in.Protocol,
+	`, in.VIN, shop, in.TechnicianID, in.MileageKM, in.AdapterType, in.HostOS, in.Protocol,
 		in.ActiveCodes, ff, excerpt,
 	).Scan(
 		&sess.ID, &sess.VIN, &sess.ShopID, &sess.TechnicianID, &sess.Mileage,
@@ -317,8 +342,8 @@ func (s *Store) Closeout(ctx context.Context, sessionID, technicianID string, c 
 	if err != nil {
 		return Resolution{}, err
 	}
-	if technicianID != "" && tech != technicianID {
-		// allow closeout from the same shop tech in phase 1; still record the closer
+	if technicianID == "" || tech != technicianID {
+		return Resolution{}, fmt.Errorf("only the technician who opened this session can close it")
 	}
 	if _, err := tx.Exec(ctx, `UPDATE diagnostic_sessions SET outcome = $2 WHERE id = $1`, sessionID, outcome); err != nil {
 		return Resolution{}, err

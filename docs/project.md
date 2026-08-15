@@ -109,13 +109,16 @@ Design every screen and API around this sequence.
 
 ## 4. Users & Network Effects
 
-| Actor | Needs from the product |
-| --- | --- |
-| Independent technician | Laptop + OpenPort-class Pass-Thru; playbooks with pins and live values; that car's history |
-| Shop owner | Encrypted local customer records; reputation of their techs; no customer-data leakage |
-| Next shop on the same VIN | Prior mileage, faults, freeze-frames, parts, what actually fixed it |
-| Network (all shops) | Platform-level patterns (e.g. 3ZR-FAE P1047 + water ingress at pin 4 in Lagos) |
-| Platform | Verified resolutions to weight RAG; reputation to rank contributors |
+Identity is provisioned, not open signup.
+
+| Actor | How they get in | Needs from the product |
+| --- | --- | --- |
+| Super admin | Seeded once (`SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD`) | Create shops; issue technician/freelancer logins |
+| Shop technician | Admin creates the account and assigns a shop | Bay scan, VIN history, closeout stamped to that shop |
+| Freelancer | Admin creates the account with no shop | Same bay; sessions have `technician_id` and a null `shop_id` |
+| Next shop on the same VIN | Already on the network | Prior mileage, faults, freeze-frames, parts, what actually fixed it |
+
+Ledger writes ignore client-supplied `shop_id` / `technician_id`. The session cookie is the source of truth.
 
 Reputation is a data-quality signal, not a social feed. Verified successful closeouts raise weight. Unverified free text does not outrank a confirmed fix.
 

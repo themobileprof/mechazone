@@ -22,11 +22,18 @@ func New(cfg config.Config, store *ledger.Store, vpic *vin.Client, log *slog.Log
 	s := &Server{cfg: cfg, store: store, vpic: vpic, log: log}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.health)
-	mux.HandleFunc("GET /api/v1/vehicles/{vin}", s.vehicleHistory)
-	mux.HandleFunc("POST /api/v1/vehicles/{vin}/decode", s.decodeVIN)
-	mux.HandleFunc("GET /api/v1/dtcs/{code}", s.lookupDTC)
-	mux.HandleFunc("POST /api/v1/sessions", s.ingestSession)
-	mux.HandleFunc("POST /api/v1/sessions/{id}/closeout", s.closeout)
+	mux.HandleFunc("POST /api/v1/auth/login", s.login)
+	mux.HandleFunc("POST /api/v1/auth/logout", s.logout)
+	mux.HandleFunc("GET /api/v1/auth/me", s.requireAuth(s.me))
+	mux.HandleFunc("GET /api/v1/admin/shops", s.requireAdmin(s.listShops))
+	mux.HandleFunc("POST /api/v1/admin/shops", s.requireAdmin(s.createShop))
+	mux.HandleFunc("GET /api/v1/admin/technicians", s.requireAdmin(s.listTechnicians))
+	mux.HandleFunc("POST /api/v1/admin/technicians", s.requireAdmin(s.createTechnician))
+	mux.HandleFunc("GET /api/v1/vehicles/{vin}", s.requireAuth(s.vehicleHistory))
+	mux.HandleFunc("POST /api/v1/vehicles/{vin}/decode", s.requireAuth(s.decodeVIN))
+	mux.HandleFunc("GET /api/v1/dtcs/{code}", s.requireAuth(s.lookupDTC))
+	mux.HandleFunc("POST /api/v1/sessions", s.requireTechnician(s.ingestSession))
+	mux.HandleFunc("POST /api/v1/sessions/{id}/closeout", s.requireTechnician(s.closeout))
 	return withCORS(withLog(log, mux))
 }
 
@@ -44,7 +51,11 @@ func withLog(log *slog.Logger, next http.Handler) http.Handler {
 
 func withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		origin := r.Header.Get("Origin")
+		if origin == "http://127.0.0.1:5173" || origin == "http://localhost:5173" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+		}
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		if r.Method == http.MethodOptions {

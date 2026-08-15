@@ -119,12 +119,13 @@ func (s *Server) ingestSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in.VIN = normalized
-	if in.ShopID == "" {
-		in.ShopID = s.cfg.DevShopID
+	p, ok := principalFrom(r.Context())
+	if !ok || p.TechnicianID == "" {
+		writeError(w, http.StatusForbidden, "technician login required")
+		return
 	}
-	if in.TechnicianID == "" {
-		in.TechnicianID = s.cfg.DevTechnicianID
-	}
+	in.ShopID = p.ShopID
+	in.TechnicianID = p.TechnicianID
 	if in.AdapterType == "" || in.HostOS == "" || in.Protocol == "" {
 		writeError(w, http.StatusUnprocessableEntity, "adapter_type, host_os, and protocol are required")
 		return
@@ -192,15 +193,12 @@ func (s *Server) closeout(w http.ResponseWriter, r *http.Request) {
 	if c.Parts == nil {
 		c.Parts = []string{}
 	}
-	tech := s.cfg.DevTechnicianID
-	var extra struct {
-		TechnicianID string `json:"technician_id"`
+	p, ok := principalFrom(r.Context())
+	if !ok || p.TechnicianID == "" {
+		writeError(w, http.StatusForbidden, "technician login required")
+		return
 	}
-	_ = json.Unmarshal(body, &extra)
-	if extra.TechnicianID != "" {
-		tech = extra.TechnicianID
-	}
-	res, err := s.store.Closeout(r.Context(), id, tech, c)
+	res, err := s.store.Closeout(r.Context(), id, p.TechnicianID, c)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "outcome") {
 			writeError(w, http.StatusUnprocessableEntity, err.Error())

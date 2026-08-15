@@ -36,6 +36,7 @@ export async function flushQueue(): Promise<number> {
     try {
       const res = await fetch(job.path, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(job.body),
       })

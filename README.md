@@ -14,4 +14,6 @@ make client
 
 Bay UI: http://127.0.0.1:5173
 
+First login is the seeded super admin (`admin@mechazone.local` / `change-me-now` unless you set `SUPERADMIN_*`). That account adds shops and issues technician/freelancer logins. Technicians then sign in to use the bay. There is no self-signup.
+
 Connect **Mock ECU** to exercise the Avensis 3ZR-FAE / Valvematic path without a car. Switch to **OpenPort 2.0 Rev E** when `libopenport.so` is on the laptop (`J2534_LIB` if it is not on the default path).

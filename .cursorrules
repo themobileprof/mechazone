@@ -11,6 +11,7 @@ You are building Mechazone: a community diagnostic network for independent auto 
 - **Privacy boundary:** Customer names, phones, and plates stay on the shop device. Cloud stores VIN + mechanical telemetry + confirmed fixes only.
 - **Offline-tolerant:** Queue uploads. Never block a live scan on cloud availability. Reconcile history on reconnect.
 - **Bypass generic OBD2:** Never default to SAE J1979 emissions PIDs unless explicitly asked. Use raw CAN, hex framing, and UDS module addressing (BMS, ECM, TCU, Valvematic, and similar) through J2534 Pass-Thru.
+- **Provisioned identity:** A super admin creates shops and technicians (including freelancers). Nobody self-registers. Ledger rows take shop_id and technician_id from the login session — never from the client payload.
 
 ### 1. TECH STACK ARCHITECTURE
 - **Frontend/Desktop Client:** Electron or Tauri using TypeScript/Tailwind CSS on the existing laptop. Shop-floor UI: VIN timeline, live module data, playbook steps, session closeout. Decouple UI from the hardware bridge via secure IPC or WebSocket.
