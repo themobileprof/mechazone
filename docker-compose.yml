@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: mechazone
+      POSTGRES_PASSWORD: mechazone
+      POSTGRES_DB: mechazone
+    ports:
+      - "5433:5432"
+    volumes:
+      - mechazone_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mechazone -d mechazone"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  mechazone_pg:

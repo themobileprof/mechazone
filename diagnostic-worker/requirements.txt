@@ -1,0 +1,2 @@
+udsoncan==1.25.1
+websockets==14.2

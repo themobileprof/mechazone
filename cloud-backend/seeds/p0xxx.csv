@@ -1,0 +1,48 @@
+code,category,title,source
+P0001,sae_p0,Fuel Volume Regulator Control Circuit/Open,sae_j2012_public
+P0002,sae_p0,Fuel Volume Regulator Control Circuit Range/Performance,sae_j2012_public
+P0100,sae_p0,Mass or Volume Air Flow Circuit Malfunction,sae_j2012_public
+P0101,sae_p0,Mass or Volume Air Flow Circuit Range/Performance,sae_j2012_public
+P0102,sae_p0,Mass or Volume Air Flow Circuit Low Input,sae_j2012_public
+P0103,sae_p0,Mass or Volume Air Flow Circuit High Input,sae_j2012_public
+P0110,sae_p0,Intake Air Temperature Circuit Malfunction,sae_j2012_public
+P0115,sae_p0,Engine Coolant Temperature Circuit Malfunction,sae_j2012_public
+P0117,sae_p0,Engine Coolant Temperature Circuit Low Input,sae_j2012_public
+P0118,sae_p0,Engine Coolant Temperature Circuit High Input,sae_j2012_public
+P0120,sae_p0,Throttle/Pedal Position Sensor A Circuit Malfunction,sae_j2012_public
+P0128,sae_p0,Coolant Thermostat (Coolant Temperature Below Thermostat Regulating Temperature),sae_j2012_public
+P0130,sae_p0,O2 Sensor Circuit Malfunction (Bank 1 Sensor 1),sae_j2012_public
+P0135,sae_p0,O2 Sensor Heater Circuit Malfunction (Bank 1 Sensor 1),sae_j2012_public
+P0171,sae_p0,System Too Lean (Bank 1),sae_j2012_public
+P0172,sae_p0,System Too Rich (Bank 1),sae_j2012_public
+P0201,sae_p0,Injector Circuit/Open - Cylinder 1,sae_j2012_public
+P0202,sae_p0,Injector Circuit/Open - Cylinder 2,sae_j2012_public
+P0203,sae_p0,Injector Circuit/Open - Cylinder 3,sae_j2012_public
+P0204,sae_p0,Injector Circuit/Open - Cylinder 4,sae_j2012_public
+P0300,sae_p0,Random/Multiple Cylinder Misfire Detected,sae_j2012_public
+P0301,sae_p0,Cylinder 1 Misfire Detected,sae_j2012_public
+P0302,sae_p0,Cylinder 2 Misfire Detected,sae_j2012_public
+P0303,sae_p0,Cylinder 3 Misfire Detected,sae_j2012_public
+P0304,sae_p0,Cylinder 4 Misfire Detected,sae_j2012_public
+P0325,sae_p0,Knock Sensor 1 Circuit Malfunction (Bank 1 or Single Sensor),sae_j2012_public
+P0335,sae_p0,Crankshaft Position Sensor A Circuit Malfunction,sae_j2012_public
+P0340,sae_p0,Camshaft Position Sensor A Circuit Malfunction (Bank 1 or Single Sensor),sae_j2012_public
+P0401,sae_p0,Exhaust Gas Recirculation Flow Insufficient Detected,sae_j2012_public
+P0420,sae_p0,Catalyst System Efficiency Below Threshold (Bank 1),sae_j2012_public
+P0440,sae_p0,Evaporative Emission Control System Malfunction,sae_j2012_public
+P0442,sae_p0,Evaporative Emission Control System Leak Detected (Small Leak),sae_j2012_public
+P0455,sae_p0,Evaporative Emission Control System Leak Detected (Gross Leak),sae_j2012_public
+P0500,sae_p0,Vehicle Speed Sensor A Malfunction,sae_j2012_public
+P0506,sae_p0,Idle Control System RPM Lower Than Expected,sae_j2012_public
+P0507,sae_p0,Idle Control System RPM Higher Than Expected,sae_j2012_public
+P0560,sae_p0,System Voltage Malfunction,sae_j2012_public
+P0562,sae_p0,System Voltage Low,sae_j2012_public
+P0563,sae_p0,System Voltage High,sae_j2012_public
+P0600,sae_p0,Serial Communication Link Malfunction,sae_j2012_public
+P0606,sae_p0,ECM/PCM Processor Fault,sae_j2012_public
+P0700,sae_p0,Transmission Control System Malfunction,sae_j2012_public
+U0100,sae_p0,Lost Communication With ECM/PCM A,sae_j2012_public
+U0101,sae_p0,Lost Communication With TCM,sae_j2012_public
+U0121,sae_p0,Lost Communication With Anti-Lock Brake System Control Module,sae_j2012_public
+U0140,sae_p0,Lost Communication With Body Control Module,sae_j2012_public
+U011B,sae_p0,Lost Communication With Rocker Arm Actuator Control Module,sae_j2012_public
