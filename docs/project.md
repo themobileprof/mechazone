@@ -1,8 +1,8 @@
 # Mechazone — Product & Architecture Specification
 
-Mechazone is a community diagnostic network for independent auto technicians. Each technician is issued a small kit. With that kit they read manufacturer modules on modern cars, log what they find, and immediately see that vehicle's mechanical history plus proven fixes from other shops on the network.
+Mechazone is a community diagnostic network for independent auto technicians in a low-income market. The product is software. A technician uses a phone or laptop they already own and one commodity USB OBD adapter already sold locally. The client reads manufacturer modules, logs the job, and shows that vehicle's mechanical history plus proven fixes from other shops.
 
-The product is not a generic OBD2 scanner and not a dealership OEM laptop. It is a shared ledger of real repairs, keyed by VIN, that gets more accurate every time a technician closes a job.
+The product is not a generic OBD2 scanner, not a dealership OEM laptop, and not a hardware startup. It is a shared ledger of real repairs, keyed by VIN, that gets more accurate every time a technician closes a job. Cost stays in software: integrate OSS, public APIs, and scrape-and-cache sources. Do not add hardware and do not custom-build what already exists.
 
 ---
 
@@ -14,25 +14,31 @@ Independent shops lose hours on modern ICE and Chinese EV electronics because:
 - OEM tools and subscriptions are expensive or unavailable.
 - A car's prior work lives in another shop's notebook, or nowhere.
 
-Mechazone closes that gap with three assets that compound:
+Mechazone closes that gap with three assets that compound — none of them a new device:
 
-1. **The kit** — enough hardware and software to talk UDS/CAN to the modules that actually fail (ECM, TCU, BMS, Valvematic, and similar).
+1. **Software on a commodity adapter** — stretch an ELM327 (or an OpenPort already on the bench) to talk UDS/CAN to the modules that actually fail (ECM, TCU, BMS, Valvematic, and similar).
 2. **The vehicle ledger** — every scan, freeze-frame, and confirmed fix indexed by VIN.
 3. **The technician network** — regional, reputation-weighted solutions that turn the next identical fault into a short playbook instead of a guess.
 
-Primary market: independent technicians and small shops in Nigeria and the wider African import market, where late-model Toyota ICE platforms and Chinese EVs arrive faster than dealer support.
+Primary market: independent technicians and small shops in Nigeria and the wider African import market, where late-model Toyota ICE platforms and Chinese EVs arrive faster than dealer support, and cash for tools is scarce.
+
+### Cost laws
+
+- **Software before silicon.** If a library, API, or cached scrape can do it reliably, that is the design. Hardware does not compensate for missing software.
+- **No additional hardware.** Do not recommend a second dongle, custom ESP32/CAN board, rugged tablet, extra sensor, or any SKU we would have to source or issue. Host = existing phone or laptop. Interface = one commodity ELM327 v1.5 already in the local market. Support OpenPort 2.0 only when it is already present.
+- **Integrate, do not rebuild.** VIN decode, generic DTC text, ISO-TP/UDS/J2534 stacks, PDF parsing, embeddings (`pgvector`), LLM calls, TSB/manual corpora, auth, and shop comms are imported or wrapped. We write the ledger, the cheap-adapter worker glue, the shop-floor loop, and playbook fusion — that is the moat.
 
 ### Core loop
 
 ```
-Kit scan  →  Local ingest  →  VIN history + live telemetry
+ELM scan  →  Local ingest  →  VIN history + live telemetry
                                       │
 Technician closeout  ←  AI playbook  ←  Community + TSB retrieval
         │
         └──► Ledger + reputation  (next shop starts ahead)
 ```
 
-1. **Scan** — Technician connects the kit and reads advanced modules, not just Mode $01 PIDs.
+1. **Scan** — Technician connects the commodity adapter and reads advanced modules, not just Mode $01 PIDs.
 2. **Recall** — The client loads that VIN's timeline: prior shops, mileage, DTCs, freeze-frames, parts, verified fixes.
 3. **Analyze** — Cloud AI fuses live telemetry, ledger history, and retrieved TSBs/manuals/community resolutions into a shop-floor playbook.
 4. **Repair & log** — Technician performs the work and closes the session (success + parts, or actual fix if the playbook failed).
@@ -42,24 +48,24 @@ Customer identity never leaves the shop. VIN and mechanical facts do.
 
 ---
 
-## 2. The Technician Kit
+## 2. What the Shop Already Has (the "kit")
 
-The kit is the product surface. Software assumes this kit, not a lab or a dealer SDS subscription.
+There is no custom hardware program. The client assumes a bay that already exists.
 
-### 2.1 What ships (v1)
+### 2.1 Allowed surface
 
-| Item | Role |
+| Already in the shop | Role |
 | --- | --- |
-| Tactrix OpenPort 2.0 (Rev E J2534 clone) **or** ELM327 v1.5 (FTDI/CH340) | Vehicle interface |
-| Windows/Linux laptop **or** Android phone/tablet with USB-OTG | Host |
-| Mechazone client (Tauri/TS UI + Python diagnostic worker) | Scan, history, playbook, closeout |
+| Android phone/tablet with USB-OTG **or** Windows/Linux laptop | Host — we do not specify or issue one |
+| Commodity ELM327 v1.5 (FTDI/CH340), widely sold locally | Default vehicle interface |
+| OpenPort 2.0 Rev E clone | Supported only if already on the bench — never an upgrade path |
+| Multimeter and hand tools | Assumed shop inventory for playbook pin tests; not kit items we sell |
+| Mechazone client (Tauri/TS UI + Python worker) | The actual product: scan, history, playbook, closeout |
 | Local encrypted shop ledger | Customer names, phones, plates — never uploaded |
 
-### 2.2 Field kit (v2, community rollout)
+Do not design, source, or document ESP32/CAN boards, extra adapters, or a "field kit BOM." Rollout is an APK/installer plus a shop's existing ELM327.
 
-Low-cost CAN interfaces (ESP32 + SN65HVD230, sourced locally e.g. Computer Village, Lagos) extend the same client. The protocol stack (CAN / CAN-FD / ISO-TP / UDS) does not change. Adapter type is recorded on every session so history stays reproducible.
-
-### 2.3 What the kit must let a technician do
+### 2.2 What software must let a technician do
 
 - Identify the vehicle (VIN from the module or keypad) and pull network history before guessing.
 - Address specific modules with UDS (ISO 14229) over ISO-TP (ISO 15765-2).
@@ -68,12 +74,13 @@ Low-cost CAN interfaces (ESP32 + SN65HVD230, sourced locally e.g. Computer Villa
 - Close the job in two taps (or a short actual-fix note) so the network learns.
 - Keep working when the shop is offline; sync the mechanical record when the radio returns.
 
-### 2.4 What the kit must not require
+### 2.3 What the product must not require
 
 - Generic SAE J1979-only workflows as the default path.
+- A more expensive adapter because the cheap one was not driven hard enough in software.
 - Constant cloud connectivity to complete a scan.
 - Customer PII in the cloud.
-- Dealership hardware, Windows-only OEM suites, or paid VIN APIs on every lookup.
+- Dealership hardware, Windows-only OEM suites, paid VIN APIs on every lookup, or a custom document/helpdesk/ERP we would have to build.
 
 ---
 
@@ -82,7 +89,7 @@ Low-cost CAN interfaces (ESP32 + SN65HVD230, sourced locally e.g. Computer Villa
 Design every screen and API around this sequence.
 
 ```
-1. Connect kit → vehicle
+1. Connect adapter → vehicle
 2. Read VIN / confirm vehicle
 3. Show VIN timeline  (other shops, prior DTCs, verified fixes)
 4. Deep module scan   (UDS, not emissions PIDs)
@@ -102,7 +109,7 @@ Design every screen and API around this sequence.
 
 | Actor | Needs from the product |
 | --- | --- |
-| Independent technician | Kit that works on the bay; playbooks with pins and live values; that car's history |
+| Independent technician | App on their phone/laptop + ELM327 they already have; playbooks with pins and live values; that car's history |
 | Shop owner | Encrypted local customer records; reputation of their techs; no customer-data leakage |
 | Next shop on the same VIN | Prior mileage, faults, freeze-frames, parts, what actually fixed it |
 | Network (all shops) | Platform-level patterns (e.g. 3ZR-FAE P1047 + water ingress at pin 4 in Lagos) |
@@ -116,15 +123,16 @@ Reputation is a data-quality signal, not a social feed. Verified successful clos
 
 ### 5.1 Hardware & vehicles
 
-- **Hosts:** Windows or Linux laptop; Android USB-OTG.
-- **Interfaces:** OpenPort 2.0 Rev E J2534 clone; ELM327 v1.5 over USB-serial; later ESP32+SN65HVD230.
+- **Hosts:** Whatever Windows/Linux laptop or Android USB-OTG phone is already in the shop.
+- **Interface (default):** ELM327 v1.5 over USB-serial. OpenPort 2.0 Rev E J2534 clone only as an already-owned option.
+- **Do not add:** custom CAN hardware, second dongles, issued tablets.
 - **Vehicles:** Modern ICE with complex modules (reference: 2010/2011 Toyota Avensis 3ZR-FAE / Valvematic) and Chinese EVs (BYD, GAC, Geely) on high-speed CAN, CAN-FD, and UDS.
 
 ### 5.2 Architectural split
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│                        LOCAL CLIENT (THE KIT HOST)                     │
+│                     LOCAL CLIENT (EXISTING PHONE/LAPTOP)               │
 │  UI (Tauri / TypeScript / Tailwind)  ◄──IPC/WS──►  Python J2534/serial │
 │  Encrypted local customer DB          Session queue (offline → cloud)  │
 └────────────────────────────────────┬───────────────────────────────────┘
@@ -136,7 +144,7 @@ Reputation is a data-quality signal, not a social feed. Verified successful clos
 │  Telemetry / history API  →  PostgreSQL VIN ledger + reputation        │
 │           │                                                            │
 │           ▼                                                            │
-│  AI engine (vector DB + LLM RAG)  ←  TSBs, manuals, verified fixes     │
+│  AI engine (pgvector + existing LLM API) ← imported TSBs/manuals/fixes │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -148,16 +156,16 @@ UI never talks to the Pass-Thru library. The Python worker never stores customer
 
 ### 6.1 Local client
 
-- **UI:** Technician workstation or rugged tablet. VIN timeline, module live data, playbook steps, two-click closeout, clear online/offline state.
-- **Diagnostic worker (Python 3.11+):** Loads `openport.dll` / `libopenport.so` via ctypes, or opens the serial ELM/FTDI path. Owns ISO-TP reassembly, UDS request/response, timeouts, and hex validation.
+- **UI:** Existing phone or laptop. VIN timeline, module live data, playbook steps, two-click closeout, clear online/offline state.
+- **Diagnostic worker (Python 3.11+):** Default path is ELM327 serial (FTDI/CH340, USB-OTG). J2534 (`openport.dll` / `libopenport.so`) only when that library is already on the machine. Wrap maintained OSS for ISO-TP/UDS (e.g. `udsoncan`, `can-isotp`, `python-can`); own only adapter quirks, timeouts, hex validation, and session capture.
 - **IPC:** Local WebSocket or stdin/stdout JSON. Typed contracts only.
-- **Local shop partition:** SQLCipher (or equivalent) for customer identity. Mechanical session rows are copied into the sync queue without those fields.
+- **Local shop partition:** Existing embedded/encrypted SQLite (SQLCipher or equivalent OSS). Mechanical session rows are copied into the sync queue without customer fields.
 
 ### 6.2 Cloud
 
 - **Gateway (Go):** High-concurrency ingest and VIN-history read APIs. Accepts structured session payloads; rejects PII-looking fields.
 - **Network ledger (PostgreSQL):** Shops, technicians, vehicles, sessions, confirmed resolutions, reputation events. Source of truth for "has this VIN been here before?"
-- **AI engine:** Builds playbooks only after ledger + retrieval context is attached. Generic P0xxx definitions are served from seed tables, not from an LLM or a public web DTC API.
+- **AI engine:** `pgvector` in the same PostgreSQL + an existing LLM API. Builds playbooks only after ledger + retrieval context is attached. Generic P0xxx definitions come from imported public/OSS seed tables, not from an LLM and not from a live web DTC API.
 
 ### 6.3 Session payload (mechanical, cloud-safe)
 
@@ -167,7 +175,7 @@ UI never talks to the Pass-Thru library. The Python worker never stores customer
   "shop_id": "uuid",
   "technician_id": "uuid",
   "mileage_km": 142500,
-  "adapter_type": "openport2_rev_e",
+  "adapter_type": "elm327_v15",
   "host_os": "android",
   "protocol": "uds_isotp_can",
   "active_codes": ["P1047", "U011B"],
@@ -263,23 +271,32 @@ CREATE INDEX idx_resolutions_verified ON confirmed_resolutions (is_verified_fix)
     WHERE is_verified_fix;
 ```
 
-### 7.3 External data rules
+### 7.3 Integrate / import / scrape (do not rebuild)
 
-- **VIN decode:** NHTSA vPIC first; CarAPI / Vincario as fallback. Write through to `vin_decode_cache` / `vehicles` on first success. Never re-hit an external API for a cached VIN.
-- **Generic DTCs (P0xxx):** Local seed tables only. No web DTC lookup APIs.
-- **Cloud AI:** Manufacturer-specific codes, deep telemetry, and playbooks that already include ledger + community retrieval.
+| Need | Source | Our job |
+| --- | --- | --- |
+| VIN decode | NHTSA vPIC, then CarAPI / Vincario | Call once, write through to `vin_decode_cache` / `vehicles`. Never re-hit a cached VIN. |
+| Generic DTC text (P0xxx) | Public/OSS SAE seed lists | Import into PostgreSQL. No per-lookup web DTC APIs. No hand-written encyclopedia. |
+| ISO-TP / UDS / CAN / J2534 | Maintained Python OSS | Wrap. Do not reimplement framing stacks. |
+| TSB / manual / forum text | Public pages and PDFs | Scrape or bulk-import, cache, chunk with OSS parsers. |
+| Embeddings + search | `pgvector` in the same Postgres | No separate vector-DB product. |
+| LLM playbooks | Existing hosted LLM API | Prompt + retrieve. Do not train or host a model. |
+| Shop comms / peer help | Channels shops already use (e.g. WhatsApp) | Link a session; do not build a helpdesk. |
+| Work orders / accounting | Out of scope | Do not build a garage ERP. |
+
+**Cloud AI** is reserved for manufacturer-specific codes (e.g. Toyota P1xxx), deep telemetry, and playbooks that already include ledger + community retrieval.
 
 ---
 
 ## 8. AI Diagnosis (RAG)
 
-The model is not allowed to invent a repair from a code letter. It receives live kit data, that VIN's timeline, and retrieved documents.
+The model is not allowed to invent a repair from a code letter. It receives live adapter data, that VIN's timeline, and retrieved documents.
 
 ```
 Incoming session (VIN, mileage, DTCs, freeze-frame, adapter)
         │
         ├─► PostgreSQL VIN timeline + verified resolutions
-        ├─► Vector search: TSBs, OEM manuals, community fix write-ups
+        ├─► pgvector search: imported TSBs/manuals + community fix write-ups
         └─► Local P0xxx seed text (if a generic code is present)
         │
         ▼
@@ -292,7 +309,7 @@ Incoming session (VIN, mileage, DTCs, freeze-frame, adapter)
 [ROLE]
 Senior diagnostic engineer. Shop-floor playbooks only. No generic textbook theory.
 
-[VEHICLE + LIVE KIT DATA]
+[VEHICLE + LIVE ADAPTER DATA]
 Identity, powertrain, mileage, active DTCs, freeze-frame, adapter/protocol.
 
 [VIN LEDGER]
@@ -306,16 +323,16 @@ TSB / manual excerpts. Keep pin numbers and voltages bound to the same chunk.
 
 [DIRECTIVE]
 Rank likely causes with probabilities. Give pin-level tests and a post-repair
-validation that the kit can perform. Cite ledger/network evidence when used.
+validation the adapter and a shop multimeter can perform. Cite ledger/network evidence when used.
 ```
 
 ### 8.2 Playbook shape (what the technician sees)
 
 1. **Probability breakdown** — grounded in ledger + network counts, not vibe.
-2. **Kit tests** — connector, pin, voltage, live PID/DID the worker can read.
+2. **Tests the bay can already run** — connector/pin/voltage with the shop's existing multimeter, plus live PID/DID the ELM/OpenPort worker can read. Do not prescribe extra instruments.
 3. **Validation** — clear codes, warm-up, live-data pass/fail (e.g. Valvematic actual vs target ±0.5°).
 
-Vector ingestion lives in `cloud-backend/internal/ai/`. Chunk on semantic boundaries so a pin and its voltage stay in the same passage.
+Ingestion lives in `cloud-backend/internal/ai/` and uses OSS PDF/HTML parsers. Chunk on semantic boundaries so a pin and its voltage stay in the same passage.
 
 ---
 
@@ -348,25 +365,25 @@ The network's advantage is accumulated *confirmed* mechanical history, not more 
 
 ## 10. Roadmap (Nigeria first)
 
-### Phase 1 — Kit + ledger prototype (months 1–2)
+### Phase 1 — Software + commodity adapter (months 1–2)
 
-- One v1 kit: OpenPort 2.0 clone or ELM327 v1.5 on a laptop / Android OTG.
-- Reference vehicle: 2010/2011 Toyota Avensis 3ZR-FAE. Prove Valvematic and other non-emissions parameters the kit can read and that generic OBD2 apps cannot.
-- Local worker → Go ingest → PostgreSQL session + VIN row. Offline queue on the client.
-- VIN decode via vPIC with immediate cache.
+- Client on an existing laptop or Android OTG phone. Default interface: ELM327 v1.5 already on the bench (OpenPort only if already there).
+- Reference vehicle: 2010/2011 Toyota Avensis 3ZR-FAE. Prove Valvematic and other non-emissions parameters over the cheap adapter — the gap generic OBD2 apps leave, filled in software.
+- Wrap OSS ISO-TP/UDS. Local worker → Go ingest → PostgreSQL session + VIN row. Offline queue on the client.
+- VIN decode via vPIC with immediate cache. Import a public P0xxx seed; do not write one.
 
 ### Phase 2 — History, AI, first shops (months 3–5)
 
 - VIN timeline in the UI before the playbook.
-- RAG over public TSBs/manuals plus the first verified closeouts.
-- Issue ~10 field kits (ESP32 + SN65HVD230 or equivalent) to trusted independent shops.
-- Train playbooks on ICE + incoming Chinese EV packs (BMS UDS, SOH-oriented live data).
+- RAG: `pgvector` + existing LLM API over scraped/imported public TSBs/manuals plus the first verified closeouts.
+- Onboard ~10 trusted independent shops with the installer and the ELM327 they already own or can buy off the shelf locally. No custom boards, no issued hardware kits.
+- Playbooks for ICE + incoming Chinese EV packs (BMS UDS, SOH from parameters the adapter can already read).
 
 ### Phase 3 — Network product (months 6+)
 
 - Reputation as retrieval weight; badges only as a reflection of that weight.
 - Same-VIN revisit: next shop opens the car and sees the prior fix immediately.
-- Premium shop tools that still obey the privacy boundary: EV SOH packs, work orders (customer data local), peer help on a specific session.
+- EV SOH views that use existing live data. Peer help via channels shops already use, linked to a session. No work-order product, no custom helpdesk.
 
 ---
 
@@ -375,6 +392,6 @@ The network's advantage is accumulated *confirmed* mechanical history, not more 
 | Document | Use |
 | --- | --- |
 | `.cursorrules` | Binding laws for generated code and architecture choices |
-| `docs/project.md` | Product north star: kit, shop loop, ledger, community, roadmap |
+| `docs/project.md` | Product north star: cheap-adapter software, shop loop, ledger, community, roadmap |
 
-If a change makes the kit harder to use on the bay, drops VIN history behind a scan form, sends customer PII to the cloud, or defaults to generic OBD2, it is out of scope.
+Out of scope: extra hardware, custom boards, a second adapter as a "fix," rebuilding VIN/DTC/ISO-TP/RAG/ERP/helpdesk when OSS or an API exists, VIN history hidden behind a blank scan form, customer PII in the cloud, or defaulting to generic OBD2.
