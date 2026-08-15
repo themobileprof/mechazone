@@ -1,4 +1,4 @@
-import type { HistoryResponse, Principal, Resolution, Session, Shop, Technician } from './types'
+import type { AccessRequest, HistoryResponse, Principal, Resolution, Session, Shop, Technician } from './types'
 
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(path, {
@@ -19,6 +19,34 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     throw new Error(msg || res.statusText)
   }
   return res.json() as Promise<T>
+}
+
+export function requestAccess(body: {
+  applicant_name: string
+  contact_email: string
+  contact_phone: string
+  shop_name: string
+  city: string
+  country: string
+  kind: 'shop' | 'freelancer'
+  note: string
+  website?: string
+}) {
+  return api<{ status: string; already_queued?: boolean }>('/api/v1/access-requests', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export function listAccessRequests() {
+  return api<AccessRequest[]>('/api/v1/admin/access-requests')
+}
+
+export function setAccessRequestStatus(id: string, status: AccessRequest['status']) {
+  return api<AccessRequest>(`/api/v1/admin/access-requests/${id}/status`, {
+    method: 'POST',
+    body: JSON.stringify({ status }),
+  })
 }
 
 export function login(email: string, password: string) {

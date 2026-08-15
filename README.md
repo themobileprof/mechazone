@@ -11,7 +11,7 @@ On the bay laptop, run the installer **once**, then double-click **Mechazone**.
 
 Full picture-by-picture guide: **[docs/install.md](docs/install.md)**
 
-First login is the seeded super admin (`admin@mechazone.local` / `change-me-now`). That account adds shops and issues technician/freelancer logins. Technicians then sign in to use the bay. There is no self-signup.
+The public page is a conversion landing: shops request registration. There is no self-signup. Super admin (`admin@mechazone.local` / `change-me-now`) issues logins from those tickets via **Issued a login?**
 
 ## Developer loop
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Admin } from './Admin'
 import { me } from './api'
 import { Bay } from './Bay'
-import { Login } from './Login'
+import { Landing } from './Landing'
 import type { Principal } from './types'
 
 export default function App() {
@@ -24,7 +24,7 @@ export default function App() {
     )
   }
   if (!user) {
-    return <Login onAuthed={setUser} />
+    return <Landing onAuthed={setUser} />
   }
   if (user.role === 'super_admin') {
     return <Admin user={user} onLogout={() => setUser(null)} />

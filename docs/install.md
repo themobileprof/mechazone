@@ -73,7 +73,7 @@ For a real car on Windows, also install the [Tactrix OpenPort drivers](https://w
 ## First login (every shop)
 
 1. Start Mechazone (Desktop icon, or `scripts/start-mechazone.sh` on Linux).
-2. A browser window should open to `http://127.0.0.1:8080`.
+2. A browser window should open to `http://127.0.0.1:8080`. The public page is a landing page — request access, or click **Issued a login?**
 3. Sign in with the seeded super admin:
 
 | | |

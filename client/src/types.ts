@@ -9,6 +9,22 @@ export type Principal = {
   freelancer: boolean
 }
 
+export type AccessRequest = {
+  id: string
+  applicant_name: string
+  contact_email: string
+  contact_phone: string
+  shop_name: string
+  city: string
+  country: string
+  kind: 'shop' | 'freelancer'
+  note: string
+  status: 'pending' | 'provisioned' | 'dismissed'
+  created_at: string
+  reviewed_at?: string
+  already_queued?: boolean
+}
+
 export type Shop = {
   id: string
   name: string

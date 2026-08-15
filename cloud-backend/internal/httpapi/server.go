@@ -13,19 +13,23 @@ import (
 )
 
 type Server struct {
-	cfg    config.Config
-	store  *ledger.Store
-	vins   *vin.Resolver
-	log    *slog.Logger
+	cfg         config.Config
+	store       *ledger.Store
+	vins        *vin.Resolver
+	log         *slog.Logger
+	accessLimit *requestLimiter
 }
 
 func New(cfg config.Config, store *ledger.Store, vins *vin.Resolver, log *slog.Logger) http.Handler {
-	s := &Server{cfg: cfg, store: store, vins: vins, log: log}
+	s := &Server{cfg: cfg, store: store, vins: vins, log: log, accessLimit: newRequestLimiter()}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.health)
 	mux.HandleFunc("POST /api/v1/auth/login", s.login)
 	mux.HandleFunc("POST /api/v1/auth/logout", s.logout)
 	mux.HandleFunc("GET /api/v1/auth/me", s.requireAuth(s.me))
+	mux.HandleFunc("POST /api/v1/access-requests", s.createAccessRequest)
+	mux.HandleFunc("GET /api/v1/admin/access-requests", s.requireAdmin(s.listAccessRequests))
+	mux.HandleFunc("POST /api/v1/admin/access-requests/{id}/status", s.requireAdmin(s.setAccessRequestStatus))
 	mux.HandleFunc("GET /api/v1/admin/shops", s.requireAdmin(s.listShops))
 	mux.HandleFunc("POST /api/v1/admin/shops", s.requireAdmin(s.createShop))
 	mux.HandleFunc("GET /api/v1/admin/technicians", s.requireAdmin(s.listTechnicians))

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { createShop, createTechnician, listShops, listTechnicians, logout } from './api'
-import type { Principal, Shop, Technician } from './types'
+import { createShop, createTechnician, listAccessRequests, listShops, listTechnicians, logout, setAccessRequestStatus } from './api'
+import type { AccessRequest, Principal, Shop, Technician } from './types'
 
 export function Admin({ user, onLogout }: { user: Principal; onLogout: () => void }) {
   const [shops, setShops] = useState<Shop[]>([])
   const [techs, setTechs] = useState<Technician[]>([])
+  const [requests, setRequests] = useState<AccessRequest[]>([])
   const [error, setError] = useState<string | null>(null)
   const [shopName, setShopName] = useState('')
   const [shopCity, setShopCity] = useState('')
@@ -15,9 +16,10 @@ export function Admin({ user, onLogout }: { user: Principal; onLogout: () => voi
   const [shopId, setShopId] = useState('')
 
   async function refresh() {
-    const [s, t] = await Promise.all([listShops(), listTechnicians()])
+    const [s, t, a] = await Promise.all([listShops(), listTechnicians(), listAccessRequests()])
     setShops(s)
     setTechs(t)
+    setRequests(a)
   }
 
   useEffect(() => {
@@ -37,8 +39,68 @@ export function Admin({ user, onLogout }: { user: Principal; onLogout: () => voi
           <button className="border border-steel/40 px-3 py-2" onClick={() => void logout().then(onLogout)}>SIGN OUT</button>
         </div>
       </header>
-      <p className="mb-6 max-w-2xl text-steel">You provision shops and technicians (including freelancers). They sign in with the email and password you set. Nobody self-registers.</p>
+      <p className="mb-6 max-w-2xl text-steel">You provision shops and technicians (including freelancers). The public page collects tickets — you issue the login. Nobody self-registers.</p>
       {error && <p className="mb-4 border border-fault/40 bg-fault/10 px-3 py-2 text-fault">{error}</p>}
+
+      <section className="mb-6 border border-brass/20 bg-panel p-5">
+        <h2 className="font-mono text-sm tracking-[0.25em] text-brass">ACCESS TICKETS</h2>
+        <p className="mt-2 text-sm text-steel">Landing-page requests. Issue a shop and login, then mark provisioned.</p>
+        {requests.length === 0 && <p className="mt-4 font-mono text-xs text-steel">No tickets yet.</p>}
+        <ol className="mt-4 space-y-3">
+          {requests.map((req) => (
+            <li key={req.id} className="border border-steel/20 px-3 py-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="font-semibold">{req.applicant_name}</p>
+                  <p className="font-mono text-xs text-steel">
+                    {req.contact_email}
+                    {req.contact_phone ? ` · ${req.contact_phone}` : ''}
+                    {' · '}
+                    {req.kind === 'freelancer' ? 'freelancer' : req.shop_name}
+                    {' · '}
+                    {req.city}, {req.country}
+                  </p>
+                  {req.note && <p className="mt-1 text-sm text-steel">{req.note}</p>}
+                </div>
+                <p className="font-mono text-[11px] tracking-[0.15em] text-brass">{req.status.toUpperCase()}</p>
+              </div>
+              {req.status === 'pending' && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    className="border border-brass/40 px-3 py-2 font-mono text-[11px] text-brass"
+                    type="button"
+                    onClick={() => {
+                      setFullName(req.applicant_name)
+                      setEmail(req.contact_email)
+                      if (req.kind === 'shop' && req.shop_name) {
+                        setShopName(req.shop_name)
+                        setShopCity(req.city)
+                        setShopCountry(req.country)
+                      }
+                    }}
+                  >
+                    FILL FORMS
+                  </button>
+                  <button
+                    className="bg-paper px-3 py-2 font-mono text-[11px] font-semibold text-oil"
+                    type="button"
+                    onClick={() => void setAccessRequestStatus(req.id, 'provisioned').then(refresh).catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))}
+                  >
+                    MARK ISSUED
+                  </button>
+                  <button
+                    className="border border-steel/40 px-3 py-2 font-mono text-[11px] text-steel"
+                    type="button"
+                    onClick={() => void setAccessRequestStatus(req.id, 'dismissed').then(refresh).catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))}
+                  >
+                    DISMISS
+                  </button>
+                </div>
+              )}
+            </li>
+          ))}
+        </ol>
+      </section>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="border border-brass/20 bg-panel p-5">
