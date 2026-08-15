@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"mechazone/cloud-backend/internal/config"
@@ -14,12 +15,12 @@ import (
 type Server struct {
 	cfg    config.Config
 	store  *ledger.Store
-	vpic   *vin.Client
+	vins   *vin.Resolver
 	log    *slog.Logger
 }
 
-func New(cfg config.Config, store *ledger.Store, vpic *vin.Client, log *slog.Logger) http.Handler {
-	s := &Server{cfg: cfg, store: store, vpic: vpic, log: log}
+func New(cfg config.Config, store *ledger.Store, vins *vin.Resolver, log *slog.Logger) http.Handler {
+	s := &Server{cfg: cfg, store: store, vins: vins, log: log}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.health)
 	mux.HandleFunc("POST /api/v1/auth/login", s.login)
@@ -34,7 +35,7 @@ func New(cfg config.Config, store *ledger.Store, vpic *vin.Client, log *slog.Log
 	mux.HandleFunc("GET /api/v1/dtcs/{code}", s.requireAuth(s.lookupDTC))
 	mux.HandleFunc("POST /api/v1/sessions", s.requireTechnician(s.ingestSession))
 	mux.HandleFunc("POST /api/v1/sessions/{id}/closeout", s.requireTechnician(s.closeout))
-	return withCORS(withLog(log, mux))
+	return withCORS(withLog(log, withUI(cfg.UIDir, mux)))
 }
 
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
@@ -43,6 +44,10 @@ func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 
 func withLog(log *slog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/healthz" {
+			next.ServeHTTP(w, r)
+			return
+		}
 		start := time.Now()
 		next.ServeHTTP(w, r)
 		log.Info("http", "method", r.Method, "path", r.URL.Path, "dur_ms", time.Since(start).Milliseconds())

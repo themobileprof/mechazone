@@ -96,13 +96,6 @@ func (s *Store) Migrate(ctx context.Context) error {
 }
 
 func (s *Store) SeedDTCs(ctx context.Context, path string) error {
-	var n int
-	if err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM dtc_codes`).Scan(&n); err != nil {
-		return err
-	}
-	if n > 0 {
-		return nil
-	}
 	f, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("open dtc seed: %w", err)
@@ -131,7 +124,8 @@ func (s *Store) SeedDTCs(ctx context.Context, path string) error {
 		title := row[idx["title"]]
 		source := row[idx["source"]]
 		batch.Queue(
-			`INSERT INTO dtc_codes (code, category, title, source) VALUES ($1, $2, $3, $4) ON CONFLICT (code) DO NOTHING`,
+			`INSERT INTO dtc_codes (code, category, title, source) VALUES ($1, $2, $3, $4)
+			 ON CONFLICT (code) DO UPDATE SET title = EXCLUDED.title, category = EXCLUDED.category, source = EXCLUDED.source`,
 			code, category, title, source,
 		)
 	}

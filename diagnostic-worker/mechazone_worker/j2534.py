@@ -6,6 +6,7 @@ import ctypes
 import os
 import sys
 from ctypes import POINTER, c_char_p, c_ulong, c_void_p, c_ubyte
+from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional
 
@@ -60,9 +61,15 @@ def _default_lib_candidates() -> list[str]:
         return ["openport.dll"]
     return [
         "libopenport.so",
+        "libj2534.so",
+        "j2534.so",
+        "/usr/local/lib/libj2534.so",
+        "/usr/local/lib/j2534.so",
         "/usr/lib/libopenport.so",
         "/usr/local/lib/libopenport.so",
         "/usr/lib/j2534/libopenport.so",
+        str(Path(__file__).resolve().parents[2] / "third_party" / "j2534" / "j2534" / "j2534.so"),
+        str(Path(__file__).resolve().parents[2] / "third_party" / "j2534" / "j2534" / "libj2534.so"),
     ]
 
 

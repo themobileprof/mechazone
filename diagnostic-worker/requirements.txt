@@ -1,2 +1,4 @@
 udsoncan==1.25.1
 websockets==14.2
+python-can==4.5.0
+can-isotp==2.0.6

@@ -51,7 +51,7 @@ func (s *Server) decodeVIN(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 	defer cancel()
-	dec, err := s.vpic.Decode(ctx, v)
+	dec, err := s.vins.Decode(ctx, v)
 	if err != nil {
 		s.log.Warn("vpic", "err", err, "vin", v)
 		writeError(w, http.StatusBadGateway, "vpic unavailable")
@@ -147,7 +147,7 @@ func (s *Server) ingestSession(w http.ResponseWriter, r *http.Request) {
 	}
 	if !hit {
 		ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
-		dec, decErr := s.vpic.Decode(ctx, in.VIN)
+		dec, decErr := s.vins.Decode(ctx, in.VIN)
 		cancel()
 		if decErr != nil {
 			s.log.Warn("vpic on ingest", "err", decErr, "vin", in.VIN)

@@ -1,48 +1,468 @@
 code,category,title,source
-P0001,sae_p0,Fuel Volume Regulator Control Circuit/Open,sae_j2012_public
-P0002,sae_p0,Fuel Volume Regulator Control Circuit Range/Performance,sae_j2012_public
-P0100,sae_p0,Mass or Volume Air Flow Circuit Malfunction,sae_j2012_public
-P0101,sae_p0,Mass or Volume Air Flow Circuit Range/Performance,sae_j2012_public
-P0102,sae_p0,Mass or Volume Air Flow Circuit Low Input,sae_j2012_public
-P0103,sae_p0,Mass or Volume Air Flow Circuit High Input,sae_j2012_public
-P0110,sae_p0,Intake Air Temperature Circuit Malfunction,sae_j2012_public
-P0115,sae_p0,Engine Coolant Temperature Circuit Malfunction,sae_j2012_public
-P0117,sae_p0,Engine Coolant Temperature Circuit Low Input,sae_j2012_public
-P0118,sae_p0,Engine Coolant Temperature Circuit High Input,sae_j2012_public
-P0120,sae_p0,Throttle/Pedal Position Sensor A Circuit Malfunction,sae_j2012_public
-P0128,sae_p0,Coolant Thermostat (Coolant Temperature Below Thermostat Regulating Temperature),sae_j2012_public
-P0130,sae_p0,O2 Sensor Circuit Malfunction (Bank 1 Sensor 1),sae_j2012_public
-P0135,sae_p0,O2 Sensor Heater Circuit Malfunction (Bank 1 Sensor 1),sae_j2012_public
-P0171,sae_p0,System Too Lean (Bank 1),sae_j2012_public
-P0172,sae_p0,System Too Rich (Bank 1),sae_j2012_public
-P0201,sae_p0,Injector Circuit/Open - Cylinder 1,sae_j2012_public
-P0202,sae_p0,Injector Circuit/Open - Cylinder 2,sae_j2012_public
-P0203,sae_p0,Injector Circuit/Open - Cylinder 3,sae_j2012_public
-P0204,sae_p0,Injector Circuit/Open - Cylinder 4,sae_j2012_public
-P0300,sae_p0,Random/Multiple Cylinder Misfire Detected,sae_j2012_public
-P0301,sae_p0,Cylinder 1 Misfire Detected,sae_j2012_public
-P0302,sae_p0,Cylinder 2 Misfire Detected,sae_j2012_public
-P0303,sae_p0,Cylinder 3 Misfire Detected,sae_j2012_public
-P0304,sae_p0,Cylinder 4 Misfire Detected,sae_j2012_public
-P0325,sae_p0,Knock Sensor 1 Circuit Malfunction (Bank 1 or Single Sensor),sae_j2012_public
-P0335,sae_p0,Crankshaft Position Sensor A Circuit Malfunction,sae_j2012_public
-P0340,sae_p0,Camshaft Position Sensor A Circuit Malfunction (Bank 1 or Single Sensor),sae_j2012_public
-P0401,sae_p0,Exhaust Gas Recirculation Flow Insufficient Detected,sae_j2012_public
-P0420,sae_p0,Catalyst System Efficiency Below Threshold (Bank 1),sae_j2012_public
-P0440,sae_p0,Evaporative Emission Control System Malfunction,sae_j2012_public
-P0442,sae_p0,Evaporative Emission Control System Leak Detected (Small Leak),sae_j2012_public
-P0455,sae_p0,Evaporative Emission Control System Leak Detected (Gross Leak),sae_j2012_public
-P0500,sae_p0,Vehicle Speed Sensor A Malfunction,sae_j2012_public
-P0506,sae_p0,Idle Control System RPM Lower Than Expected,sae_j2012_public
-P0507,sae_p0,Idle Control System RPM Higher Than Expected,sae_j2012_public
-P0560,sae_p0,System Voltage Malfunction,sae_j2012_public
-P0562,sae_p0,System Voltage Low,sae_j2012_public
-P0563,sae_p0,System Voltage High,sae_j2012_public
-P0600,sae_p0,Serial Communication Link Malfunction,sae_j2012_public
-P0606,sae_p0,ECM/PCM Processor Fault,sae_j2012_public
-P0700,sae_p0,Transmission Control System Malfunction,sae_j2012_public
-U0100,sae_p0,Lost Communication With ECM/PCM A,sae_j2012_public
-U0101,sae_p0,Lost Communication With TCM,sae_j2012_public
-U0121,sae_p0,Lost Communication With Anti-Lock Brake System Control Module,sae_j2012_public
-U0140,sae_p0,Lost Communication With Body Control Module,sae_j2012_public
-U011B,sae_p0,Lost Communication With Rocker Arm Actuator Control Module,sae_j2012_public
+P0100,sae_p0,Mass or Volume Air Flow Circuit Malfunction,todrobbins_dtcdb_public
+P0101,sae_p0,Mass or Volume Air Flow Circuit Range/Performance Problem,todrobbins_dtcdb_public
+P0102,sae_p0,Mass or Volume Air Flow Circuit Low Input,todrobbins_dtcdb_public
+P0103,sae_p0,Mass or Volume Air Flow Circuit High Input,todrobbins_dtcdb_public
+P0104,sae_p0,Mass or Volume Air Flow Circuit Intermittent,todrobbins_dtcdb_public
+P0105,sae_p0,Manifold Absolute Pressure/Barometric Pressure Circuit Malfunction,todrobbins_dtcdb_public
+P0106,sae_p0,Manifold Absolute Pressure/Barometric Pressure Circuit Range/Performance Problem,todrobbins_dtcdb_public
+P0107,sae_p0,Manifold Absolute Pressure/Barometric Pressure Circuit Low Input,todrobbins_dtcdb_public
+P0108,sae_p0,Manifold Absolute Pressure/Barometric Pressure Circuit High Input,todrobbins_dtcdb_public
+P0109,sae_p0,Intake Air Temperature Circuit Malfunction,todrobbins_dtcdb_public
+P0111,sae_p0,Intake Air Temperature Circuit Range/Performance Problem,todrobbins_dtcdb_public
+P0112,sae_p0,Intake Air Temperature Circuit Low Input,todrobbins_dtcdb_public
+P0113,sae_p0,Intake Air Temperature Circuit High Input,todrobbins_dtcdb_public
+P0114,sae_p0,Intake Air Temperature Circuit Intermittent,todrobbins_dtcdb_public
+P0115,sae_p0,Engine Coolant Temperature Circuit Malfunction,todrobbins_dtcdb_public
+P0116,sae_p0,Engine Coolant Temperature Circuit Range/Performance Problem,todrobbins_dtcdb_public
+P0117,sae_p0,Engine Coolant Temperature Circuit Low Input,todrobbins_dtcdb_public
+P0118,sae_p0,Engine Coolant Temperature Circuit High Input,todrobbins_dtcdb_public
+P0119,sae_p0,Engine Coolant Temperature Circuit Intermittent,todrobbins_dtcdb_public
+P0120,sae_p0,Throttle/Petal Position Sensor/Switch A Circuit Malfunction,todrobbins_dtcdb_public
+P0121,sae_p0,Throttle/Petal Position Sensor/Switch A Circuit Range/Performance Problem,todrobbins_dtcdb_public
+P0122,sae_p0,Throttle/Petal Position Sensor/Switch A Circuit Low Input,todrobbins_dtcdb_public
+P0123,sae_p0,Throttle/Petal Position Sensor/Switch A Circuit High Input,todrobbins_dtcdb_public
+P0124,sae_p0,Throttle/Petal Position Sensor/Switch A Circuit Intermittent,todrobbins_dtcdb_public
+P0125,sae_p0,Insufficient Coolant Temperature for Closed Loop Fuel Control,todrobbins_dtcdb_public
+P0126,sae_p0,Insufficient Coolant Temperature for Stable Operation,todrobbins_dtcdb_public
+P0130,sae_p0,02 Sensor Circuit Malfunction (Bank I Sensor 1),todrobbins_dtcdb_public
+P0131,sae_p0,02 Sensor Circuit Low Voltage (Bank I Sensor I),todrobbins_dtcdb_public
+P0132,sae_p0,02 Sensor Circuit High Voltage (Bank I Sensor 1),todrobbins_dtcdb_public
+P0133,sae_p0,02 Sensor Circuit Slow Response (Bank 1 Sensor 1),todrobbins_dtcdb_public
+P0134,sae_p0,02 Sensor Circuit No Activity Detected (Bank I Sensor 1),todrobbins_dtcdb_public
+P0135,sae_p0,02 Sensor Heater Circuit Malfunction (Bank 1 Sensor 1),todrobbins_dtcdb_public
+P0136,sae_p0,02 Sensor Circuit Malfunction (Bank I Sensor 2),todrobbins_dtcdb_public
+P0137,sae_p0,02 Sensor Circuit Low Voltage (Bank I Sensor 2),todrobbins_dtcdb_public
+P0138,sae_p0,02 Sensor Circuit High Voltage (Bank I Sensor 2),todrobbins_dtcdb_public
+P0139,sae_p0,02 Sensor Circuit Slow Response (Bank 1 Sensor 2),todrobbins_dtcdb_public
+P0140,sae_p0,02 Sensor Circuit No Activity Detected (Bank 1 Sensor 2),todrobbins_dtcdb_public
+P0141,sae_p0,02 Sensor Heater Circuit Malfunction (Bank 1 Sensor 2),todrobbins_dtcdb_public
+P0142,sae_p0,02 Sensor Circuit Malfunction (Bank I Sensor 3),todrobbins_dtcdb_public
+P0143,sae_p0,02 Sensor Circuit Low Voltage (Bank I Sensor 3),todrobbins_dtcdb_public
+P0144,sae_p0,02 Sensor Circuit High Voltage (Bank I Sensor 3),todrobbins_dtcdb_public
+P0145,sae_p0,02 Sensor Circuit Slow Response (Bank 1 Sensor 3),todrobbins_dtcdb_public
+P0146,sae_p0,02 Sensor Circuit No Activity Detected (Bank I Sensor 3),todrobbins_dtcdb_public
+P0147,sae_p0,02 Sensor Heater Circuit Malfunction (Bank I Sensor 3),todrobbins_dtcdb_public
+P0150,sae_p0,02 Sensor Circuit Malfunction (Bank 2 Sensor I),todrobbins_dtcdb_public
+P0151,sae_p0,02 Sensor Circuit Low Voltage (Bank 2 Sensor I),todrobbins_dtcdb_public
+P0152,sae_p0,02 Sensor Circuit High Voltage (Bank 2 Sensor 1),todrobbins_dtcdb_public
+P0153,sae_p0,02 Sensor Circuit Slow Response (Bank 2 Sensor 1),todrobbins_dtcdb_public
+P0154,sae_p0,02 Sensor Circuit No Activity Detected (Bank 2 Sensor 1),todrobbins_dtcdb_public
+P0155,sae_p0,02 Sensor Heater Circuit Malfunction (Bank 2 Sensor 1),todrobbins_dtcdb_public
+P0156,sae_p0,02 Sensor Circuit Malfunction (Bank 2 Sensor 2),todrobbins_dtcdb_public
+P0157,sae_p0,02 Sensor Circuit Low Voltage (Bank 2 Sensor 2),todrobbins_dtcdb_public
+P0158,sae_p0,02 Sensor Circuit High Voltage (Bank 2 Sensor 2),todrobbins_dtcdb_public
+P0159,sae_p0,02 Sensor Circuit Slow Response (Bank 2 Sensor 2),todrobbins_dtcdb_public
+P0160,sae_p0,02 Sensor Circuit No Activity Detected (Bank 2 Sensor 2),todrobbins_dtcdb_public
+P0161,sae_p0,02 Sensor Heater Circuit Malfunction (Bank 2 Sensor 2),todrobbins_dtcdb_public
+P0162,sae_p0,02 Sensor Circuit Malfunction (Bank 2 Sensor 3),todrobbins_dtcdb_public
+P0163,sae_p0,02 Sensor Circuit Low Voltage (Bank 2 Sensor 3),todrobbins_dtcdb_public
+P0164,sae_p0,02 Sensor Circuit High Voltage (Bank 2 Sensor 3),todrobbins_dtcdb_public
+P0165,sae_p0,02 Sensor Circuit Slow Response (Bank 2 Sensor 3),todrobbins_dtcdb_public
+P0166,sae_p0,02 Sensor Circuit No Activity Detected (Bank 2 Sensor 3),todrobbins_dtcdb_public
+P0167,sae_p0,02 Sensor Heater Circuit Malfunction (Bank 2 Sensor 3),todrobbins_dtcdb_public
+P0170,sae_p0,Fuel Trim Malfunction (Bank 1),todrobbins_dtcdb_public
+P0171,sae_p0,System too Lean (Bank 1),todrobbins_dtcdb_public
+P0172,sae_p0,System too Rich (Bank 1),todrobbins_dtcdb_public
+P0173,sae_p0,Fuel Trim Malfunction (Bank 2),todrobbins_dtcdb_public
+P0174,sae_p0,System too Lean (Bank 2)P0175 System too Rich (Bank 2),todrobbins_dtcdb_public
+P0176,sae_p0,Fuel Composition Sensor Circuit Malfunction,todrobbins_dtcdb_public
+P0177,sae_p0,Fuel Composition Sensor Circuit Range/Performance,todrobbins_dtcdb_public
+P0178,sae_p0,Fuel Composition Sensor Circuit Low Input,todrobbins_dtcdb_public
+P0179,sae_p0,Fuel Composition Sensor Circuit High Input,todrobbins_dtcdb_public
+P0180,sae_p0,Fuel Temperature Sensor A Circuit Malfunction,todrobbins_dtcdb_public
+P0181,sae_p0,Fuel Temperature Sensor A Circuit Range/Performance,todrobbins_dtcdb_public
+P0182,sae_p0,Fuel Temperature Sensor A Circuit Low Input,todrobbins_dtcdb_public
+P0183,sae_p0,Fuel Temperature Sensor A Circuit High Input,todrobbins_dtcdb_public
+P0184,sae_p0,Fuel Temperature Sensor A Circuit Intermittent,todrobbins_dtcdb_public
+P0185,sae_p0,Fuel Temperature Sensor B Circuit Malfunction,todrobbins_dtcdb_public
+P0186,sae_p0,Fuel Temperature Sensor B Circuit Range/Performance,todrobbins_dtcdb_public
+P0187,sae_p0,Fuel Temperature Sensor B Circuit Low Input,todrobbins_dtcdb_public
+P0188,sae_p0,Fuel Temperature Sensor B Circuit High Input,todrobbins_dtcdb_public
+P0189,sae_p0,Fuel Temperature Sensor B Circuit Intermittent,todrobbins_dtcdb_public
+P0190,sae_p0,Fuel Rail Pressure Sensor Circuit Malfunction,todrobbins_dtcdb_public
+P0191,sae_p0,Fuel Rail Pressure Sensor Circuit Range/Performance,todrobbins_dtcdb_public
+P0192,sae_p0,Fuel Rail Pressure Sensor Circuit Low Input,todrobbins_dtcdb_public
+P0193,sae_p0,Fuel Rail Pressure Sensor Circuit High Input,todrobbins_dtcdb_public
+P0194,sae_p0,Fuel Rail Pressure Sensor Circuit Intermittent,todrobbins_dtcdb_public
+P0195,sae_p0,Engine Oil Temperature Sensor Malfunction,todrobbins_dtcdb_public
+P0196,sae_p0,Engine Oil Temperature Sensor Range/Performance,todrobbins_dtcdb_public
+P0197,sae_p0,Engine Oil Temperature Sensor Low,todrobbins_dtcdb_public
+P0198,sae_p0,Engine Oil Temperature Sensor High,todrobbins_dtcdb_public
+P0199,sae_p0,Engine Oil Temperature Sensor Intermittent,todrobbins_dtcdb_public
+P0200,sae_p0,Injector Circuit Malfunction,todrobbins_dtcdb_public
+P0201,sae_p0,Injector Circuit Malfunction - Cylinder 1,todrobbins_dtcdb_public
+P0202,sae_p0,Injector Circuit Malfunction - Cylinder 2,todrobbins_dtcdb_public
+P0203,sae_p0,Injector Circuit Malfunction - Cylinder 3,todrobbins_dtcdb_public
+P0204,sae_p0,Injector Circuit Malfunction - Cylinder 4,todrobbins_dtcdb_public
+P0205,sae_p0,Injector Circuit Malfunction - Cylinder 5,todrobbins_dtcdb_public
+P0206,sae_p0,Injector Circuit Malfunction - Cylinder 6,todrobbins_dtcdb_public
+P0207,sae_p0,Injector Circuit Malfunction - Cylinder 7,todrobbins_dtcdb_public
+P0208,sae_p0,Injector Circuit Malfunction - Cylinder 8,todrobbins_dtcdb_public
+P0209,sae_p0,Injector Circuit Malfunction - Cylinder 9,todrobbins_dtcdb_public
+P0210,sae_p0,Injector Circuit Malfunction - Cylinder 10,todrobbins_dtcdb_public
+P0211,sae_p0,Injector Circuit Malfunction - Cylinder 11,todrobbins_dtcdb_public
+P0212,sae_p0,Injector Circuit Malfunction - Cylinder 12,todrobbins_dtcdb_public
+P0213,sae_p0,Cold Start Injector 1 Malfunction,todrobbins_dtcdb_public
+P0214,sae_p0,Cold Start Injector 2 Malfunction,todrobbins_dtcdb_public
+P0215,sae_p0,Engine Shutoff Solenoid Malfunction,todrobbins_dtcdb_public
+P0216,sae_p0,Injection Timing Control Circuit Malfunction,todrobbins_dtcdb_public
+P0217,sae_p0,Engine Overtemp Condition,todrobbins_dtcdb_public
+P0218,sae_p0,Transmission Over Temperature Condition,todrobbins_dtcdb_public
+P0219,sae_p0,Engine Overspeed Condition,todrobbins_dtcdb_public
+P0220,sae_p0,Throttle/Petal Position Sensor/Switch B Circuit Malfunction,todrobbins_dtcdb_public
+P0221,sae_p0,Throttle/Petal Position Sensor/Switch B Circuit Range/Performance Problem,todrobbins_dtcdb_public
+P0222,sae_p0,Throttle/Petal Position Sensor/Switch B Circuit Low Input,todrobbins_dtcdb_public
+P0223,sae_p0,Throttle/Petal Position Sensor/Switch B Circuit High Input,todrobbins_dtcdb_public
+P0224,sae_p0,Throttle/Petal Position Sensor/Switch B Circuit Intermittent,todrobbins_dtcdb_public
+P0225,sae_p0,Throttle/Petal Position Sensor/Switch C Circuit Malfunction,todrobbins_dtcdb_public
+P0226,sae_p0,Throttle/Petal Position Sensor/Switch C Circuit Range/Performance Problem,todrobbins_dtcdb_public
+P0227,sae_p0,Throttle/Petal Position Sensor/Switch C Circuit Low Input,todrobbins_dtcdb_public
+P0228,sae_p0,Throttle/Petal Position Sensor/Switch C Circuit High Input,todrobbins_dtcdb_public
+P0229,sae_p0,Throttle/Petal Position Sensor/Switch C Circuit Intermittent,todrobbins_dtcdb_public
+P0230,sae_p0,Fuel Pump Primary Circuit Malfunction,todrobbins_dtcdb_public
+P0231,sae_p0,Fuel Pump Secondary Circuit Low,todrobbins_dtcdb_public
+P0232,sae_p0,Fuel Pump Secondary Circuit High,todrobbins_dtcdb_public
+P0233,sae_p0,Fuel Pump Secondary Circuit Intermittent,todrobbins_dtcdb_public
+P0234,sae_p0,Engine Overboost Condition,todrobbins_dtcdb_public
+P0235,sae_p0,Turbocharger Boost Sensor A Circuit Malfunction,todrobbins_dtcdb_public
+P0236,sae_p0,Turbocharger Boost Sensor A Circuit Range/Performance,todrobbins_dtcdb_public
+P0237,sae_p0,Turbocharger Boost Sensor A Circuit Low,todrobbins_dtcdb_public
+P0238,sae_p0,Turbocharger Boost Sensor A Circuit High,todrobbins_dtcdb_public
+P0239,sae_p0,Turbocharger Boost Sensor B Malfunction,todrobbins_dtcdb_public
+P0240,sae_p0,Turbocharger Boost Sensor B Circuit Range/Performance,todrobbins_dtcdb_public
+P0241,sae_p0,Turbocharger Boost Sensor B Circuit Low,todrobbins_dtcdb_public
+P0242,sae_p0,Turbocharger Boost Sensor B Circuit High,todrobbins_dtcdb_public
+P0243,sae_p0,Turbocharger Wastegate Solenoid A Malfunction,todrobbins_dtcdb_public
+P0244,sae_p0,Turbocharger Wastegate Solenoid A Range/Performance,todrobbins_dtcdb_public
+P0245,sae_p0,Turbocharger Wastegate Solenoid A Low,todrobbins_dtcdb_public
+P0246,sae_p0,Turbocharger Wastegate Solenoid A High,todrobbins_dtcdb_public
+P0247,sae_p0,Turbocharger Wastegate Solenoid B Malfunction,todrobbins_dtcdb_public
+P0248,sae_p0,Turbocharger Wastegate Solenoid B Range/Performance,todrobbins_dtcdb_public
+P0249,sae_p0,Turbocharger Wastegate Solenoid B Low,todrobbins_dtcdb_public
+P0250,sae_p0,Turbocharger Wastegate Solenoid B High,todrobbins_dtcdb_public
+P0251,sae_p0,"Injection Pump Fuel Metering Control ""A"" Malfunction (Cam/Rotor/Injector)",todrobbins_dtcdb_public
+P0252,sae_p0,"Injection Pump Fuel Metering Control ""A"" Range/Performance (Cam/Rotor/Injector)",todrobbins_dtcdb_public
+P0253,sae_p0,"Injection Pump Fuel Metering Control ""A"" Low (Cam/Rotor/Injector)",todrobbins_dtcdb_public
+P0254,sae_p0,"Injection Pump Fuel Metering Control ""A"" High (Cam/Rotor/Injector)",todrobbins_dtcdb_public
+P0255,sae_p0,"Injection Pump Fuel Metering Control ""A"" Intermittent (Cam/Rotor/Injector)",todrobbins_dtcdb_public
+P0256,sae_p0,"Injection Pump Fuel Metering Control ""B"" Malfunction (Cam/Rotor/Injector)",todrobbins_dtcdb_public
+P0257,sae_p0,"Injection Pump Fuel Metering Control ""B"" Range/Performance Injector)",todrobbins_dtcdb_public
+P0258,sae_p0,"Injection Pump Fuel Metering Control ""B"" Low (Cam/R",todrobbins_dtcdb_public
+P0259,sae_p0,"Injection Pump Fuel Metering Control ""B"" High (Cam/R",todrobbins_dtcdb_public
+P0260,sae_p0,"Injection Pump Fuel Metering Control ""B"" Intermittent Injector)",todrobbins_dtcdb_public
+P0261,sae_p0,Cylinder I Injector Circuit Low,todrobbins_dtcdb_public
+P0262,sae_p0,Cylinder I Injector Circuit High,todrobbins_dtcdb_public
+P0263,sae_p0,Cylinder I Contribution/Balance Fault,todrobbins_dtcdb_public
+P0264,sae_p0,Cylinder 2 Injector Circuit Low,todrobbins_dtcdb_public
+P0265,sae_p0,Cylinder 2 Injector Circuit High,todrobbins_dtcdb_public
+P0266,sae_p0,Cylinder 2 Contribution/Balance Fault,todrobbins_dtcdb_public
+P0267,sae_p0,Cylinder 3 Injector Circuit Low,todrobbins_dtcdb_public
+P0268,sae_p0,Cylinder 3 Injector Circuit High,todrobbins_dtcdb_public
+P0269,sae_p0,Cylinder 3 Contribution/Balance Fault,todrobbins_dtcdb_public
+P0270,sae_p0,Cylinder 4 Injector Circuit Low,todrobbins_dtcdb_public
+P0271,sae_p0,Cylinder 4 Injector Circuit High,todrobbins_dtcdb_public
+P0272,sae_p0,Cylinder 4 Contribution/Balance Fault,todrobbins_dtcdb_public
+P0273,sae_p0,Cylinder 5 Injector Circuit Low,todrobbins_dtcdb_public
+P0274,sae_p0,Cylinder 5 Injector Circuit High,todrobbins_dtcdb_public
+P0275,sae_p0,Cylinder S Contribution/Balance Fault,todrobbins_dtcdb_public
+P0276,sae_p0,Cylinder 6 Injector Circuit Low,todrobbins_dtcdb_public
+P0277,sae_p0,Cylinder 6 Injector Circuit High,todrobbins_dtcdb_public
+P0278,sae_p0,Cylinder 6 Contribution/Balance Fault,todrobbins_dtcdb_public
+P0279,sae_p0,Cylinder 7 Injector Circuit Low,todrobbins_dtcdb_public
+P0280,sae_p0,Cylinder 7 Injector Circuit High,todrobbins_dtcdb_public
+P0281,sae_p0,Cylinder 7 Contribution/Balance Fault,todrobbins_dtcdb_public
+P0282,sae_p0,Cylinder 8 Injector Circuit Low,todrobbins_dtcdb_public
+P0283,sae_p0,Cylinder 8 Injector Circuit High,todrobbins_dtcdb_public
+P0284,sae_p0,Cylinder 8 Contribution/Balance Fault,todrobbins_dtcdb_public
+P0285,sae_p0,Cylinder 9 Injector Circuit Low,todrobbins_dtcdb_public
+P0286,sae_p0,Cylinder 9 Injector Circuit High,todrobbins_dtcdb_public
+P0287,sae_p0,Cylinder 9 Contribution/Balance Fault,todrobbins_dtcdb_public
+P0288,sae_p0,Cylinder 10 Injector Circuit Low,todrobbins_dtcdb_public
+P0289,sae_p0,Cylinder 10 Injector Circuit High,todrobbins_dtcdb_public
+P0290,sae_p0,Cylinder 10 Contribution/Balance Fault,todrobbins_dtcdb_public
+P0291,sae_p0,Cylinder 11 Injector Circuit Low,todrobbins_dtcdb_public
+P0292,sae_p0,Cylinder 11 Injector Circuit High,todrobbins_dtcdb_public
+P0293,sae_p0,Cylinder 11 Contribution/Balance Fault,todrobbins_dtcdb_public
+P0294,sae_p0,Cylinder 12 Injector Circuit Low,todrobbins_dtcdb_public
+P0295,sae_p0,Cylinder 12 Injector Circuit High,todrobbins_dtcdb_public
+P0296,sae_p0,Cylinder 12 Contribution/Range Fault,todrobbins_dtcdb_public
+P0300,sae_p0,Random/Multiple Cylinder Misfire Detected,todrobbins_dtcdb_public
+P0301,sae_p0,Cylinder 1 Misfire Detected,todrobbins_dtcdb_public
+P0302,sae_p0,Cylinder 2 Misfire Detected,todrobbins_dtcdb_public
+P0303,sae_p0,Cylinder 3 Misfire Detected,todrobbins_dtcdb_public
+P0304,sae_p0,Cylinder 4 Misfire Detected,todrobbins_dtcdb_public
+P0305,sae_p0,Cylinder 5 Misfire Detected,todrobbins_dtcdb_public
+P0306,sae_p0,Cylinder 6 Misfire Detected,todrobbins_dtcdb_public
+P0307,sae_p0,Cylinder 7 Misfire Detected,todrobbins_dtcdb_public
+P0308,sae_p0,Cylinder 8 Misfire Detected,todrobbins_dtcdb_public
+P0309,sae_p0,Cylinder 9 Misfire Detected,todrobbins_dtcdb_public
+P0311,sae_p0,Cylinder 11 Misfire Detected,todrobbins_dtcdb_public
+P0312,sae_p0,Cylinder 12 Misfire Detected,todrobbins_dtcdb_public
+P0320,sae_p0,Ignition/Distributor Engine Speed Input Circuit Malfunction,todrobbins_dtcdb_public
+P0321,sae_p0,Ignition/Distributor Engine Speed Input Circuit Range/Performance,todrobbins_dtcdb_public
+P0322,sae_p0,Ignition/Distributor Engine Speed Input Circuit No Signal,todrobbins_dtcdb_public
+P0323,sae_p0,Ignition/Distributor Engine Speed Input Circuit Intermittent,todrobbins_dtcdb_public
+P0325,sae_p0,Knock Sensor 1 Circuit Malfunction (Bank I or Single Sensor),todrobbins_dtcdb_public
+P0326,sae_p0,Knock Sensor 1 Circuit Range/Performance (Bank 1 or Single Sensor),todrobbins_dtcdb_public
+P0327,sae_p0,Knock Sensor 1 Circuit Low Input (Bank I or Single Sensor),todrobbins_dtcdb_public
+P0328,sae_p0,Knock Sensor 1 Circuit High Input (Bank I or Single Sensor),todrobbins_dtcdb_public
+P0329,sae_p0,Knock Sensor 1 Circuit Intermittent (Bank 1 or Single Sensor),todrobbins_dtcdb_public
+P0330,sae_p0,Knock Sensor 2 Circuit Malfunction (Bank 2),todrobbins_dtcdb_public
+P0331,sae_p0,Knock Sensor 2 Circuit Range/Performance (Bank 2),todrobbins_dtcdb_public
+P0332,sae_p0,Knock Sensor 2 Circuit Low Input (Bank 2),todrobbins_dtcdb_public
+P0333,sae_p0,Knock Sensor 2 Circuit High Input (Bank 2),todrobbins_dtcdb_public
+P0334,sae_p0,Knock Sensor 2 Circuit Intermittent (Bank 2),todrobbins_dtcdb_public
+P0335,sae_p0,Crankshaft Position Sensor A Circuit Malfunction,todrobbins_dtcdb_public
+P0336,sae_p0,Crankshaft Position Sensor A Circuit Range/Performance,todrobbins_dtcdb_public
+P0337,sae_p0,Crankshaft Position Sensor A Circuit Low Input,todrobbins_dtcdb_public
+P0338,sae_p0,Crankshaft Position Sensor A Circuit High Input,todrobbins_dtcdb_public
+P0339,sae_p0,Crankshaft Position Sensor A Circuit Intermittent,todrobbins_dtcdb_public
+P0340,sae_p0,Camshaft Position Sensor Circuit Malfunction,todrobbins_dtcdb_public
+P0341,sae_p0,Camshaft Position Sensor Circuit Range/Performance,todrobbins_dtcdb_public
+P0342,sae_p0,Camshaft Position Sensor Circuit Low Input,todrobbins_dtcdb_public
+P0343,sae_p0,Camshaft Position Sensor Circuit High Input,todrobbins_dtcdb_public
+P0344,sae_p0,Camshaft Position Sensor Circuit Intermittent,todrobbins_dtcdb_public
+P0350,sae_p0,Ignition Coil Primary/Secondary Circuit Malfunction,todrobbins_dtcdb_public
+P0351,sae_p0,Ignition Coil A Primary/Secondary Circuit Malfunction,todrobbins_dtcdb_public
+P0352,sae_p0,Ignition Coil B Primary/Secondary Circuit Malfunction,todrobbins_dtcdb_public
+P0353,sae_p0,Ignition Coil C Primary/Secondary Circuit Malfunction,todrobbins_dtcdb_public
+P0354,sae_p0,Ignition Coil D Primary/Secondary Circuit Malfunction,todrobbins_dtcdb_public
+P0355,sae_p0,Ignition Coil E Primary/Secondary Circuit Malfunction,todrobbins_dtcdb_public
+P0356,sae_p0,Ignition Coil F Primary/Secondary Circuit Malfunction,todrobbins_dtcdb_public
+P0357,sae_p0,Ignition Coil G Primary/Secondary Circuit Malfunction,todrobbins_dtcdb_public
+P0358,sae_p0,Ignition Coil H Primary/Secondary Circuit Malfunction,todrobbins_dtcdb_public
+P0359,sae_p0,Ignition Coil I Primary/Secondary Circuit Malfunction,todrobbins_dtcdb_public
+P0360,sae_p0,Ignition Coil J Primary/Secondary Circuit Malfunction,todrobbins_dtcdb_public
+P0361,sae_p0,Ignition Coil K Primary/Secondary Circuit Malfunction,todrobbins_dtcdb_public
+P0362,sae_p0,Ignition Coil L Primary/Secondary Circuit Malfunction,todrobbins_dtcdb_public
+P0370,sae_p0,Timing Reference High Resolution Signal A Malfunction,todrobbins_dtcdb_public
+P0371,sae_p0,Timing Reference High Resolution Signal A Too Many Pulses,todrobbins_dtcdb_public
+P0372,sae_p0,Timing Reference High Resolution Signal A Too Few Pulses,todrobbins_dtcdb_public
+P0373,sae_p0,Timing Reference High Resolution Signal A Intermittent/Erratic Pulses,todrobbins_dtcdb_public
+P0374,sae_p0,Timing Reference High Resolution Signal A No Pulses,todrobbins_dtcdb_public
+P0375,sae_p0,Timing Reference High Resolution Signal B Malfunction,todrobbins_dtcdb_public
+P0376,sae_p0,Timing Reference High Resolution Signal B Too Many Pulses,todrobbins_dtcdb_public
+P0377,sae_p0,Timing Reference High Resolution Signal B Too Few Pulses,todrobbins_dtcdb_public
+P0378,sae_p0,Timing Reference High Resolution Signal B Intermittent/Erratic Pulses,todrobbins_dtcdb_public
+P0379,sae_p0,Timing Reference High Resolution Signal B No Pulses,todrobbins_dtcdb_public
+P0380,sae_p0,"Glow Plug/Heater Circuit ""A"" Malfunction",todrobbins_dtcdb_public
+P0381,sae_p0,Glow Plug/Heater Indicator Circuit Malfunction,todrobbins_dtcdb_public
+P0382,sae_p0,Exhaust Gas Recirculation Flow Malfunction,todrobbins_dtcdb_public
+P0385,sae_p0,Crankshaft Position Sensor B Circuit Malfunction,todrobbins_dtcdb_public
+P0386,sae_p0,Crankshaft Position Sensor B Circuit Range/Performance,todrobbins_dtcdb_public
+P0387,sae_p0,Crankshaft Position Sensor B Circuit Low Input,todrobbins_dtcdb_public
+P0388,sae_p0,Crankshaft Position Sensor B Circuit High Input,todrobbins_dtcdb_public
+P0389,sae_p0,Crankshaft Position Sensor B Circuit Intermittent,todrobbins_dtcdb_public
+P0400,sae_p0,Exhaust Gas Recirculation Flow Malfunction,todrobbins_dtcdb_public
+P0401,sae_p0,Exhaust Gas Recirculation Flow Insufficient Detected,todrobbins_dtcdb_public
+P0402,sae_p0,Exhaust Gas Recirculation Flow Excessive Detected,todrobbins_dtcdb_public
+P0403,sae_p0,Exhaust Gas Recirculation Circuit Malfunction,todrobbins_dtcdb_public
+P0404,sae_p0,Exhaust Gas Recirculation Circuit Range/Performance,todrobbins_dtcdb_public
+P0405,sae_p0,Exhaust Gas Recirculation Sensor A Circuit Low,todrobbins_dtcdb_public
+P0406,sae_p0,Exhaust Gas Recirculation Sensor A Circuit High,todrobbins_dtcdb_public
+P0407,sae_p0,Exhaust Gas Recirculation Sensor B Circuit Low,todrobbins_dtcdb_public
+P0408,sae_p0,Exhaust Gas Recirculation Sensor B Circuit High,todrobbins_dtcdb_public
+P0410,sae_p0,Secondary Air Injection System Malfunction,todrobbins_dtcdb_public
+P0411,sae_p0,Secondary Air Injection System Incorrect Flow Detected,todrobbins_dtcdb_public
+P0412,sae_p0,Secondary Air Injection System Switching Valve A Circuit Malfunction,todrobbins_dtcdb_public
+P0413,sae_p0,Secondary Air Injection System Switching Valve A Circuit Open,todrobbins_dtcdb_public
+P0414,sae_p0,Secondary Air Injection System Switching Valve A Circuit Shorted,todrobbins_dtcdb_public
+P0415,sae_p0,Secondary Air Injection System Switching Valve B Circuit Malfunction,todrobbins_dtcdb_public
+P0416,sae_p0,Secondary Air Injection System Switching Valve B Circuit Open,todrobbins_dtcdb_public
+P0417,sae_p0,Secondary Air Injection System Switching Valve B Circuit Shorted,todrobbins_dtcdb_public
+P0418,sae_p0,"Secondary Air Injection System Relay ‘A"" Circuit Malfunction",todrobbins_dtcdb_public
+P0419,sae_p0,"Secondary Air Injection System Relay ""B’ Circuit Malfunction",todrobbins_dtcdb_public
+P0420,sae_p0,Catalyst System Efficiency Below Threshold (Bank 1),todrobbins_dtcdb_public
+P0421,sae_p0,Warm Up Catalyst Efficiency Below Threshold (Bank 1),todrobbins_dtcdb_public
+P0422,sae_p0,Main Catalyst Efficiency Below Threshold (Bank 1),todrobbins_dtcdb_public
+P0423,sae_p0,Heated Catalyst Efficiency Below Threshold (Bank 1),todrobbins_dtcdb_public
+P0424,sae_p0,Heated Catalyst Temperature Below Threshold (Bank 1),todrobbins_dtcdb_public
+P0430,sae_p0,Catalyst System Efficiency Below Threshold (Bank 2),todrobbins_dtcdb_public
+P0431,sae_p0,Warm Up Catalyst Efficiency Below Threshold (Bank 2),todrobbins_dtcdb_public
+P0432,sae_p0,Main Catalyst Efficiency Below Threshold (Bank 2),todrobbins_dtcdb_public
+P0433,sae_p0,Heated Catalyst Efficiency Below Threshold (Bank 2),todrobbins_dtcdb_public
+P0434,sae_p0,Heated Catalyst Temperature Below Threshold (Bank 2),todrobbins_dtcdb_public
+P0440,sae_p0,Evaporative Emission Control System Malfunction,todrobbins_dtcdb_public
+P0441,sae_p0,Evaporative Emission Control System Incorrect Purge Flow,todrobbins_dtcdb_public
+P0442,sae_p0,Evaporative Emission Control System Leak Detected (small leak),todrobbins_dtcdb_public
+P0443,sae_p0,Evaporative Emission Control System Purge Control Valve Circuit,todrobbins_dtcdb_public
+P0444,sae_p0,Evaporative Emission Control System Purge Control Valve Circuit,todrobbins_dtcdb_public
+P0445,sae_p0,Evaporative Emission Control System Purge Control Valve Circuit Shorted,todrobbins_dtcdb_public
+P0446,sae_p0,Evaporative Emission Control System Vent Control Circuit Malfunction,todrobbins_dtcdb_public
+P0447,sae_p0,Evaporative Emission Control System Vent Control Circuit Open,todrobbins_dtcdb_public
+P0448,sae_p0,Evaporative Emission Control System Vent Control Circuit Shorted,todrobbins_dtcdb_public
+P0449,sae_p0,Evaporative Emission Control System Vent Valve/Solenoid Circuit Malfunction,todrobbins_dtcdb_public
+P0450,sae_p0,Evaporative Emission Control System Pressure Sensor Malfunction,todrobbins_dtcdb_public
+P0451,sae_p0,Evaporative Emission Control System Pressure Sensor Range/Performance,todrobbins_dtcdb_public
+P0452,sae_p0,Evaporative Emission Control System Pressure Sensor Low Input,todrobbins_dtcdb_public
+P0453,sae_p0,Evaporative Emission Control System Pressure Sensor High Input,todrobbins_dtcdb_public
+P0454,sae_p0,Evaporative Emission Control System Pressure Sensor Intermittent,todrobbins_dtcdb_public
+P0455,sae_p0,Evaporative Emission Control System Leak Detected (gross leak),todrobbins_dtcdb_public
+P0460,sae_p0,Fuel Level Sensor Circuit Malfunction,todrobbins_dtcdb_public
+P0461,sae_p0,Fuel Level Sensor Circuit Range/Performance,todrobbins_dtcdb_public
+P0462,sae_p0,Fuel Level Sensor Circuit Low Input,todrobbins_dtcdb_public
+P0463,sae_p0,Fuel Level Sensor Circuit High Input,todrobbins_dtcdb_public
+P0464,sae_p0,Fuel Level Sensor Circuit Intermittent,todrobbins_dtcdb_public
+P0465,sae_p0,Purge Flow Sensor Circuit Malfunction,todrobbins_dtcdb_public
+P0466,sae_p0,Purge Flow Sensor Circuit Range/Performance,todrobbins_dtcdb_public
+P0467,sae_p0,Purge Flow Sensor Circuit Low Input,todrobbins_dtcdb_public
+P0468,sae_p0,Purge Flow Sensor Circuit High Input,todrobbins_dtcdb_public
+P0469,sae_p0,Purge Flow Sensor Circuit Intermittent,todrobbins_dtcdb_public
+P0470,sae_p0,Exhaust Pressure Sensor Malfunction,todrobbins_dtcdb_public
+P0471,sae_p0,Exhaust Pressure Sensor Range/Performance,todrobbins_dtcdb_public
+P0472,sae_p0,Exhaust Pressure Sensor Low,todrobbins_dtcdb_public
+P0473,sae_p0,Exhaust Pressure Sensor High,todrobbins_dtcdb_public
+P0474,sae_p0,Exhaust Pressure Sensor Intermittent,todrobbins_dtcdb_public
+P0475,sae_p0,Exhaust Pressure Control Valve Malfunction,todrobbins_dtcdb_public
+P0476,sae_p0,Exhaust Pressure Control Valve Range/Performance,todrobbins_dtcdb_public
+P0477,sae_p0,Exhaust Pressure Control Valve Low,todrobbins_dtcdb_public
+P0478,sae_p0,Exhaust Pressure Control Valve High,todrobbins_dtcdb_public
+P0479,sae_p0,Exhaust Pressure Control Valve Intermittent,todrobbins_dtcdb_public
+P0480,sae_p0,Cooling Fan I Control Circuit Malfunction,todrobbins_dtcdb_public
+P0481,sae_p0,Cooling Fan 2 Control Circuit Malfunction,todrobbins_dtcdb_public
+P0482,sae_p0,Cooling Fan 3 Control Circuit Malfunction,todrobbins_dtcdb_public
+P0483,sae_p0,Cooling Fan Rationality Check Malfunction,todrobbins_dtcdb_public
+P0484,sae_p0,Cooling Fan Circuit Over Current,todrobbins_dtcdb_public
+P0485,sae_p0,Cooling Fan Power/Ground Circuit Malfunction,todrobbins_dtcdb_public
+P0500,sae_p0,Vehicle Speed Sensor Malfunction,todrobbins_dtcdb_public
+P0501,sae_p0,Vehicle Speed Sensor Range/Performance,todrobbins_dtcdb_public
+P0502,sae_p0,Vehicle Speed Sensor Low Input,todrobbins_dtcdb_public
+P0503,sae_p0,Vehicle Speed Sensor Intermittent/Erratic/High,todrobbins_dtcdb_public
+P0505,sae_p0,Idle Control System Malfunction,todrobbins_dtcdb_public
+P0506,sae_p0,Idle Control System RPM Lower Than Expected,todrobbins_dtcdb_public
+P0507,sae_p0,Idle Control System RPM Higher Than Expected,todrobbins_dtcdb_public
+P0510,sae_p0,Closed Throttle Position Switch Malfunction,todrobbins_dtcdb_public
+P0520,sae_p0,Engine Oil Pressure Sensor/Switch Circuit Malfunction,todrobbins_dtcdb_public
+P0521,sae_p0,Engine Oil Pressure Sensor/Switch Circuit Range/Performance,todrobbins_dtcdb_public
+P0522,sae_p0,Engine Oil Pressure Sensor/Switch Circuit Low Voltage,todrobbins_dtcdb_public
+P0523,sae_p0,Engine Oil Pressure Sensor/Switch Circuit High Voltage,todrobbins_dtcdb_public
+P0530,sae_p0,A/C Refrigerant Pressure Sensor Circuit Malfunction,todrobbins_dtcdb_public
+P0531,sae_p0,A/C Refrigerant Pressure Sensor Circuit Range/Performance,todrobbins_dtcdb_public
+P0532,sae_p0,A/C Refrigerant Pressure Sensor Circuit Low Input,todrobbins_dtcdb_public
+P0533,sae_p0,A/C Refrigerant Pressure Sensor Circuit High Input,todrobbins_dtcdb_public
+P0534,sae_p0,Air Conditioner Refrigerant Charge Loss,todrobbins_dtcdb_public
+P0550,sae_p0,Power Steering Pressure Sensor Circuit Malfunction,todrobbins_dtcdb_public
+P0551,sae_p0,Power Steering Pressure Sensor Circuit Range/Performance,todrobbins_dtcdb_public
+P0552,sae_p0,Power Steering Pressure Sensor Circuit Low Input,todrobbins_dtcdb_public
+P0553,sae_p0,Power Steering Pressure Sensor Circuit High Input,todrobbins_dtcdb_public
+P0554,sae_p0,Power Steering Pressure Sensor Circuit Intermittent,todrobbins_dtcdb_public
+P0560,sae_p0,System Voltage Malfunction,todrobbins_dtcdb_public
+P0561,sae_p0,System Voltage Unstable,todrobbins_dtcdb_public
+P0562,sae_p0,System Voltage Low,todrobbins_dtcdb_public
+P0563,sae_p0,System Voltage High,todrobbins_dtcdb_public
+P0565,sae_p0,Cruise Control On Signal Malfunction,todrobbins_dtcdb_public
+P0566,sae_p0,Cruise Control Off Signal Malfunction,todrobbins_dtcdb_public
+P0567,sae_p0,Cruise Control Resume Signal Malfunction,todrobbins_dtcdb_public
+P0568,sae_p0,Cruise Control Set Signal Malfunction,todrobbins_dtcdb_public
+P0569,sae_p0,Cruise Control Coast Signal Malfunction,todrobbins_dtcdb_public
+P0570,sae_p0,Cruise Control Accel Signal Malfunction,todrobbins_dtcdb_public
+P0571,sae_p0,Cruise Control/Brake Switch A Circuit Malfunction,todrobbins_dtcdb_public
+P0572,sae_p0,Cruise Control/Brake Switch A Circuit Low,todrobbins_dtcdb_public
+P0573,sae_p0,Cruise Control/Brake Switch A Circuit High,todrobbins_dtcdb_public
+P0574,sae_p0,Cruise Control Related Malfunction,todrobbins_dtcdb_public
+P0575,sae_p0,Cruise Control Related Malfunction,todrobbins_dtcdb_public
+P0576,sae_p0,Cruise Control Related Malfunction,todrobbins_dtcdb_public
+P0578,sae_p0,Cruise Control Related Malfunction,todrobbins_dtcdb_public
+P0579,sae_p0,Cruise Control Related Malfunction,todrobbins_dtcdb_public
+P0580,sae_p0,Cruise Control Related Malfunction,todrobbins_dtcdb_public
+P0600,sae_p0,Serial Communication Link Malfunction,todrobbins_dtcdb_public
+P0601,sae_p0,Internal Control Module Memory Check Sum Error,todrobbins_dtcdb_public
+P0602,sae_p0,Control Module Programming Error,todrobbins_dtcdb_public
+P0603,sae_p0,Internal Control Module Keep Alive Memory (KAM) Error,todrobbins_dtcdb_public
+P0604,sae_p0,Internal Control Module Random Access Memory (RAM) Error,todrobbins_dtcdb_public
+P0605,sae_p0,Internal Control Module Read Only Memory (ROM) Error,todrobbins_dtcdb_public
+P0606,sae_p0,PCM Processor Fault,todrobbins_dtcdb_public
+P0608,sae_p0,"Control Module VSS Output ""A’ Malfunction",todrobbins_dtcdb_public
+P0609,sae_p0,"Control Module VSS Output ""B"" Malfunction",todrobbins_dtcdb_public
+P0620,sae_p0,Generator Control Circuit Malfunction,todrobbins_dtcdb_public
+P0621,sae_p0,"Generator Lamp ""L"" Control Circuit Malfunction",todrobbins_dtcdb_public
+P0622,sae_p0,"Generator Field ""F"" Control Circuit Malfunction",todrobbins_dtcdb_public
+P0650,sae_p0,Malfunction Indicator Lamp (MIL) Control Circuit Malfunction,todrobbins_dtcdb_public
+P0654,sae_p0,Engine RPM Output Circuit Malfunction,todrobbins_dtcdb_public
+P0655,sae_p0,Engine Hot Lamp Output Control Circuit Malfunction,todrobbins_dtcdb_public
+P0656,sae_p0,Fuel Level Output Circuit Malfunction,todrobbins_dtcdb_public
+P0700,sae_p0,Transmission Control System Malfunction,todrobbins_dtcdb_public
+P0701,sae_p0,Transmission Control System Range/Performance,todrobbins_dtcdb_public
+P0702,sae_p0,Transmission Control System Electrical,todrobbins_dtcdb_public
+P0703,sae_p0,Torque Converter/Brake Switch B Circuit Malfunction,todrobbins_dtcdb_public
+P0704,sae_p0,Clutch Switch Input Circuit Malfunction,todrobbins_dtcdb_public
+P0705,sae_p0,Transmission Range Sensor Circuit malfunction (PRNDL Input),todrobbins_dtcdb_public
+P0706,sae_p0,Transmission Range Sensor Circuit Range/Performance,todrobbins_dtcdb_public
+P0707,sae_p0,Transmission Range Sensor Circuit Low Input,todrobbins_dtcdb_public
+P0708,sae_p0,Transmission Range Sensor Circuit High Input,todrobbins_dtcdb_public
+P0709,sae_p0,Transmission Range Sensor Circuit Intermittent,todrobbins_dtcdb_public
+P0710,sae_p0,Transmission Fluid Temperature Sensor Circuit Malfunction,todrobbins_dtcdb_public
+P0711,sae_p0,Transmission Fluid Temperature Sensor Circuit Range/Performance,todrobbins_dtcdb_public
+P0712,sae_p0,Transmission Fluid Temperature Sensor Circuit Low Input,todrobbins_dtcdb_public
+P0713,sae_p0,Transmission Fluid Temperature Sensor Circuit High Input,todrobbins_dtcdb_public
+P0714,sae_p0,Transmission Fluid Temperature Sensor Circuit Intermittent,todrobbins_dtcdb_public
+P0715,sae_p0,Input/Turbine Speed Sensor Circuit Malfunction,todrobbins_dtcdb_public
+P0716,sae_p0,Input/Turbine Speed Sensor Circuit Range/Performance,todrobbins_dtcdb_public
+P0717,sae_p0,Input/Turbine Speed Sensor Circuit No Signal,todrobbins_dtcdb_public
+P0718,sae_p0,Input/Turbine Speed Sensor Circuit Intermittent,todrobbins_dtcdb_public
+P0719,sae_p0,Torque Converter/Brake Switch B Circuit Low,todrobbins_dtcdb_public
+P0720,sae_p0,Output Speed Sensor Circuit Malfunction,todrobbins_dtcdb_public
+P0721,sae_p0,Output Speed Sensor Range/Performance,todrobbins_dtcdb_public
+P0722,sae_p0,Output Speed Sensor No Signal,todrobbins_dtcdb_public
+P0723,sae_p0,Output Speed Sensor Intermittent,todrobbins_dtcdb_public
+P0724,sae_p0,Torque Converter/Brake Switch B Circuit High,todrobbins_dtcdb_public
+P0725,sae_p0,Engine Speed input Circuit Malfunction,todrobbins_dtcdb_public
+P0726,sae_p0,Engine Speed Input Circuit Range/Performance,todrobbins_dtcdb_public
+P0727,sae_p0,Engine Speed Input Circuit No Signal,todrobbins_dtcdb_public
+P0728,sae_p0,Engine Speed Input Circuit Intermittent,todrobbins_dtcdb_public
+P0730,sae_p0,Incorrect Gear Ratio,todrobbins_dtcdb_public
+P0731,sae_p0,Gear I Incorrect ratio,todrobbins_dtcdb_public
+P0732,sae_p0,Gear 2 Incorrect ratio,todrobbins_dtcdb_public
+P0733,sae_p0,Gear 3 Incorrect ratio,todrobbins_dtcdb_public
+P0734,sae_p0,Gear 4 Incorrect ratio,todrobbins_dtcdb_public
+P0735,sae_p0,Gear 5 Incorrect ratio,todrobbins_dtcdb_public
+P0736,sae_p0,Reverse incorrect gear ratio,todrobbins_dtcdb_public
+P0740,sae_p0,Torque Converter Clutch Circuit Malfunction,todrobbins_dtcdb_public
+P0741,sae_p0,Torque Converter Clutch Circuit Performance or Stuck Off,todrobbins_dtcdb_public
+P0742,sae_p0,Torque Converter Clutch Circuit Stock On,todrobbins_dtcdb_public
+P0743,sae_p0,Torque Converter Clutch Circuit Electrical,todrobbins_dtcdb_public
+P0744,sae_p0,Torque Converter Clutch Circuit Intermittent,todrobbins_dtcdb_public
+P0745,sae_p0,Pressure Control Solenoid Malfunction,todrobbins_dtcdb_public
+P0746,sae_p0,Pressure Control Solenoid Performance or Stuck Off,todrobbins_dtcdb_public
+P0747,sae_p0,Pressure Control Solenoid Stuck On,todrobbins_dtcdb_public
+P0748,sae_p0,Pressure Control Solenoid Electrical,todrobbins_dtcdb_public
+P0749,sae_p0,Pressure Control Solenoid Intermittent,todrobbins_dtcdb_public
+P0750,sae_p0,Shift Solenoid A Malfunction,todrobbins_dtcdb_public
+P0751,sae_p0,Shift Solenoid A Performance or Stuck Off,todrobbins_dtcdb_public
+P0752,sae_p0,Shift Solenoid A Stuck OnP0753 Shift Solenoid A Electrical,todrobbins_dtcdb_public
+P0754,sae_p0,Shift Solenoid A Intermittent,todrobbins_dtcdb_public
+P0755,sae_p0,Shift Solenoid B Malfunction,todrobbins_dtcdb_public
+P0756,sae_p0,Shift Solenoid B Performance or Stock Off,todrobbins_dtcdb_public
+P0757,sae_p0,Shift Solenoid B Stuck On,todrobbins_dtcdb_public
+P0758,sae_p0,Shift Solenoid B Electrical,todrobbins_dtcdb_public
+P0759,sae_p0,Shift Solenoid B Intermittent,todrobbins_dtcdb_public
+P0760,sae_p0,Shift Solenoid C Malfunction,todrobbins_dtcdb_public
+P0761,sae_p0,Shift Solenoid C Performance or Stuck Off,todrobbins_dtcdb_public
+P0762,sae_p0,Shift Solenoid C Stuck On,todrobbins_dtcdb_public
+P0763,sae_p0,Shift Solenoid C Electrical,todrobbins_dtcdb_public
+P0764,sae_p0,Shift Solenoid C Intermittent,todrobbins_dtcdb_public
+P0765,sae_p0,Shift Solenoid D Malfunction,todrobbins_dtcdb_public
+P0766,sae_p0,Shift Solenoid D Performance or Stuck Off,todrobbins_dtcdb_public
+P0767,sae_p0,Shift Solenoid D Stuck On,todrobbins_dtcdb_public
+P0768,sae_p0,Shift Solenoid D Electrical,todrobbins_dtcdb_public
+P0769,sae_p0,Shift Solenoid D Intermittent,todrobbins_dtcdb_public
+P0770,sae_p0,Shift Solenoid E Malfunction,todrobbins_dtcdb_public
+P0771,sae_p0,Shift Solenoid E Performance or Stuck Off,todrobbins_dtcdb_public
+P0772,sae_p0,Shift Solenoid E Stuck On,todrobbins_dtcdb_public
+P0773,sae_p0,Shift Solenoid E Electrical,todrobbins_dtcdb_public
+P0774,sae_p0,Shift Solenoid E Intermittent,todrobbins_dtcdb_public
+P0780,sae_p0,Shift Malfunction,todrobbins_dtcdb_public
+P0781,sae_p0,1-2 Shift Malfunction,todrobbins_dtcdb_public
+P0782,sae_p0,2-3 Shift Malfunction,todrobbins_dtcdb_public
+P0783,sae_p0,3-4 Shift Malfunction,todrobbins_dtcdb_public
+P0784,sae_p0,4-5 Shift Malfunction,todrobbins_dtcdb_public
+P0785,sae_p0,Shift/Timing Solenoid Malfunction,todrobbins_dtcdb_public
+P0786,sae_p0,Shift/Timing Solenoid Range/Performance,todrobbins_dtcdb_public
+P0787,sae_p0,Shift/Timing Solenoid Low,todrobbins_dtcdb_public
+P0788,sae_p0,Shift/Timing Solenoid High,todrobbins_dtcdb_public
+P0789,sae_p0,Shift/Timing Solenoid Intermittent,todrobbins_dtcdb_public
+P0790,sae_p0,Normal/Performance Switch Circuit Malfunction,todrobbins_dtcdb_public
+P0801,sae_p0,Reverse Inhibit Control Circuit Malfunction,todrobbins_dtcdb_public
+P0803,sae_p0,1-4 Upshift (Skip Shift) Solenoid Control Circuit Malfunction,todrobbins_dtcdb_public
+P0804,sae_p0,1-4 Upshift (Skip Shift) Lamp Control Circuit Malfunction,todrobbins_dtcdb_public

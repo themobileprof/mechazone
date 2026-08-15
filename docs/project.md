@@ -64,7 +64,7 @@ Development and the capability bar are the hardware already on the bench. There 
 | Mechazone client (Tauri/TS UI + Python J2534 worker) | The product: scan, history, playbook, closeout |
 | Local encrypted shop ledger | Customer names, phones, plates — never uploaded |
 
-Do not design ESP32/CAN boards or a field-kit BOM. Rollout is the installer plus an OpenPort-class J2534 clone (the same class already in hand). Android USB-OTG is a later host option, not the reference.
+Do not design ESP32/CAN boards or a field-kit BOM. Rollout is `install.sh` / `install.ps1` (see `docs/install.md`) plus an OpenPort-class J2534 clone (the same class already in hand). Android USB-OTG is a later host option, not the reference.
 
 ### 2.2 What software must let a technician do
 

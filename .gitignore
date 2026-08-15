@@ -7,6 +7,7 @@ __pycache__/
 .venv/
 venv/
 diagnostic-worker/.venv/
+third_party/j2534/
 dist/
 node_modules/
 client/dist/
@@ -15,6 +16,8 @@ client/dist/
 *.so
 !diagnostic-worker/**/*.py
 bin/
+var/
+.tools/
 tmp/
 .idea/
 .vscode/

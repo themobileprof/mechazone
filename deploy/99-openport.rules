@@ -1,0 +1,4 @@
+# Tactrix OpenPort 2.0 (and common clones) — allow the bay user to talk USB.
+# Install: sudo cp deploy/99-openport.rules /etc/udev/rules.d/ && sudo udevadm control --reload
+SUBSYSTEM=="usb", ATTRS{idVendor}=="0403", ATTR{idProduct}=="cc4d", GROUP="dialout", MODE="0666"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="0403", ATTR{idProduct}=="cca2", GROUP="dialout", MODE="0666"

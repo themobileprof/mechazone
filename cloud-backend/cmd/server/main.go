@@ -54,7 +54,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	h := httpapi.New(cfg, store, vin.NewClient(cfg.VPICBaseURL), log)
+	vins := &vin.Resolver{
+		VPIC:      vin.NewClient(cfg.VPICBaseURL),
+		Fallbacks: vin.NewFallbacks(cfg.CarAPIToken, cfg.CarAPISecret, cfg.VincarioAPIKey, cfg.VincarioSecret),
+		Log:       log,
+	}
+	h := httpapi.New(cfg, store, vins, log)
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
 		Handler:           h,

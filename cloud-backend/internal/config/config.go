@@ -11,8 +11,13 @@ type Config struct {
 	DatabaseURL       string
 	VPICBaseURL       string
 	DTCSeedPath         string
-	SuperAdminEmail     string
-	SuperAdminPassword  string
+	SuperAdminEmail    string
+	SuperAdminPassword string
+	CarAPIToken        string
+	CarAPISecret       string
+	VincarioAPIKey     string
+	VincarioSecret     string
+	UIDir              string
 }
 
 func Load() (Config, error) {
@@ -23,6 +28,11 @@ func Load() (Config, error) {
 		DTCSeedPath:        env("DTC_SEED_PATH", "seeds/p0xxx.csv"),
 		SuperAdminEmail:    env("SUPERADMIN_EMAIL", "admin@mechazone.local"),
 		SuperAdminPassword: env("SUPERADMIN_PASSWORD", "change-me-now"),
+		CarAPIToken:        env("CARAPI_TOKEN", ""),
+		CarAPISecret:       env("CARAPI_SECRET", ""),
+		VincarioAPIKey:     env("VINCARIO_API_KEY", ""),
+		VincarioSecret:     env("VINCARIO_SECRET_KEY", ""),
+		UIDir:              env("UI_DIR", ""),
 	}
 	if cfg.DatabaseURL == "" {
 		return Config{}, fmt.Errorf("DATABASE_URL is required")
