@@ -60,27 +60,33 @@ export function Landing({ onAuthed }: { onAuthed: (p: Principal) => void }) {
         <div>
           <p className="rise text-sm font-semibold text-brass">For independent workshops</p>
           <h1 className="rise d1 font-poster mt-3 text-[2.8rem] leading-[0.95] font-extrabold uppercase md:text-6xl">
-            See what other mechanics already found on this car.
+            Scan the car. Find the fault. Finish the job.
           </h1>
-          <p className="rise d2 mt-5 max-w-md text-lg leading-relaxed text-paper">
-            Plug your scanner. Read the car’s computer. Check if another shop has already seen this same vehicle — then finish the job and save the fix.
+          <p className="rise d2 mt-5 max-w-lg text-lg leading-relaxed text-paper">
+            Mechazone puts a premium scanner, AI, and the car’s repair history in your bay — so you can diagnose modern cars, not guess from a cheap code reader.
           </p>
           <ol className="rise d3 mt-8 space-y-4 text-base">
             <li className="flex gap-3">
               <span className="font-bold text-brass">1.</span>
-              <span>Scan the real computer — engine, gearbox, not just a cheap code reader.</span>
+              <span>
+                <strong className="text-paper">Premium scanner.</strong> OpenPort-class Pass-Thru. Read the real computers — engine, gearbox, and the modules a toy reader never sees.
+              </span>
             </li>
             <li className="flex gap-3">
               <span className="font-bold text-brass">2.</span>
-              <span>See the car’s past jobs: faults, parts, and what actually fixed it.</span>
+              <span>
+                <strong className="text-paper">AI on this job.</strong> It uses the live scan plus what already worked on this car — clear next steps, not generic internet advice.
+              </span>
             </li>
             <li className="flex gap-3">
               <span className="font-bold text-brass">3.</span>
-              <span>When you finish, log the repair so the next mechanic does not start from zero.</span>
+              <span>
+                <strong className="text-paper">History from other technicians.</strong> Faults, parts, and the fix from shops that already worked on this vehicle.
+              </span>
             </li>
           </ol>
           <p className="mt-8 max-w-md text-sm text-steel">
-            You use the OpenPort scanner and laptop you already have. We do not ask you to buy a toy ELM327. Today you request an account. Later you can pay for the kit and we register you.
+            Today you request an account. Later you can pay for the kit and we register you. The laptop in the bay is enough — we do not send you a bargain dongle.
           </p>
         </div>
 
