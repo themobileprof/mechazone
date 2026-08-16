@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"mechazone/cloud-backend/internal/ai"
 	"mechazone/cloud-backend/internal/config"
 	"mechazone/cloud-backend/internal/ledger"
 	"mechazone/cloud-backend/internal/vin"
@@ -18,10 +19,11 @@ type Server struct {
 	vins        *vin.Resolver
 	log         *slog.Logger
 	accessLimit *requestLimiter
+	fuser       *ai.Fuser
 }
 
-func New(cfg config.Config, store *ledger.Store, vins *vin.Resolver, log *slog.Logger) http.Handler {
-	s := &Server{cfg: cfg, store: store, vins: vins, log: log, accessLimit: newRequestLimiter()}
+func New(cfg config.Config, store *ledger.Store, vins *vin.Resolver, fuser *ai.Fuser, log *slog.Logger) http.Handler {
+	s := &Server{cfg: cfg, store: store, vins: vins, log: log, accessLimit: newRequestLimiter(), fuser: fuser}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.health)
 	mux.HandleFunc("POST /api/v1/auth/login", s.login)
@@ -39,6 +41,7 @@ func New(cfg config.Config, store *ledger.Store, vins *vin.Resolver, log *slog.L
 	mux.HandleFunc("GET /api/v1/dtcs/{code}", s.requireAuth(s.lookupDTC))
 	mux.HandleFunc("POST /api/v1/sessions", s.requireTechnician(s.ingestSession))
 	mux.HandleFunc("POST /api/v1/sessions/{id}/closeout", s.requireTechnician(s.closeout))
+	mux.HandleFunc("POST /api/v1/playbooks", s.requireTechnician(s.buildPlaybook))
 	return withCORS(withLog(log, withUI(cfg.UIDir, mux)))
 }
 

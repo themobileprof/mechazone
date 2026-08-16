@@ -84,6 +84,27 @@ export type Resolution = {
   created_at: string
 }
 
+export type Playbook = {
+  vin: string
+  platform: string
+  lookouts: { text: string; evidence: string[] }[]
+  likely_causes: { title: string; probability: number; evidence: string[] }[]
+  steps: {
+    order: number
+    kind: string
+    title: string
+    detail: string
+    pass?: string
+    fail?: string
+    adapter: boolean
+    figures?: string[]
+  }[]
+  validation: string
+  gaps: string[]
+  model?: string
+  first_seen: boolean
+}
+
 export type ScanResult = {
   vin: string
   profile: string

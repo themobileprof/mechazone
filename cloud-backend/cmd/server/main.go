@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"mechazone/cloud-backend/internal/ai"
 	"mechazone/cloud-backend/internal/config"
 	"mechazone/cloud-backend/internal/httpapi"
 	"mechazone/cloud-backend/internal/ledger"
@@ -59,7 +60,18 @@ func main() {
 		Fallbacks: vin.NewFallbacks(cfg.CarAPIToken, cfg.CarAPISecret, cfg.VincarioAPIKey, cfg.VincarioSecret),
 		Log:       log,
 	}
-	h := httpapi.New(cfg, store, vins, log)
+	var fuser *ai.Fuser
+	if cfg.LLMReady() {
+		fuser = &ai.Fuser{
+			LLM:   ai.NewClient(cfg.LLMBaseURL, cfg.LLMAPIKey, cfg.LLMModel),
+			Store: store,
+			Log:   log,
+		}
+		log.Info("playbook llm ready", "model", cfg.LLMModel)
+	} else {
+		log.Info("playbook llm off")
+	}
+	h := httpapi.New(cfg, store, vins, fuser, log)
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
 		Handler:           h,

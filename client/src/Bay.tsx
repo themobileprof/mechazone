@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { closeoutSession, decodeVin, fetchHistory, ingestSession, ledgerOnline, lookupDtc, logout } from './api'
+import { buildPlaybook, closeoutSession, decodeVin, fetchHistory, ingestSession, ledgerOnline, lookupDtc, logout } from './api'
 import { enqueue, flushQueue, pendingCount } from './queue'
-import type { HistoryResponse, Principal, ScanResult, Session } from './types'
+import type { HistoryResponse, Playbook, Principal, ScanResult, Session } from './types'
 import { worker } from './worker'
 
 type Adapter = 'mock' | 'openport2_rev_e'
@@ -23,6 +23,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
   const [outcome, setOutcome] = useState<'success' | 'failed'>('success')
   const [rootCause, setRootCause] = useState('')
   const [parts, setParts] = useState('Cleaned connector pins')
+  const [playbook, setPlaybook] = useState<Playbook | null>(null)
 
   useEffect(() => {
     const tick = async () => {
@@ -113,6 +114,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
           setVin(r.vin)
           setScan(null)
           setSession(null)
+          setPlaybook(null)
           if (online) {
             await decodeVin(r.vin).catch(() => undefined)
             setHistory(await fetchHistory(r.vin))
@@ -125,6 +127,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
         <button className="min-h-12 border border-paper/40 px-5" disabled={!vin} onClick={() => run('scan', async () => {
           const result = await worker.scan()
           setScan(result)
+          setPlaybook(null)
           if (result.vin && result.vin !== vin) {
             setVin(result.vin)
             if (online) setHistory(await fetchHistory(result.vin))
@@ -152,6 +155,96 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
           <span className="font-mono text-[11px] text-steel">CUSTOMER (LOCAL ONLY — NEVER SYNCED)</span>
           <input className="mt-1 w-full border border-steel/30 bg-oil px-3 py-2" value={localCustomer} onChange={(e) => setLocalCustomer(e.target.value)} placeholder="Name / plate stay on this laptop" />
         </label>
+      </section>
+
+      <section className="mb-6 rounded-sm border border-brass/20 bg-panel p-5">
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="font-mono text-sm tracking-[0.25em] text-brass">AI PLAYBOOK</h2>
+            <p className="mt-1 text-sm text-steel">Uses this scan, this VIN’s history, and other shops on the same platform. It will not invent a diagram.</p>
+          </div>
+          <button
+            className="min-h-12 bg-brass px-5 font-semibold text-oil"
+            disabled={!scan || !vin || !online}
+            onClick={() => run('playbook', async () => {
+              if (!scan) return
+              const book = await buildPlaybook({
+                vin: scan.vin || vin,
+                session_id: session?.id,
+                make: scan.make,
+                model: scan.model,
+                year: scan.year,
+                engine_hint: scan.profile,
+                active_codes: scan.active_codes,
+                live: scan.live,
+                freeze_frame: scan.freeze_frame,
+                adapter_type: scan.adapter_type,
+                protocol: scan.protocol,
+              })
+              setPlaybook(book)
+            })}
+          >
+            BUILD PLAYBOOK
+          </button>
+        </div>
+        {!playbook && <p className="text-steel">Read VIN, deep scan, then build. History loads before the model is called.</p>}
+        {playbook && (
+          <div className="space-y-4">
+            <p className="font-mono text-xs text-steel">
+              {playbook.platform || 'platform unknown'}
+              {playbook.first_seen ? ' · first seen' : ''}
+              {playbook.model ? ` · ${playbook.model}` : ''}
+            </p>
+            {playbook.lookouts.length > 0 && (
+              <div>
+                <p className="font-mono text-[11px] tracking-[0.2em] text-brass">LOOK OUT ON THIS CAR</p>
+                <ul className="mt-2 space-y-2">
+                  {playbook.lookouts.map((l, i) => (
+                    <li key={i} className="border border-brass/30 bg-brass/5 px-3 py-2">{l.text}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {playbook.likely_causes.length > 0 && (
+              <div>
+                <p className="font-mono text-[11px] tracking-[0.2em] text-brass">LIKELY CAUSES</p>
+                <ul className="mt-2 space-y-2">
+                  {playbook.likely_causes.map((c, i) => (
+                    <li key={i} className="flex justify-between gap-3 border border-steel/20 px-3 py-2">
+                      <span>{c.title}</span>
+                      <span className="font-mono text-sm text-steel">{Math.round(c.probability * 100)}%</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {playbook.steps.length > 0 && (
+              <ol className="space-y-3">
+                {playbook.steps.map((st) => (
+                  <li key={st.order} className="border-l-2 border-brass pl-3">
+                    <p className="font-mono text-[11px] text-brass">{st.order} · {st.kind.toUpperCase()}{st.adapter ? ' · ADAPTER' : ''}</p>
+                    <p className="font-semibold">{st.title}</p>
+                    <p className="text-sm text-steel">{st.detail}</p>
+                    {(st.pass || st.fail) && (
+                      <p className="mt-1 text-sm">
+                        {st.pass && <span className="text-ok">Pass: {st.pass} </span>}
+                        {st.fail && <span className="text-fault">Fail: {st.fail}</span>}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            )}
+            {playbook.validation && (
+              <p className="text-sm"><span className="font-mono text-[11px] text-brass">VALIDATE </span>{playbook.validation}</p>
+            )}
+            {playbook.gaps.length > 0 && (
+              <ul className="space-y-1 text-sm text-steel">
+                {playbook.gaps.map((g, i) => <li key={i}>Gap: {g}</li>)}
+              </ul>
+            )}
+          </div>
+        )}
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[1.1fr_1fr_0.9fr]">

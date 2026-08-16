@@ -177,7 +177,7 @@ Do not add a separate vector-DB product.
 
 ## 8. Hosted LLM (Phase 2 — do not train a model)
 
-When playbooks ship, call an existing API (OpenAI-compatible or similar) with ledger + retrieved TSB/manual text **and figure IDs**. The model sequences tests and lookouts; it does not draw diagrams. Contract: `docs/playbook.md`. Env placeholder:
+Playbooks call an OpenAI-compatible chat API (DeepSeek is the default). Gemini can be swapped later with a different client. The model sequences tests and lookouts from ledger + network; it does not draw diagrams. Contract: `docs/playbook.md`. Env:
 
 ```
 LLM_BASE_URL=

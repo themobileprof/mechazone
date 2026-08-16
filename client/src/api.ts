@@ -1,4 +1,4 @@
-import type { AccessRequest, HistoryResponse, Principal, Resolution, Session, Shop, Technician } from './types'
+import type { AccessRequest, HistoryResponse, Playbook, Principal, Resolution, Session, Shop, Technician } from './types'
 
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(path, {
@@ -94,6 +94,22 @@ export function lookupDtc(code: string) {
 
 export function ingestSession(body: unknown) {
   return api<Session>('/api/v1/sessions', { method: 'POST', body: JSON.stringify(body) })
+}
+
+export function buildPlaybook(body: {
+  vin: string
+  session_id?: string
+  make?: string
+  model?: string
+  year?: number
+  engine_hint?: string
+  active_codes: string[]
+  live?: { name: string; value: number; unit: string; did: string }[]
+  freeze_frame?: Record<string, unknown> | null
+  adapter_type?: string
+  protocol?: string
+}) {
+  return api<Playbook>('/api/v1/playbooks', { method: 'POST', body: JSON.stringify(body) })
 }
 
 export function closeoutSession(id: string, body: unknown) {
