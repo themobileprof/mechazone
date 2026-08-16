@@ -29,13 +29,8 @@ func (f *Fuser) IngestHTMLTree(ctx context.Context, root string, side Sidecar, t
 		side.Title = filepath.Base(root)
 	}
 	if side.ImageRoot == "" {
-		if sib := filepath.Join(filepath.Dir(root), "spanish"); dirExists(sib) {
-			side.ImageRoot = sib
-		} else if sib := filepath.Join(filepath.Dir(filepath.Dir(root)), "spanish"); dirExists(sib) {
-			side.ImageRoot = sib
-		}
-	}
-	if side.ImageRoot != "" {
+		side.ImageRoot = root
+	} else {
 		side.ImageRoot, _ = filepath.Abs(side.ImageRoot)
 	}
 
@@ -68,6 +63,9 @@ func (f *Fuser) IngestHTMLTree(ctx context.Context, root string, side Sidecar, t
 		return IngestResult{}, err
 	}
 	if len(files) == 0 {
+		if figureFilesRemain(root) {
+			return IngestResult{Path: root, Skipped: "no HTML (text already in Postgres)"}, nil
+		}
 		return IngestResult{}, fmt.Errorf("no content HTML under %s", root)
 	}
 
@@ -197,7 +195,18 @@ func hashTreeID(root string, side Sidecar) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-func dirExists(p string) bool {
-	st, err := os.Stat(p)
-	return err == nil && st.IsDir()
+func figureFilesRemain(root string) bool {
+	found := false
+	_ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || found {
+			return err
+		}
+		switch strings.ToLower(filepath.Ext(path)) {
+		case ".png", ".jpg", ".jpeg", ".gif", ".webp":
+			found = true
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	return found
 }

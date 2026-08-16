@@ -1,5 +1,5 @@
 {
-  "title": "Avensis T27 RM11R2S (English text, Spanish figures)",
+  "title": "Avensis T27 RM11R2S",
   "kind": "workshop_manual",
   "make": "Toyota",
   "model": "Avensis",
@@ -7,6 +7,5 @@
   "year_to": 2012,
   "engine": "3ZR-FAE",
   "language": "en",
-  "html_root": "../../../avensis-zrt27/english",
-  "image_root": "../../../avensis-zrt27/spanish"
+  "html_root": "avensis-zrt27"
 }

@@ -84,6 +84,10 @@ func main() {
 		os.Exit(1)
 	}
 	for _, r := range results {
+		if r.Skipped != "" {
+			fmt.Printf("%s  skipped  %s\n", filepath.Base(r.Path), r.Skipped)
+			continue
+		}
 		fmt.Printf("%s  lang=%s  chunks=%d  figures=%d  id=%s\n", filepath.Base(r.Path), r.Language, r.Chunks, r.Figures, r.SourceID)
 	}
 }

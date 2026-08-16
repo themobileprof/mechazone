@@ -1,10 +1,8 @@
 # Workshop manuals (any language)
 
-Drop PDFs into `data/manuals/`, or point a sidecar at an HTML workshop tree (like `../avensis-zrt27`). Ingest once. The playbook retrieves **original text** — German, French, Spanish, Chinese, or anything else is fine. DeepSeek reads the source language and writes the bay playbook in the language you ask for (default English).
+Drop PDFs into `data/manuals/`, or point a sidecar at one HTML workshop tree under that folder. Ingest once. Keep a single language per manual. The playbook retrieves that text; DeepSeek writes the bay playbook in the language you ask for (default English).
 
-Translated HTML + original-language figures is expected. We keep the pictures as-is (Spanish callouts on a diagram are still the right diagram) and attach any OCR text you already extracted.
-
-We do not require an English manual. We do not machine-translate unless you pass `-translate` (that only adds an English gloss for search; the original stays).
+We do not machine-translate the corpus unless you pass `-translate` (that only adds an English gloss for search; the original stays).
 
 ## 1. Put files in the folder
 
@@ -37,17 +35,17 @@ If you skip the sidecar, the filename must look like:
 
 ### HTML tree (Avensis RM, etc.)
 
-A folder of `.htm` / `.html` plus images. Text can be English; images can stay Spanish.
+A folder of `.htm` / `.html` plus images, one language.
 
-`data/manuals/avensis-zrt27.json` already points at `../avensis-zrt27/english` and `../avensis-zrt27/spanish`.
+After ingest, page text lives in Postgres. You can delete the HTML (and CSS/JS/search indexes). **Keep the figure files** — diagrams are served from disk, not stored in the database.
+
+`data/manuals/avensis-zrt27.json` points at `data/manuals/avensis-zrt27/` (figures only after ingest). The tree is gitignored; the sidecar JSON is tracked.
 
 ```bash
-make ingest          # picks up that sidecar
-# or:
-make ingest-html     # english tree + english.json / manual.json
+make ingest
 ```
 
-We only ingest **content** pages (`…/html/contents/…`), not menus, CSS, or chrome. Figure `src` paths that resolve into the Spanish tree are stored and served as `/api/v1/manuals/figures/{id}/image`. If `_ocr_glossary/ocr_by_image.json` exists, that Spanish-on-image text is stored with the figure and added to search.
+We only ingest **content** pages (`…/html/contents/…`), not menus, CSS, or chrome. Figure files next to the HTML are stored and served as `/api/v1/manuals/figures/{id}/image`. If `_ocr_glossary/ocr_by_image.json` exists, that text is stored with the figure and added to search.
 
 ## 2. Ingest
 

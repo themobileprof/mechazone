@@ -15,18 +15,18 @@ The public page is a conversion landing: shops request registration. There is no
 
 ## Developer loop
 
+System Postgres on this laptop (`DATABASE_URL=postgres:///mechazone?sslmode=disable` in `.env`):
+
 ```bash
-createdb mechazone   # uses the Postgres already on this laptop
-cd cloud-backend && go run ./cmd/server
-# other terminals:
-make worker
-make client
+createdb mechazone   # once
+make backend         # ledger API on :8080 (loads repo-root .env)
+make worker          # other terminal — mock ECU / OpenPort websocket
+make client          # other terminal — Vite on :5173, proxies /api to :8080
 ```
 
-`make up` starts an optional Docker Postgres on **5433** if you do not want the system instance.
+`make backend` is `go run ./cmd/server` from `cloud-backend`. All three need to be running: the bay at http://127.0.0.1:5173 talks to the ledger through the Vite proxy.
 
-Bay UI in dev: http://127.0.0.1:5173  
-After `./install.sh`, daily use is http://127.0.0.1:8080 (built UI served by the ledger).
+After `./install.sh`, daily use is `make start` (or the Desktop icon) → http://127.0.0.1:8080 (built UI served by the ledger). `make stop` ends that pair.
 
 Third-party connect guide: `docs/integrations.md` (OpenPort/J2534, vPIC, CarAPI, Vincario, DTC seed, pgvector).
 

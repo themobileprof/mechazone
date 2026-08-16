@@ -27,3 +27,4 @@ coverage.out
 *.sqlite
 data/manuals/*.pdf
 data/manuals/*.PDF
+data/manuals/avensis-zrt27/

@@ -1,4 +1,4 @@
-.PHONY: up down backend worker client seed deps install start stop ingest ingest-translate
+.PHONY: backend worker client seed deps install start stop ingest ingest-translate
 
 install:
 	./install.sh
@@ -17,15 +17,8 @@ deps:
 	@echo "DTC seed: see docs/integrations.md"
 	@echo "VIN keys: CARAPI_* and VINCARIO_* in .env"
 
-up:
-	docker compose up -d
-	@echo "Postgres on :5432 (pgvector/pg16)"
-
-down:
-	docker compose down
-
 backend:
-	cd cloud-backend && go run ./cmd/server
+	cd cloud-backend && GOTOOLCHAIN=local go run ./cmd/server
 
 worker:
 	cd diagnostic-worker && .venv/bin/python -m mechazone_worker
@@ -34,13 +27,10 @@ client:
 	cd client && npm run dev
 
 seed:
-	cd cloud-backend && go run ./cmd/server -seed-only
+	cd cloud-backend && GOTOOLCHAIN=local go run ./cmd/server -seed-only
 
 ingest:
 	cd cloud-backend && GOTOOLCHAIN=local go run ./cmd/ingest -dir ../data/manuals
 
 ingest-translate:
 	cd cloud-backend && GOTOOLCHAIN=local go run ./cmd/ingest -dir ../data/manuals -translate
-
-ingest-html:
-	cd cloud-backend && GOTOOLCHAIN=local go run ./cmd/ingest -html ../../avensis-zrt27/english

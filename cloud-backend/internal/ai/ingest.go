@@ -34,6 +34,7 @@ type IngestResult struct {
 	Language string
 	Chunks   int
 	Figures  int
+	Skipped  string
 }
 
 func (f *Fuser) IngestDir(ctx context.Context, dir string, translate bool) ([]IngestResult, error) {
