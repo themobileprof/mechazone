@@ -177,7 +177,7 @@ Do not add a separate vector-DB product.
 
 ## 8. Hosted LLM (Phase 2 — do not train a model)
 
-When playbooks ship, call an existing API (OpenAI-compatible or similar) with ledger + retrieved TSB text. Env placeholder:
+When playbooks ship, call an existing API (OpenAI-compatible or similar) with ledger + retrieved TSB/manual text **and figure IDs**. The model sequences tests and lookouts; it does not draw diagrams. Contract: `docs/playbook.md`. Env placeholder:
 
 ```
 LLM_BASE_URL=
@@ -199,7 +199,8 @@ Copy `.env.example`. Only fill keys you actually have.
 | `VPIC_BASE_URL` | NHTSA vPIC |
 | `CARAPI_TOKEN` / `CARAPI_SECRET` | CarAPI |
 | `VINCARIO_API_KEY` / `VINCARIO_SECRET_KEY` | Vincario |
-| `J2534_LIB` | Path to `j2534.so` or `openport.dll` |
+| `J2534_LIB` | Path to `j2534.so` or frozen clone DLL (never from tactrix.com) |
+| `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` | Hosted playbook model (Phase 2) |
 | `MECHAZONE_ADAPTER` | `mock` or `openport2_rev_e` |
 | `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD` | First admin (not a third party) |
 

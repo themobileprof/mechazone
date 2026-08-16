@@ -295,49 +295,65 @@ CREATE INDEX idx_resolutions_verified ON confirmed_resolutions (is_verified_fix)
 
 ## 8. AI Diagnosis (RAG)
 
-The model is not allowed to invent a repair from a code letter. It receives live adapter data, that VIN's timeline, and retrieved documents.
+AI is not a chatbot on a DTC. It is the fusion layer that tells a technician **what to do on this vehicle**: which test, in which order, what this VIN’s history says to look out for, and — when we have a retrieved figure — how to reach the part.
+
+The model is not allowed to invent a repair, a pin number, or a diagram. It only ranks and sequences evidence we already have: live adapter data, this VIN’s timeline, same-platform verified fixes, and retrieved TSB/manual chunks (text + figures).
 
 ```
-Incoming session (VIN, mileage, DTCs, freeze-frame, adapter)
+Incoming session (VIN, mileage, DTCs, freeze-frame, live DIDs, adapter)
         │
-        ├─► PostgreSQL VIN timeline + verified resolutions
-        ├─► pgvector search: imported TSBs/manuals + community fix write-ups
+        ├─► PostgreSQL VIN timeline + verified resolutions  (this car first)
+        ├─► Same platform + same codes (network, reputation-weighted)
+        ├─► pgvector: imported TSBs/manuals + community write-ups + figure index
         └─► Local P0xxx seed text (if a generic code is present)
         │
         ▼
- Structured prompt  →  Playbook (probabilities, pin tests, validation)
+ Structured prompt  →  Playbook (lookouts, ordered tests, access, cited diagrams, validation)
 ```
+
+Do not emit a playbook from DTCs alone when ledger or network matches exist. If retrieval has no procedure and no figure, say so and still give adapter tests we can run — do not draw a sketch or quote a pin that was not in a cited chunk.
 
 ### 8.1 Prompt pattern
 
 ```
 [ROLE]
 Senior diagnostic engineer. Shop-floor playbooks only. No generic textbook theory.
+This exact year / make / model / engine. No “typical Toyota” filler.
 
 [VEHICLE + LIVE ADAPTER DATA]
-Identity, powertrain, mileage, active DTCs, freeze-frame, adapter/protocol.
+Identity, powertrain, mileage, active DTCs, freeze-frame, live DIDs, adapter/protocol.
 
-[VIN LEDGER]
-Prior sessions on this VIN: dates, shops (region only), codes, parts, verified outcomes.
+[VIN LEDGER — infer lookouts]
+Prior sessions on this VIN: dates, region, codes, parts, verified outcomes.
+Call out repeats (same connector, same leak, same code coming back).
 
 [NETWORK MATCHES]
 Same platform + same codes: counts, top verified root causes, regional clusters.
 
-[RETRIEVED DOCS]
-TSB / manual excerpts. Keep pin numbers and voltages bound to the same chunk.
+[RETRIEVED DOCS + FIGURES]
+TSB / manual excerpts. Pin numbers and voltages stay in the same chunk.
+Figures (connector views, R&R access, harness routing) only if indexed to this
+platform. Each figure is a citation, not a generation.
 
 [DIRECTIVE]
-Rank likely causes with probabilities. Give pin-level tests and a post-repair
-validation the adapter and a shop multimeter can perform. Cite ledger/network evidence when used.
+1. Lookouts this technician must not skip, inferred from THIS VIN then the platform.
+2. Ordered tests the OpenPort and a shop multimeter can perform, with pass/fail.
+3. Access: how to reach the part on THIS body/engine; attach retrieved diagrams only.
+4. Validation after the repair. Cite ledger/network/doc IDs. If a fact is missing, say missing.
 ```
 
 ### 8.2 Playbook shape (what the technician sees)
 
-1. **Probability breakdown** — grounded in ledger + network counts, not vibe.
-2. **Tests the bay can already run** — connector/pin/voltage with the shop's existing multimeter, plus live PID/DID the OpenPort worker can read. Do not prescribe extra instruments.
-3. **Validation** — clear codes, warm-up, live-data pass/fail (e.g. Valvematic actual vs target ±0.5°).
+1. **Lookouts for this vehicle** — inferred from history before any generic test. Example: this VIN already had a corroded Valvematic connector; inspect that before replacing the actuator.
+2. **Probability breakdown** — grounded in ledger + network counts, not vibe.
+3. **Ordered tests** — connector/pin/voltage with the shop multimeter, plus live DID/PID the OpenPort worker can read. Pass/fail and where to go next. Do not prescribe extra instruments.
+4. **Access on this car** — trim, covers, routing for this year/make/model/engine. If we do not have a retrieved procedure, write “no access procedure on file” instead of inventing one.
+5. **Diagrams** — retrieved figures from the same-platform TSB/manual (or a technician photo attached to a verified closeout). Render the cached image with caption + source. **Never** ask the LLM to generate or redraw a wiring diagram.
+6. **Validation** — clear codes, warm-up, live-data pass/fail (e.g. Valvematic actual vs target ±0.5°).
 
-Ingestion lives in `cloud-backend/internal/ai/` and uses OSS PDF/HTML parsers. Chunk on semantic boundaries so a pin and its voltage stay in the same passage.
+Ingestion lives in `cloud-backend/internal/ai/` and uses OSS PDF/HTML parsers. Chunk on semantic boundaries so a pin and its voltage stay in the same passage. Extract and store figures next to the chunk that refers to them (`doc_id`, page, caption, platform key). Playbook JSON cites `figure_id`; the bay loads `/api/v1/docs/figures/{id}`.
+
+Operational contract: `docs/playbook.md`.
 
 ---
 
@@ -380,7 +396,7 @@ The network's advantage is accumulated *confirmed* mechanical history, not more 
 ### Phase 2 — History, AI, first shops (months 3–5)
 
 - VIN timeline in the UI before the playbook.
-- RAG: `pgvector` + existing LLM API over scraped/imported public TSBs/manuals plus the first verified closeouts.
+- RAG: `pgvector` + existing LLM API over scraped/imported public TSBs/manuals plus the first verified closeouts. Playbooks: VIN lookouts, ordered adapter/multimeter tests, access on this body/engine, cited figures (never generated).
 - Onboard ~10 trusted independent shops with the installer and an OpenPort-class J2534 clone (same class already in hand). No custom boards. ELM327 shops can join later with a reduced module set.
 - Keep the worker honest for later Chinese EV work (BMS UDS, CAN-FD path). ICE playbooks ship first.
 

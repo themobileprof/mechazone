@@ -30,7 +30,7 @@ You are building Mechazone: a community diagnostic network for independent auto 
 - **VIN decode:** NHTSA vPIC first, then paid fallbacks (CarAPI, Vincario). Cache in PostgreSQL immediately. Never re-query an external API for a cached VIN.
 - **DTC policy:** Seed generic SAE P0xxx from existing public/OSS tables. Do not scrape a DTC site per lookup and do not write a code encyclopedia. Cloud AI is for manufacturer-specific codes (e.g. Toyota P1xxx), deep telemetry, and playbooks that fuse VIN history + community fixes + retrieved TSB/manual text.
 - **Docs / RAG:** Ingest public TSBs, manuals, and forums via OSS parsers + scrape-and-cache. Keep ingestion in `cloud-backend/internal/ai/`. Chunk on semantic boundaries so pins and voltages stay together. Call an existing LLM API; do not train or host a model.
-- **Playbook inputs (required):** current scan + VIN timeline + matching verified resolutions. Do not generate a playbook from DTCs alone when ledger or network matches exist.
+- **Playbook inputs (required):** current scan + VIN timeline + matching verified resolutions + retrieved TSB/manual chunks. The playbook must tell the technician what to test and look out for on this vehicle, and attach cited access diagrams when figures were retrieved. Do not generate a playbook from DTCs alone when ledger or network matches exist. Do not invent pins or drawings — see `.cursor/rules/ai-playbook.mdc` and `docs/playbook.md`.
 - **Reputation:** Weight retrieval by verification and technician reputation. Unverified narrative must not outrank a confirmed resolution.
 - **Build only the moat:** VIN ledger, session closeout, privacy/offline sync, OpenPort J2534/UDS worker glue, and playbook fusion. Everything else is a library, API, or import.
 
