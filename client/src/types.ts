@@ -103,6 +103,7 @@ export type Playbook = {
   gaps: string[]
   model?: string
   first_seen: boolean
+  manual_figures?: { id: string; title: string; page: number; caption: string; language: string; image_url?: string; ocr_text?: string }[]
 }
 
 export type ScanResult = {

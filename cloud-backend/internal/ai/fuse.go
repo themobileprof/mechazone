@@ -73,10 +73,21 @@ func (f *Fuser) Build(ctx context.Context, req Request) (Playbook, error) {
 		return Playbook{}, fmt.Errorf("dtc: %w", err)
 	}
 
-	// Document/figure retrieval is not ingested yet. Empty allow-list forces cited diagrams out.
+	q := strings.TrimSpace(strings.Join(append(req.ActiveCodes, req.EngineHint, req.Make, req.Model), " "))
+	docs, figs, err := f.Store.SearchManuals(ctx, req.Make, req.Model, req.Year, req.ActiveCodes, q)
+	if err != nil {
+		return Playbook{}, fmt.Errorf("manuals: %w", err)
+	}
 	allowedFigures := map[string]struct{}{}
+	for _, fig := range figs {
+		allowedFigures["figure:"+fig.ID] = struct{}{}
+	}
 
-	user, err := buildUserPrompt(req, hist, matches, titles)
+	if req.Language == "" {
+		req.Language = "en"
+	}
+
+	user, err := buildUserPrompt(req, hist, matches, titles, docs, figs)
 	if err != nil {
 		return Playbook{}, err
 	}
@@ -93,6 +104,12 @@ func (f *Fuser) Build(ctx context.Context, req Request) (Playbook, error) {
 	book.FirstSeen = hist.FirstSeen
 	book.Model = f.LLM.Model
 	book = Sanitize(book, allowedFigures)
+	for _, fig := range figs {
+		book.ManualFigures = append(book.ManualFigures, ManualFigure{
+			ID: fig.ID, Title: fig.Title, Page: fig.Page, Caption: fig.Caption, Language: fig.Language,
+			ImageURL: fig.ImageURL, OCRText: fig.OCRText,
+		})
+	}
 	return book, nil
 }
 
@@ -106,45 +123,49 @@ gaps (array of strings).
 
 Rules:
 - History on THIS VIN first, then same-platform network matches. Never invent a repair from a code letter.
-- Every lookout and cause MUST cite evidence using only these prefixes: ledger: resolution:<id>, network:<id>, session:<id>, dtc:<code>, live:<name>, vehicle:decode.
+- Every lookout and cause MUST cite evidence using only these prefixes: ledger:, resolution:<id>, network:<id>, session:<id>, dtc:<code>, live:<name>, vehicle:decode, doc:<id>, figure:<id>.
+- Manual chunks may be in another language. Use them. Do not discard a procedure because it is not English.
+- Write lookouts, steps, and validation in the requested playbook language.
 - Do not invent pin numbers, voltages, or access steps that are not in the provided context. Put missing facts in gaps.
-- figures must be empty unless a figure id was provided. Never generate or describe a drawing as if it were on file.
+- figures may only list figure:<id> values that appear in retrieved.figures. Never generate a drawing.
 - Prefer OpenPort/UDS tests and a shop multimeter. No extra instruments.
 - If this VIN already had a fix for the same code, say so in lookouts and do not lead with that same part swap.
 - If first_seen is true, say so in gaps and use network + live data only.
 - No customer names, phones, or plates.`
 
-func buildUserPrompt(req Request, hist ledger.History, matches []ledger.NetworkMatch, titles map[string]ledger.DTC) (string, error) {
+func buildUserPrompt(req Request, hist ledger.History, matches []ledger.NetworkMatch, titles map[string]ledger.DTC, docs []ledger.RetrievedChunk, figs []ledger.RetrievedFigure) (string, error) {
 	type payload struct {
-		Vehicle     any                   `json:"vehicle"`
-		FirstSeen   bool                  `json:"first_seen"`
-		LiveScan    Request               `json:"live_scan"`
-		DTCTitles   map[string]ledger.DTC `json:"dtc_titles"`
-		VINLedger   ledger.History        `json:"vin_ledger"`
-		Network     []ledger.NetworkMatch `json:"network_matches"`
-		Retrieved   struct {
-			Docs    []string `json:"docs"`
-			Figures []string `json:"figures"`
+		PlaybookLanguage string                   `json:"playbook_language"`
+		Vehicle          any                      `json:"vehicle"`
+		FirstSeen        bool                     `json:"first_seen"`
+		LiveScan         Request                  `json:"live_scan"`
+		DTCTitles        map[string]ledger.DTC    `json:"dtc_titles"`
+		VINLedger        ledger.History           `json:"vin_ledger"`
+		Network          []ledger.NetworkMatch    `json:"network_matches"`
+		Retrieved        struct {
+			Docs    []ledger.RetrievedChunk  `json:"docs"`
+			Figures []ledger.RetrievedFigure `json:"figures"`
 		} `json:"retrieved"`
 	}
 	p := payload{
-		FirstSeen: hist.FirstSeen,
-		LiveScan:  req,
-		DTCTitles: titles,
-		VINLedger: hist,
-		Network:   matches,
+		PlaybookLanguage: req.Language,
+		FirstSeen:        hist.FirstSeen,
+		LiveScan:         req,
+		DTCTitles:        titles,
+		VINLedger:        hist,
+		Network:          matches,
 	}
 	if hist.Vehicle != nil {
 		p.Vehicle = hist.Vehicle
 	}
-	p.Retrieved.Docs = []string{}
-	p.Retrieved.Figures = []string{}
+	p.Retrieved.Docs = docs
+	p.Retrieved.Figures = figs
 	b, err := json.MarshalIndent(p, "", "  ")
 	if err != nil {
 		return "", err
 	}
 	var sb strings.Builder
-	sb.WriteString("Build the playbook from this gathered context. retrieved.docs and retrieved.figures are empty — do not invent them.\n\n")
+	sb.WriteString("Build the playbook from this gathered context. Cite retrieved docs as doc:<id> and figures as figure:<id>. If retrieved.docs is empty, do not invent manual text.\n\n")
 	sb.Write(b)
 	return sb.String(), nil
 }

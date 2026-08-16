@@ -42,6 +42,7 @@ func New(cfg config.Config, store *ledger.Store, vins *vin.Resolver, fuser *ai.F
 	mux.HandleFunc("POST /api/v1/sessions", s.requireTechnician(s.ingestSession))
 	mux.HandleFunc("POST /api/v1/sessions/{id}/closeout", s.requireTechnician(s.closeout))
 	mux.HandleFunc("POST /api/v1/playbooks", s.requireTechnician(s.buildPlaybook))
+	mux.HandleFunc("GET /api/v1/manuals/figures/{id}/image", s.requireAuth(s.figureImage))
 	return withCORS(withLog(log, withUI(cfg.UIDir, mux)))
 }
 

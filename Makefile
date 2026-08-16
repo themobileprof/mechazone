@@ -1,4 +1,4 @@
-.PHONY: up down backend worker client seed deps install start stop
+.PHONY: up down backend worker client seed deps install start stop ingest ingest-translate
 
 install:
 	./install.sh
@@ -35,3 +35,12 @@ client:
 
 seed:
 	cd cloud-backend && go run ./cmd/server -seed-only
+
+ingest:
+	cd cloud-backend && GOTOOLCHAIN=local go run ./cmd/ingest -dir ../data/manuals
+
+ingest-translate:
+	cd cloud-backend && GOTOOLCHAIN=local go run ./cmd/ingest -dir ../data/manuals -translate
+
+ingest-html:
+	cd cloud-backend && GOTOOLCHAIN=local go run ./cmd/ingest -html ../../avensis-zrt27/english

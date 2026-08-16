@@ -11,7 +11,7 @@ It is not a chat box on a fault code. It does not invent pins, voltages, or draw
 | Live scan | OpenPort worker (VIN, DTCs, freeze-frame, DIDs, adapter) | Adapter tests only; no “typical car” essay |
 | This VIN ledger | PostgreSQL timeline + closeouts | Still retrieve platform + docs; say first-seen |
 | Network matches | Same make/model/engine/year-band + codes, reputation-weighted | Omit network section |
-| Retrieved docs | `pgvector` over imported TSB/manual/community chunks | No pin numbers that were not retrieved |
+| Retrieved docs | Manual corpus (`data/manuals` ingest) + later `pgvector` | No pin numbers that were not retrieved. Chunks may be in any language. |
 | Retrieved figures | Figures indexed to those chunks / platform key | Show “no diagram on file” — do not generate one |
 
 Do not call the LLM until the ledger lookup and retrieval queries have run. Generic P0xxx seed text may attach; it must not replace history.

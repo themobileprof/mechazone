@@ -180,6 +180,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
                 freeze_frame: scan.freeze_frame,
                 adapter_type: scan.adapter_type,
                 protocol: scan.protocol,
+                language: navigator.language.slice(0, 2) || 'en',
               })
               setPlaybook(book)
             })}
@@ -237,6 +238,20 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
             )}
             {playbook.validation && (
               <p className="text-sm"><span className="font-mono text-[11px] text-brass">VALIDATE </span>{playbook.validation}</p>
+            )}
+            {playbook.manual_figures && playbook.manual_figures.length > 0 && (
+              <div>
+                <p className="font-mono text-[11px] tracking-[0.2em] text-brass">MANUAL PAGES</p>
+                <ul className="mt-2 space-y-1 text-sm text-steel">
+                  {playbook.manual_figures.map((fig) => (
+                    <li key={fig.id} className="border border-steel/20 px-3 py-2">
+                      <p>{fig.title} · p.{fig.page} · {fig.caption || fig.language}</p>
+                      {fig.ocr_text && <p className="text-xs">On the picture: {fig.ocr_text}</p>}
+                      {fig.image_url && <img alt={fig.caption || fig.title} className="mt-2 max-h-64 border border-steel/30" src={fig.image_url} />}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
             {playbook.gaps.length > 0 && (
               <ul className="space-y-1 text-sm text-steel">

@@ -25,3 +25,5 @@ cloud-backend/server
 coverage.out
 *.db
 *.sqlite
+data/manuals/*.pdf
+data/manuals/*.PDF

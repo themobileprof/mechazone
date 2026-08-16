@@ -108,6 +108,7 @@ export function buildPlaybook(body: {
   freeze_frame?: Record<string, unknown> | null
   adapter_type?: string
   protocol?: string
+  language?: string
 }) {
   return api<Playbook>('/api/v1/playbooks', { method: 'POST', body: JSON.stringify(body) })
 }

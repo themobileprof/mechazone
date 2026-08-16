@@ -177,7 +177,7 @@ Do not add a separate vector-DB product.
 
 ## 8. Hosted LLM (Phase 2 — do not train a model)
 
-Playbooks call an OpenAI-compatible chat API (DeepSeek is the default). Gemini can be swapped later with a different client. The model sequences tests and lookouts from ledger + network; it does not draw diagrams. Contract: `docs/playbook.md`. Env:
+Playbooks call an OpenAI-compatible chat API (DeepSeek is the default). Gemini can be swapped later with a different client. The model sequences tests and lookouts from ledger + network + ingested manuals (any language). It does not draw diagrams. Drop PDFs in `data/manuals/` and run `make ingest` — `docs/manuals.md`. Contract: `docs/playbook.md`. Env:
 
 ```
 LLM_BASE_URL=

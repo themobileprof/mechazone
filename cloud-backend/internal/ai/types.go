@@ -21,6 +21,7 @@ type Request struct {
 	FreezeFrame json.RawMessage `json:"freeze_frame"`
 	AdapterType string          `json:"adapter_type"`
 	Protocol    string          `json:"protocol"`
+	Language    string          `json:"language"`
 }
 
 type Lookout struct {
@@ -55,4 +56,15 @@ type Playbook struct {
 	Gaps         []string `json:"gaps"`
 	Model        string   `json:"model,omitempty"`
 	FirstSeen    bool     `json:"first_seen"`
+	ManualFigures []ManualFigure `json:"manual_figures,omitempty"`
+}
+
+type ManualFigure struct {
+	ID       string `json:"id"`
+	Title    string `json:"title"`
+	Page     int    `json:"page"`
+	Caption  string `json:"caption"`
+	Language string `json:"language"`
+	ImageURL string `json:"image_url,omitempty"`
+	OCRText  string `json:"ocr_text,omitempty"`
 }
