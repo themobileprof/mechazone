@@ -20,9 +20,21 @@ Mechazone integrates existing APIs and libraries. Do not rebuild these. Keys sta
 
 ## 1. OpenPort 2.0 / J2534 (the kit)
 
-Official Tactrix drivers are **Windows-only**: [Download Drivers + J2534 DLL](https://www.tactrix.com/index.php?Itemid=61).
+Official Tactrix drivers and ECUFlash can **erase a clone** (serial blacklist + firmware write). Do not download from [tactrix.com](https://www.tactrix.com/index.php?Itemid=61) onto a machine that will see this cable — internet or not.
 
-On this Linux laptop we use the OpenPort-specific OSS library: [NikolaKozina/j2534](https://github.com/NikolaKozina/j2534) (libusb). It is already cloned at `third_party/j2534`.
+On Linux we use the OpenPort-specific OSS library: [NikolaKozina/j2534](https://github.com/NikolaKozina/j2534) (libusb). It is already cloned at `third_party/j2534`. That path never ships Tactrix firmware.
+
+### Windows on an internet-connected laptop (clone-safe)
+
+The bay PC can stay online (VIN decode, ledger). The clone dies when `op20pt32.dll` / ECUFlash **writes firmware**, which can happen offline if a newer official DLL is already on disk.
+
+1. Do **not** run the Tactrix installer, ECUFlash, or “check for updates.”
+2. Do **not** let Windows bind the official Tactrix USB driver. If it already did, use Zadig to set **WinUSB** on `0403:cc4d` and `0403:cca2`.
+3. Point `J2534_LIB` at a **frozen** PassThru DLL that already matches this clone (seller CD / a copy you keep inside the Mechazone folder). Never replace that file from the internet.
+4. Block the updater even if someone later installs it: Windows Firewall outbound deny for `ECUFlash.exe` and any `*tactrix*` binary; hosts file `127.0.0.1` for `tactrix.com` and `www.tactrix.com`.
+5. Mechazone must load only `J2534_LIB` (absolute path). Do not rely on the J2534 registry, which may point at an official DLL.
+
+A hosts block alone is not enough: a local official DLL can still flash and brick with no network.
 
 ### One-time Linux install (needs sudo)
 
@@ -42,7 +54,7 @@ Remove the SD card from the OpenPort before use. Plug the USB cable in, ignition
 
 USB IDs we allow in `deploy/99-openport.rules`: `0403:cc4d` and `0403:cca2`.
 
-Windows path: install the Tactrix package, then set `J2534_LIB` to `openport.dll` or `op20pt32.dll`.
+Windows path: set `J2534_LIB` to the frozen clone-matched DLL in the Mechazone folder. Do not install the official Tactrix package.
 
 ---
 

@@ -1,0 +1,18 @@
+---
+description: Windows OpenPort clone — never fetch Tactrix DLLs; shop supplies the CD-matched PassThru file
+alwaysApply: true
+---
+
+# Windows OpenPort / J2534 (clone-safe)
+
+When building the Windows app, installer, or worker USB path:
+
+- **Do not** download drivers or `op20pt32.dll` from tactrix.com. Official Tactrix / ECUFlash can erase this clone (serial blacklist + firmware write). Internet on the bay PC is fine; loading their updater DLL is not.
+- **Do not** fetch a random PassThru DLL from the internet or commit any `.dll` to git.
+- **The operator keeps the CD** (or a copy) that shipped with *this* clone. That frozen DLL already matches the device firmware. Windows install asks them to point `J2534_LIB` at that file (e.g. `mechazone\passthru\op20pt32.dll`). If the disc is lost, do not replace it from Tactrix; use the same seller/batch or keep the cable on Linux OSS.
+- Load **only** the absolute `J2534_LIB` path. Do not use the Windows J2534 registry (it may point at an official DLL).
+- Prefer WinUSB (Zadig) on USB IDs `0403:cc4d` and `0403:cca2` so the official Tactrix driver never binds.
+- Worker: J2534 open/connect/read/write/`SET_CONFIG`/`CLEAR_*` only. No firmware-programming IOCTLs.
+- Longer-term alternative (no CD): port the existing Linux libusb OSS PassThru (`third_party/j2534`) to Windows via WinUSB. Do not invent that by downloading a vendor DLL.
+
+Details: `docs/integrations.md` (Windows on an internet-connected laptop).

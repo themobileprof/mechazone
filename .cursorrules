@@ -20,7 +20,7 @@ You are building Mechazone: a community diagnostic network for independent auto 
 - **Database:** One PostgreSQL (use `pgvector` for RAG). VIN timeline, reputation, sessions, TSB/manual/community embeddings. No separate vector-DB product.
 
 ### 2. HARDWARE AND VEHICLES
-- **Reference kit (already owned):** Tactrix OpenPort 2.0 (Revision E J2534 Pass-Thru clone) + Windows/Linux laptop. This is the development and capability baseline.
+- **Reference kit (already owned):** Tactrix OpenPort 2.0 (Revision E J2534 Pass-Thru clone) + Windows/Linux laptop. This is the development and capability baseline. Windows PassThru DLL is supplied by the operator from the clone CD — see `.cursor/rules/windows-openport.mdc`. Never download Tactrix official drivers onto a machine that will see this cable.
 - **Fallback only:** ELM327 v1.5 where a shop has nothing else. Feature work that needs Pass-Thru, extended addressing, or CAN-FD does not wait on ELM.
 - **Do not add:** Custom ESP32/CAN boards, extra sensors, a second prescribed dongle, or any new hardware SKU.
 - **Target vehicles:** Modern ICE first (e.g. 2010/2011 Toyota Avensis 3ZR-FAE / Valvematic). Chinese EVs (BYD, GAC, Geely) on high-speed CAN, CAN-FD, and UDS are an explicit later target — keep the J2534/UDS path honest for them.

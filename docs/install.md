@@ -66,7 +66,7 @@ Set-ExecutionPolicy -Scope Process Bypass
 
 5. When it says **Done**, double-click **Mechazone** on the Desktop.
 
-For a real car on Windows, also install the [Tactrix OpenPort drivers](https://www.tactrix.com/index.php?Itemid=61) and put the path to `openport.dll` or `op20pt32.dll` in the `J2534_LIB=` line of the `.env` file. Details: `docs/integrations.md`.
+For a real car on Windows, do **not** install drivers from tactrix.com (that updater can wipe a clone, even on a PC that is online for other work). Put a frozen, clone-matched PassThru DLL in the Mechazone folder and set `J2534_LIB=` to that file. Block `tactrix.com` if you want a belt-and-braces. Details: `docs/integrations.md`.
 
 ---
 
