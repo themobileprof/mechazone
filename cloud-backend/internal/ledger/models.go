@@ -49,9 +49,25 @@ type DTC struct {
 	Source   string `json:"source"`
 }
 
+type Job struct {
+	SessionID      string    `json:"session_id"`
+	CreatedAt      time.Time `json:"created_at"`
+	MileageKM      int       `json:"mileage_km"`
+	TechnicianName string    `json:"technician_name"`
+	TechnicianID   string    `json:"technician_id"`
+	Outcome        string    `json:"outcome"`
+	ActiveCodes    []string  `json:"active_codes"`
+	Work           string    `json:"work"`
+	PartsReplaced  []string  `json:"parts_replaced"`
+	VerifiedFix    bool      `json:"verified_fix"`
+	ResolutionID   string    `json:"resolution_id,omitempty"`
+	CloseoutCode   string    `json:"closeout_code,omitempty"`
+}
+
 type History struct {
 	Vehicle     *Vehicle     `json:"vehicle"`
 	FirstSeen   bool         `json:"first_seen"`
+	Jobs        []Job        `json:"jobs"`
 	Sessions    []Session    `json:"sessions"`
 	Resolutions []Resolution `json:"resolutions"`
 }

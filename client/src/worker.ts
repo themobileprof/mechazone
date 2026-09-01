@@ -1,4 +1,4 @@
-import type { ScanResult } from './types'
+import type { DidStream, ScanResult } from './types'
 
 const wsUrl = import.meta.env.VITE_WORKER_WS ?? 'ws://127.0.0.1:8765'
 
@@ -29,11 +29,11 @@ export class WorkerClient {
     })
   }
 
-  private async request<T>(cmd: string, extra: Record<string, unknown> = {}): Promise<T> {
+  private async request<T>(cmd: string, extra: Record<string, unknown> = {}, timeoutMs = 15000): Promise<T> {
     await this.connectSocket()
     const id = String(++this.seq)
     const reply = await new Promise<WorkerReply<T>>((resolve, reject) => {
-      const timer = window.setTimeout(() => reject(new Error('worker timeout')), 15000)
+      const timer = window.setTimeout(() => reject(new Error('worker timeout')), timeoutMs)
       this.pending.set(id, (r) => {
         window.clearTimeout(timer)
         resolve(r as WorkerReply<T>)
@@ -57,7 +57,11 @@ export class WorkerClient {
   }
 
   scan() {
-    return this.request<ScanResult>('scan')
+    return this.request<ScanResult>('scan', {}, 45000)
+  }
+
+  streamDids(seconds = 6) {
+    return this.request<DidStream>('stream_dids', { seconds }, 25000)
   }
 }
 

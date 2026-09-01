@@ -204,8 +204,8 @@ func (s *Store) EnsureVehicle(ctx context.Context, vin, makeName, model string, 
 	return err
 }
 
-func (s *Store) History(ctx context.Context, vin string) (History, error) {
-	h := History{FirstSeen: true, Sessions: []Session{}, Resolutions: []Resolution{}}
+func (s *Store) History(ctx context.Context, vin, shopID, technicianID string) (History, error) {
+	h := History{FirstSeen: true, Jobs: []Job{}, Sessions: []Session{}, Resolutions: []Resolution{}}
 	var v Vehicle
 	err := s.pool.QueryRow(ctx, `
 		SELECT vin, make, model, manufacture_year, COALESCE(decode_source, ''), first_seen_at
@@ -218,15 +218,29 @@ func (s *Store) History(ctx context.Context, vin string) (History, error) {
 		return History{}, err
 	}
 	h.Vehicle = &v
-	h.FirstSeen = false
 
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, vin, COALESCE(shop_id::text, ''), technician_id, mileage, adapter_type, host_os, protocol,
-		       active_dtc_list, freeze_frame_telemetry, COALESCE(raw_hex_excerpt, ''), outcome, created_at
-		FROM diagnostic_sessions
-		WHERE vin = $1
-		ORDER BY created_at DESC
-	`, vin)
+		SELECT s.id, s.vin, COALESCE(s.shop_id::text, ''), s.technician_id, s.mileage, s.adapter_type, s.host_os, s.protocol,
+		       s.active_dtc_list, s.freeze_frame_telemetry, COALESCE(s.raw_hex_excerpt, ''), s.outcome, s.created_at,
+		       COALESCE(t.full_name, ''),
+		       COALESCE(r.id::text, ''), COALESCE(r.diagnostic_trouble_code, ''), COALESCE(r.root_cause_explanation, ''),
+		       COALESCE(r.parts_replaced, '{}'), COALESCE(r.is_verified_fix, false)
+		FROM diagnostic_sessions s
+		JOIN technicians t ON t.id = s.technician_id
+		LEFT JOIN LATERAL (
+			SELECT id, diagnostic_trouble_code, root_cause_explanation, parts_replaced, is_verified_fix, created_at
+			FROM confirmed_resolutions
+			WHERE session_id = s.id
+			ORDER BY created_at DESC
+			LIMIT 1
+		) r ON true
+		WHERE s.vin = $1
+		  AND (
+		        ($2 <> '' AND s.shop_id::text = $2)
+		        OR ($2 = '' AND $3 <> '' AND s.shop_id IS NULL AND s.technician_id::text = $3)
+		      )
+		ORDER BY s.created_at DESC
+	`, vin, strings.TrimSpace(shopID), strings.TrimSpace(technicianID))
 	if err != nil {
 		return History{}, err
 	}
@@ -235,10 +249,16 @@ func (s *Store) History(ctx context.Context, vin string) (History, error) {
 		var sess Session
 		var codes []string
 		var ff []byte
+		var job Job
+		var resID, closeoutCode, work string
+		var parts []string
+		var verified bool
 		if err := rows.Scan(
 			&sess.ID, &sess.VIN, &sess.ShopID, &sess.TechnicianID, &sess.Mileage,
 			&sess.AdapterType, &sess.HostOS, &sess.Protocol, &codes, &ff,
 			&sess.RawHexExcerpt, &sess.Outcome, &sess.CreatedAt,
+			&job.TechnicianName,
+			&resID, &closeoutCode, &work, &parts, &verified,
 		); err != nil {
 			return History{}, err
 		}
@@ -249,33 +269,33 @@ func (s *Store) History(ctx context.Context, vin string) (History, error) {
 			sess.FreezeFrame = ff
 		}
 		h.Sessions = append(h.Sessions, sess)
+		if parts == nil {
+			parts = []string{}
+		}
+		job.SessionID = sess.ID
+		job.CreatedAt = sess.CreatedAt
+		job.MileageKM = sess.Mileage
+		job.TechnicianID = sess.TechnicianID
+		job.Outcome = sess.Outcome
+		job.ActiveCodes = codes
+		job.Work = work
+		job.PartsReplaced = parts
+		job.VerifiedFix = verified
+		job.ResolutionID = resID
+		job.CloseoutCode = closeoutCode
+		h.Jobs = append(h.Jobs, job)
+		if resID != "" {
+			h.Resolutions = append(h.Resolutions, Resolution{
+				ID: resID, SessionID: sess.ID, VIN: sess.VIN, TechnicianID: sess.TechnicianID,
+				DTC: closeoutCode, RootCause: work, PartsReplaced: parts, Verified: verified, CreatedAt: sess.CreatedAt,
+			})
+		}
 	}
 	if err := rows.Err(); err != nil {
 		return History{}, err
 	}
-
-	rrows, err := s.pool.Query(ctx, `
-		SELECT id, session_id, vin, technician_id, diagnostic_trouble_code,
-		       root_cause_explanation, parts_replaced, is_verified_fix, created_at
-		FROM confirmed_resolutions
-		WHERE vin = $1
-		ORDER BY created_at DESC
-	`, vin)
-	if err != nil {
-		return History{}, err
-	}
-	defer rrows.Close()
-	for rrows.Next() {
-		var res Resolution
-		if err := rrows.Scan(
-			&res.ID, &res.SessionID, &res.VIN, &res.TechnicianID, &res.DTC,
-			&res.RootCause, &res.PartsReplaced, &res.Verified, &res.CreatedAt,
-		); err != nil {
-			return History{}, err
-		}
-		h.Resolutions = append(h.Resolutions, res)
-	}
-	return h, rrows.Err()
+	h.FirstSeen = len(h.Jobs) == 0
+	return h, nil
 }
 
 func (s *Store) InsertSession(ctx context.Context, in SessionIngest) (Session, error) {

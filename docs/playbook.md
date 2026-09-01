@@ -9,12 +9,12 @@ It is not a chat box on a fault code. It does not invent pins, voltages, or draw
 | Input | Source | If missing |
 | --- | --- | --- |
 | Live scan | OpenPort worker (VIN, DTCs, freeze-frame, DIDs, adapter) | Adapter tests only; no “typical car” essay |
-| This VIN ledger | PostgreSQL timeline + closeouts | Still retrieve platform + docs; say first-seen |
-| Network matches | Same make/model/engine/year-band + codes, reputation-weighted | Omit network section |
+| This shop's jobs on this VIN | PostgreSQL sessions + closeouts scoped to the login shop (or freelancer) | Still retrieve manuals; say first visit to this shop |
+| This shop's similar platform jobs | Same make/model/year-band + codes, **this shop only**, no other VIN | Omit that section |
 | Retrieved docs | Manual corpus (`data/manuals` ingest) + later `pgvector` | No pin numbers that were not retrieved. Chunks may be in any language. |
 | Retrieved figures | Figures indexed to those chunks / platform key | Show “no diagram on file” — do not generate one |
 
-Do not call the LLM until the ledger lookup and retrieval queries have run. Generic P0xxx seed text may attach; it must not replace history.
+Do not call the LLM until the shop-job lookup and retrieval queries have run. Generic P0xxx seed text may attach; it must not replace this shop's work log. A vehicle's jobs do not follow it to another shop.
 
 ## Output the bay renders
 
@@ -24,7 +24,7 @@ Do not call the LLM until the ledger lookup and retrieval queries have run. Gene
   "platform": "toyota avensis 2009-2012 3zr-fae",
   "lookouts": [
     {
-      "text": "This VIN had P1047 closed as a corroded Valvematic connector. Inspect that connector before replacing the actuator.",
+      "text": "This shop already closed P1047 on this car as a corroded Valvematic connector. Inspect that connector before replacing the actuator.",
       "evidence": ["resolution:<id>"]
     }
   ],
@@ -67,15 +67,21 @@ Every lookout, pin, voltage, and figure must cite `evidence` or `figures`. If th
 - Show: bay iframe/img from our API, caption, document name. Not a model-drawn SVG.
 - YouTube embeds are a later optional aid (`docs` video matching). They do not replace a cited workshop figure.
 
-## History inference (this is the moat)
+## History inference (this shop's work)
 
-Before ranking causes, walk this VIN:
+Before ranking causes, walk **this shop's** jobs on this VIN:
 
-- Same code coming back after a “fix” → do not repeat that part swap first.
-- Prior connector / water ingress / loom repair → lookout on that area.
-- Parts already replaced → do not lead with that part unless live data contradicts.
+- Same code coming back after a closeout here → do not repeat that part swap first.
+- Prior connector / water ingress / loom repair **at this shop** → lookout on that area.
+- Parts this shop already replaced → do not lead with that part unless live data contradicts.
 
-Then the platform network. Unverified narrative never outranks a confirmed resolution.
+Then this shop's similar jobs on the same platform (other vehicles, no VIN in the prompt). Unverified narrative never outranks a confirmed closeout. Do not load another shop's file on this VIN.
+
+## Wiring and dark nodes
+
+Circuit / U-codes are classified (open, short-to-batt, short-to-gnd, lost communication, bus-off) before the model runs. Retrieval then prefers EWD and connector figures already ingested. The worker probes confirmed powertrain nodes plus Toyota 11-bit addresses; a timeout is a dark node, an NRC still counts as on the bus.
+
+A DID wiggle log streams ECM identifiers while the technician moves the loom. There are no captured UDS `$2F` IO-control IDs on the Avensis profile — do not invent them.
 
 ## Implementation home
 

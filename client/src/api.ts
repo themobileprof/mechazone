@@ -89,7 +89,7 @@ export function decodeVin(vin: string) {
 }
 
 export function lookupDtc(code: string) {
-  return api<{ code: string; title: string; cloud_ai_reserved?: boolean }>(`/api/v1/dtcs/${code}`)
+  return api<{ code: string; title: string; cloud_ai_reserved?: boolean; circuit_class?: string; circuit_reason?: string }>(`/api/v1/dtcs/${code}`)
 }
 
 export function ingestSession(body: unknown) {
@@ -105,6 +105,7 @@ export function buildPlaybook(body: {
   engine_hint?: string
   active_codes: string[]
   live?: { name: string; value: number; unit: string; did: string }[]
+  modules?: { name: string; tx_id: string; rx_id: string; family?: string; confirmed: boolean; reachable: boolean; dtcs?: string[] }[]
   freeze_frame?: Record<string, unknown> | null
   adapter_type?: string
   protocol?: string

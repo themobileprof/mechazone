@@ -54,8 +54,24 @@ export type HistoryResponse = {
     first_seen_at: string
   } | null
   first_seen: boolean
+  jobs: Job[]
   sessions: Session[]
   resolutions: Resolution[]
+}
+
+export type Job = {
+  session_id: string
+  created_at: string
+  mileage_km: number
+  technician_name: string
+  technician_id: string
+  outcome: string
+  active_codes: string[]
+  work: string
+  parts_replaced: string[]
+  verified_fix: boolean
+  resolution_id?: string
+  closeout_code?: string
 }
 
 export type Session = {
@@ -103,7 +119,20 @@ export type Playbook = {
   gaps: string[]
   model?: string
   first_seen: boolean
-  manual_figures?: { id: string; title: string; page: number; caption: string; language: string; image_url?: string; ocr_text?: string }[]
+  circuit_classes?: { code: string; class: string; reason: string }[]
+  network?: { reading: string; summary: string; live: number; dark: number }
+  manual_figures?: { id: string; title: string; page: number; caption: string; language: string; image_url?: string; ocr_text?: string; kind?: string }[]
+}
+
+export type ScanModule = {
+  name: string
+  tx_id: string
+  rx_id: string
+  family?: string
+  confirmed: boolean
+  reachable: boolean
+  dtcs?: string[]
+  error?: string
 }
 
 export type ScanResult = {
@@ -118,7 +147,17 @@ export type ScanResult = {
   live: { name: string; value: number; unit: string; did: string }[]
   freeze_frame: Record<string, number>
   raw_hex_stream: string[]
-  modules: { name: string; tx_id: string; rx_id: string; reachable: boolean; error?: string }[]
+  modules: ScanModule[]
+  circuit_classes?: { code: string; class: string; reason: string }[]
+  network?: { reading: string; summary: string; live: number; dark: number }
+}
+
+export type DidStream = {
+  seconds: number
+  module: string
+  tx_id: string
+  io_control: string
+  samples: { t: number; values: Record<string, number | null> }[]
 }
 
 export type QueuedJob = {

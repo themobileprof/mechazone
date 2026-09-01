@@ -63,7 +63,7 @@ export function Landing({ onAuthed }: { onAuthed: (p: Principal) => void }) {
             Scan the car. Find the fault. Finish the job.
           </h1>
           <p className="rise d2 mt-5 max-w-lg text-lg leading-relaxed text-paper">
-            Mechazone puts a premium scanner, AI, and the car’s repair history in your bay — so you can diagnose modern cars, not guess from a cheap code reader.
+            Mechazone puts a premium scanner, AI, and <strong className="text-paper">your workshop's job file</strong> in the bay — so you can diagnose modern cars, not guess from a cheap code reader.
           </p>
           <ol className="rise d3 mt-8 space-y-4 text-base">
             <li className="flex gap-3">
@@ -75,13 +75,13 @@ export function Landing({ onAuthed }: { onAuthed: (p: Principal) => void }) {
             <li className="flex gap-3">
               <span className="font-bold text-brass">2.</span>
               <span>
-                <strong className="text-paper">AI on this job.</strong> It uses the live scan plus what already worked on this car — clear next steps, not generic internet advice.
+                <strong className="text-paper">AI on this job.</strong> It uses the live scan plus the work this shop already did on this car — clear next steps, not generic internet advice.
               </span>
             </li>
             <li className="flex gap-3">
               <span className="font-bold text-brass">3.</span>
               <span>
-                <strong className="text-paper">History from other technicians.</strong> Faults, parts, and the fix from shops that already worked on this vehicle.
+                <strong className="text-paper">Your shop's job history.</strong> What you scanned, what you replaced, and what actually fixed it — on this car, in this workshop. It stays here; it is not a public vehicle record.
               </span>
             </li>
           </ol>

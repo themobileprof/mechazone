@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"mechazone/cloud-backend/internal/ai"
 	"mechazone/cloud-backend/internal/ledger"
 	"mechazone/cloud-backend/internal/pii"
 	"mechazone/cloud-backend/internal/vin"
@@ -19,7 +20,12 @@ func (s *Server) vehicleHistory(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
-	h, err := s.store.History(r.Context(), v)
+	p, ok := principalFrom(r.Context())
+	if !ok || p.TechnicianID == "" {
+		writeError(w, http.StatusForbidden, "technician login required")
+		return
+	}
+	h, err := s.store.History(r.Context(), v, p.ShopID, p.TechnicianID)
 	if err != nil {
 		s.log.Error("history", "err", err, "vin", v)
 		writeError(w, http.StatusInternalServerError, "ledger read failed")
@@ -85,17 +91,27 @@ func (s *Server) lookupDTC(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "dtc lookup failed")
 		return
 	}
+	class := ai.ClassifyCode(d.Code, d.Title)
 	if d.Title == "" {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"code":               d.Code,
-			"category":           "manufacturer_or_unknown",
-			"title":              "",
-			"cloud_ai_reserved":  true,
-			"note":               "Not a seeded SAE P0xxx definition. Use VIN history and community resolutions.",
+			"code":              d.Code,
+			"category":          "manufacturer_or_unknown",
+			"title":             "",
+			"circuit_class":     class.Class,
+			"circuit_reason":    class.Reason,
+			"cloud_ai_reserved": true,
+			"note":              "Not a seeded SAE P0xxx definition. Use this shop's jobs and retrieved manuals.",
 		})
 		return
 	}
-	writeJSON(w, http.StatusOK, d)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"code":           d.Code,
+		"category":       d.Category,
+		"title":          d.Title,
+		"source":         d.Source,
+		"circuit_class":  class.Class,
+		"circuit_reason": class.Reason,
+	})
 }
 
 func (s *Server) ingestSession(w http.ResponseWriter, r *http.Request) {

@@ -10,18 +10,21 @@ type LiveRow struct {
 }
 
 type Request struct {
-	VIN         string          `json:"vin"`
-	SessionID   string          `json:"session_id"`
-	Make        string          `json:"make"`
-	Model       string          `json:"model"`
-	Year        int             `json:"year"`
-	EngineHint  string          `json:"engine_hint"`
-	ActiveCodes []string        `json:"active_codes"`
-	Live        []LiveRow       `json:"live"`
-	FreezeFrame json.RawMessage `json:"freeze_frame"`
-	AdapterType string          `json:"adapter_type"`
-	Protocol    string          `json:"protocol"`
-	Language    string          `json:"language"`
+	VIN          string          `json:"vin"`
+	SessionID    string          `json:"session_id"`
+	Make         string          `json:"make"`
+	Model        string          `json:"model"`
+	Year         int             `json:"year"`
+	EngineHint   string          `json:"engine_hint"`
+	ActiveCodes  []string        `json:"active_codes"`
+	Live         []LiveRow       `json:"live"`
+	Modules      []ModuleHit     `json:"modules"`
+	FreezeFrame  json.RawMessage `json:"freeze_frame"`
+	AdapterType  string          `json:"adapter_type"`
+	Protocol     string          `json:"protocol"`
+	ShopID       string          `json:"-"`
+	TechnicianID string          `json:"-"`
+	Language     string          `json:"language"`
 }
 
 type Lookout struct {
@@ -47,16 +50,18 @@ type Step struct {
 }
 
 type Playbook struct {
-	VIN          string   `json:"vin"`
-	Platform     string   `json:"platform"`
-	Lookouts     []Lookout `json:"lookouts"`
-	LikelyCauses []Cause   `json:"likely_causes"`
-	Steps        []Step    `json:"steps"`
-	Validation   string   `json:"validation"`
-	Gaps         []string `json:"gaps"`
-	Model        string   `json:"model,omitempty"`
-	FirstSeen    bool     `json:"first_seen"`
-	ManualFigures []ManualFigure `json:"manual_figures,omitempty"`
+	VIN            string         `json:"vin"`
+	Platform       string         `json:"platform"`
+	Lookouts       []Lookout      `json:"lookouts"`
+	LikelyCauses   []Cause        `json:"likely_causes"`
+	Steps          []Step         `json:"steps"`
+	Validation     string         `json:"validation"`
+	Gaps           []string       `json:"gaps"`
+	Model          string         `json:"model,omitempty"`
+	FirstSeen      bool           `json:"first_seen"`
+	CircuitClasses []CircuitClass `json:"circuit_classes,omitempty"`
+	Network        NetworkHint    `json:"network,omitempty"`
+	ManualFigures  []ManualFigure `json:"manual_figures,omitempty"`
 }
 
 type ManualFigure struct {
@@ -67,4 +72,5 @@ type ManualFigure struct {
 	Language string `json:"language"`
 	ImageURL string `json:"image_url,omitempty"`
 	OCRText  string `json:"ocr_text,omitempty"`
+	Kind     string `json:"kind,omitempty"`
 }

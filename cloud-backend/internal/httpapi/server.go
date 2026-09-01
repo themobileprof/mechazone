@@ -36,7 +36,7 @@ func New(cfg config.Config, store *ledger.Store, vins *vin.Resolver, fuser *ai.F
 	mux.HandleFunc("POST /api/v1/admin/shops", s.requireAdmin(s.createShop))
 	mux.HandleFunc("GET /api/v1/admin/technicians", s.requireAdmin(s.listTechnicians))
 	mux.HandleFunc("POST /api/v1/admin/technicians", s.requireAdmin(s.createTechnician))
-	mux.HandleFunc("GET /api/v1/vehicles/{vin}", s.requireAuth(s.vehicleHistory))
+	mux.HandleFunc("GET /api/v1/vehicles/{vin}", s.requireTechnician(s.vehicleHistory))
 	mux.HandleFunc("POST /api/v1/vehicles/{vin}/decode", s.requireAuth(s.decodeVIN))
 	mux.HandleFunc("GET /api/v1/dtcs/{code}", s.requireAuth(s.lookupDTC))
 	mux.HandleFunc("POST /api/v1/sessions", s.requireTechnician(s.ingestSession))

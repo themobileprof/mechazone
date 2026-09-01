@@ -6,7 +6,7 @@ import (
 )
 
 var allowedEvidence = []string{
-	"ledger:", "network:", "resolution:", "session:", "dtc:", "live:", "vehicle:", "gap:", "doc:", "figure:",
+	"ledger:", "network:", "resolution:", "session:", "dtc:", "live:", "vehicle:", "gap:", "doc:", "figure:", "module:",
 }
 
 func Sanitize(p Playbook, allowedFigures map[string]struct{}) Playbook {

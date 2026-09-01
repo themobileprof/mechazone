@@ -8,7 +8,6 @@ import (
 
 type NetworkMatch struct {
 	ID         string    `json:"id"`
-	VIN        string    `json:"vin"`
 	DTC        string    `json:"diagnostic_trouble_code"`
 	RootCause  string    `json:"root_cause_explanation"`
 	Parts      []string  `json:"parts_replaced"`
@@ -45,9 +44,22 @@ func (s *Store) SessionByID(ctx context.Context, id string) (Session, error) {
 	return sess, nil
 }
 
-func (s *Store) NetworkMatches(ctx context.Context, vin, makeName, model string, year int, codes []string) ([]NetworkMatch, error) {
+func InShopScope(shopID, sessionShop, technicianID, sessionTech string) bool {
+	shopID = strings.TrimSpace(shopID)
+	sessionShop = strings.TrimSpace(sessionShop)
+	technicianID = strings.TrimSpace(technicianID)
+	sessionTech = strings.TrimSpace(sessionTech)
+	if shopID != "" {
+		return sessionShop == shopID
+	}
+	return technicianID != "" && sessionTech == technicianID && sessionShop == ""
+}
+
+func (s *Store) NetworkMatches(ctx context.Context, vin, shopID, technicianID, makeName, model string, year int, codes []string) ([]NetworkMatch, error) {
 	makeName = strings.TrimSpace(makeName)
 	model = strings.TrimSpace(model)
+	shopID = strings.TrimSpace(shopID)
+	technicianID = strings.TrimSpace(technicianID)
 	if makeName == "" || model == "" {
 		return []NetworkMatch{}, nil
 	}
@@ -56,19 +68,24 @@ func (s *Store) NetworkMatches(ctx context.Context, vin, makeName, model string,
 		lo, hi = year-3, year+3
 	}
 	rows, err := s.pool.Query(ctx, `
-		SELECT r.id, r.vin, r.diagnostic_trouble_code, r.root_cause_explanation, r.parts_replaced,
+		SELECT r.id, r.diagnostic_trouble_code, r.root_cause_explanation, r.parts_replaced,
 		       r.is_verified_fix, t.reputation_score, v.make, v.model, v.manufacture_year, r.created_at
 		FROM confirmed_resolutions r
+		JOIN diagnostic_sessions s ON s.id = r.session_id
 		JOIN vehicles v ON v.vin = r.vin
 		JOIN technicians t ON t.id = r.technician_id
 		WHERE r.vin <> $1
+		  AND (
+		        ($7 <> '' AND s.shop_id::text = $7)
+		        OR ($7 = '' AND $8 <> '' AND s.shop_id IS NULL AND s.technician_id::text = $8)
+		      )
 		  AND lower(v.make) = lower($2)
 		  AND lower(v.model) = lower($3)
 		  AND v.manufacture_year BETWEEN $4 AND $5
 		  AND (cardinality($6::text[]) = 0 OR r.diagnostic_trouble_code = ANY($6))
 		ORDER BY r.is_verified_fix DESC, t.reputation_score DESC, r.created_at DESC
 		LIMIT 20
-	`, vin, makeName, model, lo, hi, codes)
+	`, vin, makeName, model, lo, hi, codes, shopID, technicianID)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +94,7 @@ func (s *Store) NetworkMatches(ctx context.Context, vin, makeName, model string,
 	for rows.Next() {
 		var m NetworkMatch
 		if err := rows.Scan(
-			&m.ID, &m.VIN, &m.DTC, &m.RootCause, &m.Parts, &m.Verified,
+			&m.ID, &m.DTC, &m.RootCause, &m.Parts, &m.Verified,
 			&m.Reputation, &m.Make, &m.Model, &m.Year, &m.CreatedAt,
 		); err != nil {
 			return nil, err

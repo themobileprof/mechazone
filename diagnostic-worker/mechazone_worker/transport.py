@@ -61,13 +61,20 @@ class J2534IsoTpConnection(BaseConnection):
 
 
 class MockIsoTpConnection(BaseConnection):
-    """Responds to UDS requests from a scripted ECU map. Used when OpenPort is not attached."""
+    """Responds to UDS requests from a scripted ECU map. silent=True = dark node (timeout)."""
 
-    def __init__(self, replies: dict[bytes, bytes], hexlog: MemoryHexLog, name: str = "mock") -> None:
+    def __init__(
+        self,
+        replies: dict[bytes, bytes] | None,
+        hexlog: MemoryHexLog,
+        name: str = "mock",
+        silent: bool = False,
+    ) -> None:
         super().__init__(name=name)
-        self._replies = replies
+        self._replies = replies or {}
         self._hexlog = hexlog
         self._pending: bytes | None = None
+        self._silent = silent
         self.opened = False
 
     def open(self) -> MockIsoTpConnection:
@@ -82,6 +89,9 @@ class MockIsoTpConnection(BaseConnection):
 
     def specific_send(self, payload: bytes, timeout: float | None = None) -> None:
         self._hexlog.record("TX", payload)
+        if self._silent:
+            self._pending = None
+            return
         self._pending = self._replies.get(bytes(payload))
         if self._pending is None:
             sid = payload[0] if payload else 0x00

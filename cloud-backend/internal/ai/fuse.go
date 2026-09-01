@@ -27,7 +27,7 @@ func (f *Fuser) Build(ctx context.Context, req Request) (Playbook, error) {
 		return Playbook{}, fmt.Errorf("active_codes or session_id is required")
 	}
 
-	hist, err := f.Store.History(ctx, req.VIN)
+	hist, err := f.Store.History(ctx, req.VIN, req.ShopID, req.TechnicianID)
 	if err != nil {
 		return Playbook{}, fmt.Errorf("ledger: %w", err)
 	}
@@ -50,6 +50,9 @@ func (f *Fuser) Build(ctx context.Context, req Request) (Playbook, error) {
 		if sess.VIN != req.VIN {
 			return Playbook{}, fmt.Errorf("session VIN does not match")
 		}
+		if !ledger.InShopScope(req.ShopID, sess.ShopID, req.TechnicianID, sess.TechnicianID) {
+			return Playbook{}, fmt.Errorf("session is not this shop's job")
+		}
 		if len(req.ActiveCodes) == 0 {
 			req.ActiveCodes = sess.ActiveCodes
 		}
@@ -64,7 +67,7 @@ func (f *Fuser) Build(ctx context.Context, req Request) (Playbook, error) {
 		}
 	}
 
-	matches, err := f.Store.NetworkMatches(ctx, req.VIN, req.Make, req.Model, req.Year, req.ActiveCodes)
+	matches, err := f.Store.NetworkMatches(ctx, req.VIN, req.ShopID, req.TechnicianID, req.Make, req.Model, req.Year, req.ActiveCodes)
 	if err != nil {
 		return Playbook{}, fmt.Errorf("network: %w", err)
 	}
@@ -72,9 +75,16 @@ func (f *Fuser) Build(ctx context.Context, req Request) (Playbook, error) {
 	if err != nil {
 		return Playbook{}, fmt.Errorf("dtc: %w", err)
 	}
+	titleText := map[string]string{}
+	for code, d := range titles {
+		titleText[code] = d.Title
+	}
+	classes := ClassifyCodes(req.ActiveCodes, titleText)
+	net := InferNetwork(req.Modules)
+	wiring := WiringShaped(classes)
 
 	q := strings.TrimSpace(strings.Join(append(req.ActiveCodes, req.EngineHint, req.Make, req.Model), " "))
-	docs, figs, err := f.Store.SearchManuals(ctx, req.Make, req.Model, req.Year, req.ActiveCodes, q)
+	docs, figs, err := f.Store.SearchManuals(ctx, req.Make, req.Model, req.Year, req.ActiveCodes, q, wiring)
 	if err != nil {
 		return Playbook{}, fmt.Errorf("manuals: %w", err)
 	}
@@ -87,7 +97,7 @@ func (f *Fuser) Build(ctx context.Context, req Request) (Playbook, error) {
 		req.Language = "en"
 	}
 
-	user, err := buildUserPrompt(req, hist, matches, titles, docs, figs)
+	user, err := buildUserPrompt(req, hist, matches, titles, docs, figs, classes, net, wiring)
 	if err != nil {
 		return Playbook{}, err
 	}
@@ -104,10 +114,12 @@ func (f *Fuser) Build(ctx context.Context, req Request) (Playbook, error) {
 	book.FirstSeen = hist.FirstSeen
 	book.Model = f.LLM.Model
 	book = Sanitize(book, allowedFigures)
+	book.CircuitClasses = classes
+	book.Network = net
 	for _, fig := range figs {
 		book.ManualFigures = append(book.ManualFigures, ManualFigure{
 			ID: fig.ID, Title: fig.Title, Page: fig.Page, Caption: fig.Caption, Language: fig.Language,
-			ImageURL: fig.ImageURL, OCRText: fig.OCRText,
+			ImageURL: fig.ImageURL, OCRText: fig.OCRText, Kind: fig.Kind,
 		})
 	}
 	return book, nil
@@ -122,26 +134,33 @@ validation (string),
 gaps (array of strings).
 
 Rules:
-- History on THIS VIN first, then same-platform network matches. Never invent a repair from a code letter.
-- Every lookout and cause MUST cite evidence using only these prefixes: ledger:, resolution:<id>, network:<id>, session:<id>, dtc:<code>, live:<name>, vehicle:decode, doc:<id>, figure:<id>.
+- Use this shop's jobs on THIS vehicle first (what was done, parts, closeouts). That record stays in this shop — it is not a public VIN history.
+- Then this shop's similar jobs on other vehicles of the same platform. Never treat another shop's work, or another VIN, as this car's history.
+- Every lookout and cause MUST cite evidence using only these prefixes: ledger:, resolution:<id>, network:<id>, session:<id>, dtc:<code>, live:<name>, vehicle:decode, doc:<id>, figure:<id>, module:<name>.
 - Manual chunks may be in another language. Use them. Do not discard a procedure because it is not English.
 - Write lookouts, steps, and validation in the requested playbook language.
 - Do not invent pin numbers, voltages, or access steps that are not in the provided context. Put missing facts in gaps.
 - figures may only list figure:<id> values that appear in retrieved.figures. Never generate a drawing.
 - Prefer OpenPort/UDS tests and a shop multimeter. No extra instruments.
-- If this VIN already had a fix for the same code, say so in lookouts and do not lead with that same part swap.
-- If first_seen is true, say so in gaps and use network + live data only.
+- If circuit_classes mark a code as open/short/lost_communication/bus_off, treat it as wiring/network first, not a failed sensor. Lead with the module map (who is dark), then retrieved EWD/connector figures, then a meter test cited from those chunks, then a DID wiggle on the OpenPort. Do not invent pin numbers.
+- If network.reading is backbone, check DLC power/ground/CAN before a single module. If branch, stay on the silent confirmed node.
+- There are no captured UDS $2F IO-control IDs on this profile. Do not invent actuator commands. Put that in gaps if an output test would help.
+- If this shop already closed the same code on this vehicle, say so in lookouts and do not lead with that same part swap.
+- If first_seen is true, this shop has not worked this vehicle before. Say so in gaps. Use live data, this shop's similar platform jobs, and manuals — not another shop's VIN file.
 - No customer names, phones, or plates.`
 
-func buildUserPrompt(req Request, hist ledger.History, matches []ledger.NetworkMatch, titles map[string]ledger.DTC, docs []ledger.RetrievedChunk, figs []ledger.RetrievedFigure) (string, error) {
+func buildUserPrompt(req Request, hist ledger.History, matches []ledger.NetworkMatch, titles map[string]ledger.DTC, docs []ledger.RetrievedChunk, figs []ledger.RetrievedFigure, classes []CircuitClass, net NetworkHint, wiring bool) (string, error) {
 	type payload struct {
-		PlaybookLanguage string                   `json:"playbook_language"`
-		Vehicle          any                      `json:"vehicle"`
-		FirstSeen        bool                     `json:"first_seen"`
-		LiveScan         Request                  `json:"live_scan"`
-		DTCTitles        map[string]ledger.DTC    `json:"dtc_titles"`
-		VINLedger        ledger.History           `json:"vin_ledger"`
-		Network          []ledger.NetworkMatch    `json:"network_matches"`
+		PlaybookLanguage string                `json:"playbook_language"`
+		Vehicle          any                   `json:"vehicle"`
+		FirstSeen        bool                  `json:"first_seen"`
+		WiringShaped     bool                  `json:"wiring_shaped"`
+		CircuitClasses   []CircuitClass        `json:"circuit_classes"`
+		Network          NetworkHint           `json:"network"`
+		LiveScan         Request               `json:"live_scan"`
+		DTCTitles        map[string]ledger.DTC `json:"dtc_titles"`
+		ShopWork         ledger.History        `json:"shop_work"`
+		ShopPlatformJobs []ledger.NetworkMatch `json:"shop_platform_jobs"`
 		Retrieved        struct {
 			Docs    []ledger.RetrievedChunk  `json:"docs"`
 			Figures []ledger.RetrievedFigure `json:"figures"`
@@ -150,10 +169,13 @@ func buildUserPrompt(req Request, hist ledger.History, matches []ledger.NetworkM
 	p := payload{
 		PlaybookLanguage: req.Language,
 		FirstSeen:        hist.FirstSeen,
+		WiringShaped:     wiring,
+		CircuitClasses:   classes,
+		Network:          net,
 		LiveScan:         req,
 		DTCTitles:        titles,
-		VINLedger:        hist,
-		Network:          matches,
+		ShopWork:         hist,
+		ShopPlatformJobs: matches,
 	}
 	if hist.Vehicle != nil {
 		p.Vehicle = hist.Vehicle
@@ -165,7 +187,7 @@ func buildUserPrompt(req Request, hist ledger.History, matches []ledger.NetworkM
 		return "", err
 	}
 	var sb strings.Builder
-	sb.WriteString("Build the playbook from this gathered context. Cite retrieved docs as doc:<id> and figures as figure:<id>. If retrieved.docs is empty, do not invent manual text.\n\n")
+	sb.WriteString("Build the playbook from this gathered context. shop_work is this shop's jobs on this vehicle only. shop_platform_jobs are this shop's similar repairs on other cars (no VIN). Cite retrieved docs as doc:<id> and figures as figure:<id>. If retrieved.docs is empty, do not invent manual text.\n\n")
 	sb.Write(b)
 	return sb.String(), nil
 }

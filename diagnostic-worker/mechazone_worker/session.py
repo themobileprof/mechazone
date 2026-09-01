@@ -8,6 +8,7 @@ from udsoncan.common.DidCodec import DidCodec
 from udsoncan.configs import default_client_config
 from udsoncan.exceptions import NegativeResponseException, TimeoutException
 
+from mechazone_worker.circuit import classify_codes, network_hint
 from mechazone_worker.hexutil import decode_dtc
 from mechazone_worker.profiles import avensis_3zr_fae as avensis
 from mechazone_worker.transport import (
@@ -45,6 +46,8 @@ class ScanResult:
     freeze_frame: dict[str, Any]
     raw_hex_stream: list[str]
     modules: list[dict[str, Any]] = field(default_factory=list)
+    circuit_classes: list[dict[str, str]] = field(default_factory=list)
+    network: dict[str, Any] = field(default_factory=dict)
 
 
 class DiagnosticSession:
@@ -74,27 +77,39 @@ class DiagnosticSession:
         modules: list[dict[str, Any]] = []
 
         for module in avensis.MODULES:
+            timeout = 2.0 if module.name == "ECM" else 0.35
             conn = self._factory(module.tx_id, module.rx_id, self.hexlog)
             info: dict[str, Any] = {
                 "name": module.name,
                 "tx_id": f"0x{module.tx_id:03X}",
                 "rx_id": f"0x{module.rx_id:03X}",
+                "family": module.family,
+                "confirmed": module.confirmed,
                 "reachable": False,
+                "dtcs": [],
             }
             try:
-                with Client(conn, request_timeout=2.0, config=_uds_config()) as client:
+                with Client(conn, request_timeout=timeout, config=_uds_config(timeout)) as client:
+                    node_codes = _read_dtcs(client)
+                    info["dtcs"] = node_codes
+                    info["reachable"] = True
                     if module.name == "ECM":
                         vin = _read_vin(client)
-                        codes.extend(_read_dtcs(client))
+                        codes.extend(node_codes)
                         live.extend(_read_live(client))
                     else:
-                        _read_dtcs(client)
-                    info["reachable"] = True
-            except (NegativeResponseException, TimeoutException, TimeoutError) as exc:
-                info["error"] = str(exc)
+                        codes.extend(node_codes)
+            except TimeoutException:
+                info["error"] = "timeout"
+            except TimeoutError:
+                info["error"] = "timeout"
+            except NegativeResponseException:
+                info["reachable"] = True
+                info["error"] = "nrc"
             modules.append(info)
 
         freeze = {item["name"]: item["value"] for item in live}
+        classes = classify_codes(codes)
         return ScanResult(
             vin=vin,
             profile=avensis.PROFILE_ID,
@@ -108,17 +123,55 @@ class DiagnosticSession:
             freeze_frame=freeze,
             raw_hex_stream=list(self.hexlog.lines),
             modules=modules,
+            circuit_classes=classes,
+            network=network_hint(modules),
         )
 
+    def stream_dids(self, seconds: float = 6.0) -> dict[str, Any]:
+        """Sample ECM DIDs for a wiggle test. No IO-control IDs are captured on this profile."""
+        if seconds <= 0:
+            seconds = 6.0
+        if seconds > 20:
+            seconds = 20.0
+        if self.adapter_type == "mock":
+            return _mock_stream()
+        self.hexlog = MemoryHexLog()
+        samples: list[dict[str, Any]] = []
+        import time
 
-def _uds_config() -> dict[str, Any]:
+        deadline = time.monotonic() + seconds
+        conn = self._factory(avensis.ECM.tx_id, avensis.ECM.rx_id, self.hexlog)
+        with Client(conn, request_timeout=1.0, config=_uds_config(1.0)) as client:
+            while time.monotonic() < deadline:
+                row: dict[str, Any] = {"t": round(seconds - (deadline - time.monotonic()), 2), "values": {}}
+                for item in avensis.DIDS:
+                    try:
+                        resp = client.read_data_by_identifier(item.did)
+                        raw = resp.service_data.values[item.did]
+                        if isinstance(raw, (bytes, bytearray)):
+                            row["values"][item.name] = _decode_scaled(bytes(raw), item.size, item.scale, item.offset)
+                    except (NegativeResponseException, TimeoutException, TimeoutError):
+                        row["values"][item.name] = None
+                samples.append(row)
+                time.sleep(0.35)
+        return {
+            "seconds": seconds,
+            "module": "ECM",
+            "tx_id": f"0x{avensis.ECM.tx_id:03X}",
+            "io_control": "none_captured",
+            "samples": samples,
+            "raw_hex_stream": list(self.hexlog.lines),
+        }
+
+
+def _uds_config(timeout: float = 2.0) -> dict[str, Any]:
     cfg = dict(default_client_config)
     cfg["data_identifiers"] = {
         avensis.VIN_DID: RemainingCodec(),
         **{item.did: RemainingCodec() for item in avensis.DIDS},
     }
-    cfg["p2_timeout"] = 2.0
-    cfg["request_timeout"] = 3.0
+    cfg["p2_timeout"] = timeout
+    cfg["request_timeout"] = timeout + 1.0
     return cfg
 
 
@@ -173,6 +226,33 @@ def _decode_scaled(raw: bytes, size: int, scale: float, offset: float) -> float:
     return round(n * scale + offset, 3)
 
 
+def _mock_stream() -> dict[str, Any]:
+    # Wiggle story: actual angle drops out while target stays put (connector/loom).
+    samples = []
+    actuals = [0.0, 0.0, 12.4, 0.0, 0.0, 12.5, 0.0, 0.0]
+    for i, actual in enumerate(actuals):
+        samples.append(
+            {
+                "t": round(i * 0.4, 2),
+                "values": {
+                    "valvematic_target_angle": 12.5,
+                    "valvematic_actual_angle": actual,
+                    "engine_rpm": 1820,
+                    "coolant_temp": 92.0,
+                    "system_voltage": 13.8 if actual > 0 else 11.2,
+                },
+            }
+        )
+    return {
+        "seconds": 3.2,
+        "module": "ECM",
+        "tx_id": "0x7E0",
+        "io_control": "none_captured",
+        "samples": samples,
+        "raw_hex_stream": [],
+    }
+
+
 def openport_factory(lib, channel):
     def factory(tx_id: int, rx_id: int, hexlog: MemoryHexLog) -> J2534IsoTpConnection:
         return J2534IsoTpConnection(lib, channel, tx_id, rx_id, hexlog)
@@ -182,6 +262,13 @@ def openport_factory(lib, channel):
 
 def mock_factory():
     def factory(tx_id: int, rx_id: int, hexlog: MemoryHexLog) -> MockIsoTpConnection:
-        return MockIsoTpConnection(avensis.mock_replies(tx_id), hexlog, name=f"mock:{tx_id:03X}")
+        replies = avensis.mock_replies(tx_id)
+        silent = replies is None
+        return MockIsoTpConnection(
+            replies or {},
+            hexlog,
+            name=f"mock:{tx_id:03X}",
+            silent=silent,
+        )
 
     return factory

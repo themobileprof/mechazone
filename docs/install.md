@@ -12,7 +12,7 @@ After install, daily use is: **double-click Mechazone**, sign in, plug the OpenP
 | --- | --- |
 | The laptop that will sit in the bay | Ubuntu / Debian Linux, or Windows 10/11. 64-bit. |
 | This Mechazone folder | A USB stick, a zip download, or a copy from another shop. Keep it somewhere permanent (Documents is fine). **Do not delete the folder** after install — the app lives inside it. |
-| Internet, the first time | The installer downloads a few pieces. After that, the bay works offline; VIN decode and network history need the radio when you want them. |
+| Internet, the first time | The installer downloads a few pieces. After that, the bay works offline; VIN decode needs the radio when you want it. |
 | Your computer password | Linux will ask once, so the installer can add the database and USB permission. |
 | OpenPort 2.0 Rev E + USB cable | For a real car. You can install and practise **without** the cable (Mock ECU). |
 

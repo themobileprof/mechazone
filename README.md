@@ -1,6 +1,6 @@
 # Mechazone
 
-Shop-floor diagnostic ledger. Phase 1: OpenPort 2.0 Rev E (or mock ECU) → VIN history → session log → closeout.
+Shop-floor diagnostic ledger. Phase 1: OpenPort 2.0 Rev E (or mock ECU) → this shop's jobs on the VIN → session log → closeout.
 
 ## Shop install (non-technical)
 

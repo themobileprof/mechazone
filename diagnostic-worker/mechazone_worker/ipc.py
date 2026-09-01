@@ -109,7 +109,12 @@ def _dispatch(state: WorkerState, cmd: str, msg: dict[str, Any]) -> Any:
             "freeze_frame": result.freeze_frame,
             "raw_hex_stream": result.raw_hex_stream,
             "modules": result.modules,
+            "circuit_classes": result.circuit_classes,
+            "network": result.network,
         }
+    if cmd == "stream_dids":
+        seconds = float(msg.get("seconds") or 6)
+        return state.require().stream_dids(seconds)
     raise ValueError(f"unknown cmd {cmd}")
 
 

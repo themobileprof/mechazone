@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { buildPlaybook, closeoutSession, decodeVin, fetchHistory, ingestSession, ledgerOnline, lookupDtc, logout } from './api'
 import { enqueue, flushQueue, pendingCount } from './queue'
-import type { HistoryResponse, Playbook, Principal, ScanResult, Session } from './types'
+import type { DidStream, HistoryResponse, Playbook, Principal, ScanResult, Session } from './types'
 import { worker } from './worker'
 
 type Adapter = 'mock' | 'openport2_rev_e'
@@ -24,6 +24,8 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
   const [rootCause, setRootCause] = useState('')
   const [parts, setParts] = useState('Cleaned connector pins')
   const [playbook, setPlaybook] = useState<Playbook | null>(null)
+  const [wiggle, setWiggle] = useState<DidStream | null>(null)
+  const [dtcClass, setDtcClass] = useState<Record<string, string>>({})
 
   useEffect(() => {
     const tick = async () => {
@@ -40,16 +42,21 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
   }, [])
 
   const codes = scan?.active_codes ?? []
+  const classFor = (code: string) =>
+    scan?.circuit_classes?.find((c) => c.code === code)?.class || dtcClass[code] || ''
 
   useEffect(() => {
     void Promise.all(codes.map(async (code) => {
       try {
         const d = await lookupDtc(code)
-        return [code, d.title || (d.cloud_ai_reserved ? 'Manufacturer-specific — use history/network' : '')] as const
+        return [code, d.title || (d.cloud_ai_reserved ? 'Manufacturer-specific — use history/network' : ''), d.circuit_class || ''] as const
       } catch {
-        return [code, ''] as const
+        return [code, '', ''] as const
       }
-    })).then((rows) => setDtcTitles(Object.fromEntries(rows)))
+    })).then((rows) => {
+      setDtcTitles(Object.fromEntries(rows.map(([c, t]) => [c, t])))
+      setDtcClass(Object.fromEntries(rows.map(([c, , k]) => [c, k])))
+    })
   }, [codes.join('|')])
 
   const vehicleLabel = useMemo(() => {
@@ -119,7 +126,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
             await decodeVin(r.vin).catch(() => undefined)
             setHistory(await fetchHistory(r.vin))
           } else {
-            setHistory({ vehicle: null, first_seen: true, sessions: [], resolutions: [] })
+            setHistory({ vehicle: null, first_seen: true, jobs: [], sessions: [], resolutions: [] })
           }
         })}>
           READ VIN
@@ -128,6 +135,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
           const result = await worker.scan()
           setScan(result)
           setPlaybook(null)
+          setWiggle(null)
           if (result.vin && result.vin !== vin) {
             setVin(result.vin)
             if (online) setHistory(await fetchHistory(result.vin))
@@ -147,7 +155,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
           <span>{vehicleLabel}</span>
           {history && (
             <span className={history.first_seen ? 'text-brass' : 'text-ok'}>
-              {history.first_seen ? 'FIRST SEEN ON NETWORK' : `${history.sessions.length} PRIOR SESSION(S)`}
+              {history.first_seen ? 'FIRST VISIT TO THIS SHOP' : `${history.jobs?.length ?? history.sessions.length} JOB(S) HERE`}
             </span>
           )}
         </div>
@@ -161,7 +169,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
         <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="font-mono text-sm tracking-[0.25em] text-brass">AI PLAYBOOK</h2>
-            <p className="mt-1 text-sm text-steel">Uses this scan, this VIN’s history, and other shops on the same platform. It will not invent a diagram.</p>
+            <p className="mt-1 text-sm text-steel">Uses this scan and this shop's jobs on this car, plus workshop manuals. It will not invent a diagram. Work stays in this shop.</p>
           </div>
           <button
             className="min-h-12 bg-brass px-5 font-semibold text-oil"
@@ -177,6 +185,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
                 engine_hint: scan.profile,
                 active_codes: scan.active_codes,
                 live: scan.live,
+                modules: scan.modules,
                 freeze_frame: scan.freeze_frame,
                 adapter_type: scan.adapter_type,
                 protocol: scan.protocol,
@@ -188,14 +197,25 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
             BUILD PLAYBOOK
           </button>
         </div>
-        {!playbook && <p className="text-steel">Read VIN, deep scan, then build. History loads before the model is called.</p>}
+        {!playbook && <p className="text-steel">Read VIN, deep scan, then build. This shop's job file loads before the model is called.</p>}
         {playbook && (
           <div className="space-y-4">
             <p className="font-mono text-xs text-steel">
               {playbook.platform || 'platform unknown'}
-              {playbook.first_seen ? ' · first seen' : ''}
+              {playbook.first_seen ? ' · first visit to this shop' : ''}
               {playbook.model ? ` · ${playbook.model}` : ''}
             </p>
+            {playbook.network?.summary && (
+              <p className="border border-steel/30 px-3 py-2 text-sm">
+                <span className="font-mono text-[11px] text-brass">{playbook.network.reading.toUpperCase()} </span>
+                {playbook.network.summary}
+              </p>
+            )}
+            {playbook.circuit_classes && playbook.circuit_classes.length > 0 && (
+              <p className="font-mono text-xs text-steel">
+                {playbook.circuit_classes.map((c) => `${c.code} ${c.class}`).join(' · ')}
+              </p>
+            )}
             {playbook.lookouts.length > 0 && (
               <div>
                 <p className="font-mono text-[11px] tracking-[0.2em] text-brass">LOOK OUT ON THIS CAR</p>
@@ -245,7 +265,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
                 <ul className="mt-2 space-y-1 text-sm text-steel">
                   {playbook.manual_figures.map((fig) => (
                     <li key={fig.id} className="border border-steel/20 px-3 py-2">
-                      <p>{fig.title} · p.{fig.page} · {fig.caption || fig.language}</p>
+                      <p>{fig.kind ? fig.kind.toUpperCase() + ' · ' : ''}{fig.title} · p.{fig.page} · {fig.caption || fig.language}</p>
                       {fig.ocr_text && <p className="text-xs">On the picture: {fig.ocr_text}</p>}
                       {fig.image_url && <img alt={fig.caption || fig.title} className="mt-2 max-h-64 border border-steel/30" src={fig.image_url} />}
                     </li>
@@ -264,21 +284,29 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
 
       <div className="grid gap-6 xl:grid-cols-[1.1fr_1fr_0.9fr]">
         <section className="rounded-sm border border-brass/20 bg-panel p-5">
-          <h2 className="mb-3 font-mono text-sm tracking-[0.25em] text-brass">VIN TIMELINE</h2>
-          {!history && <p className="text-steel">Read VIN first. History loads before a diagnosis.</p>}
-          {history?.first_seen && <p className="text-steel">No ledger rows yet. This shop will open the book.</p>}
+          <h2 className="mb-3 font-mono text-sm tracking-[0.25em] text-brass">THIS SHOP'S WORK</h2>
+          {!history && <p className="text-steel">Read VIN first. This shop's jobs load before a diagnosis.</p>}
+          {history?.first_seen && <p className="text-steel">This shop has not worked this vehicle yet. Close the job to start the file.</p>}
           <ol className="space-y-3">
-            {history?.resolutions.map((res) => (
-              <li key={res.id} className="border-l-2 border-ok pl-3">
-                <p className="font-mono text-xs text-ok">{res.is_verified_fix ? 'VERIFIED FIX' : 'NOTE'} · {res.diagnostic_trouble_code}</p>
-                <p>{res.root_cause_explanation}</p>
-                <p className="text-sm text-steel">{res.parts_replaced.join(', ')}</p>
-              </li>
-            ))}
-            {history?.sessions.map((sess) => (
-              <li key={sess.id} className="border-l-2 border-steel/50 pl-3">
-                <p className="font-mono text-xs text-steel">{new Date(sess.created_at).toLocaleString()} · {sess.outcome} · {sess.mileage_km} km</p>
-                <p className="font-mono">{sess.active_codes.join('  ') || 'no codes'}</p>
+            {(history?.jobs ?? []).map((job) => (
+              <li key={job.session_id} className={`border-l-2 pl-3 ${job.verified_fix ? 'border-ok' : 'border-steel/50'}`}>
+                <p className="font-mono text-xs text-steel">
+                  {new Date(job.created_at).toLocaleString()} · {job.technician_name || 'tech'} · {job.mileage_km} km · {job.outcome}
+                  {job.verified_fix ? ' · CLOSED' : ''}
+                </p>
+                {job.work ? (
+                  <p>{job.work}</p>
+                ) : (
+                  <p className="text-sm text-steel">Scan logged — close the job to record the work done.</p>
+                )}
+                {job.parts_replaced.length > 0 && (
+                  <p className="text-sm text-steel">Parts: {job.parts_replaced.join(', ')}</p>
+                )}
+                {(job.closeout_code || job.active_codes.length > 0) && (
+                  <p className="font-mono text-xs text-steel">
+                    {job.closeout_code || job.active_codes.join('  ')}
+                  </p>
+                )}
               </li>
             ))}
           </ol>
@@ -286,11 +314,14 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
 
         <section className="rounded-sm border border-brass/20 bg-panel p-5">
           <h2 className="mb-3 font-mono text-sm tracking-[0.25em] text-brass">LIVE MODULES</h2>
-          {!scan && <p className="text-steel">Deep scan reads ECM / Valvematic over UDS. Not emissions PIDs.</p>}
+          {!scan && <p className="text-steel">Deep scan probes ECM, Valvematic, and Toyota 11-bit body/chassis addresses. Dark means no UDS answer — not a generic PID miss.</p>}
+          {scan?.network && (
+            <p className="mb-3 text-sm text-steel">{scan.network.summary}</p>
+          )}
           <div className="mb-4 flex flex-wrap gap-2">
             {scan?.modules.map((m) => (
               <span key={m.name} className={`border px-2 py-1 font-mono text-xs ${m.reachable ? 'border-ok text-ok' : 'border-fault text-fault'}`}>
-                {m.name} {m.tx_id}
+                {m.name} {m.tx_id}{m.confirmed ? '' : ' · probe'}
               </span>
             ))}
           </div>
@@ -298,7 +329,10 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
             {codes.map((code) => (
               <li key={code} className="flex justify-between gap-3 border border-fault/30 bg-fault/5 px-3 py-2">
                 <span className="font-mono text-fault">{code}</span>
-                <span className="text-right text-sm text-steel">{dtcTitles[code]}</span>
+                <span className="text-right text-sm text-steel">
+                  {classFor(code) && classFor(code) !== 'component' ? `${classFor(code).replaceAll('_', ' ')} · ` : ''}
+                  {dtcTitles[code]}
+                </span>
               </li>
             ))}
           </ul>
@@ -310,6 +344,27 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
               </div>
             ))}
           </dl>
+          <button
+            className="mt-4 min-h-11 w-full border border-brass/50 px-3 text-sm text-brass"
+            disabled={!connected || !scan}
+            onClick={() => run('wiggle', async () => {
+              setWiggle(await worker.streamDids(6))
+            })}
+          >
+            WIGGLE LOG (ECM DIDS)
+          </button>
+          {wiggle && (
+            <div className="mt-3 font-mono text-xs text-steel">
+              <p>{wiggle.samples.length} samples · IO control {wiggle.io_control.replaceAll('_', ' ')}</p>
+              <ul className="mt-2 max-h-40 space-y-1 overflow-auto">
+                {wiggle.samples.map((s, i) => (
+                  <li key={i}>
+                    t={s.t}s  actual {s.values.valvematic_actual_angle ?? '—'}°  volt {s.values.system_voltage ?? '—'}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </section>
 
         <section className="rounded-sm border border-brass/20 bg-panel p-5">

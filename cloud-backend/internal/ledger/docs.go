@@ -63,6 +63,7 @@ type RetrievedFigure struct {
 	HasImage  bool   `json:"has_image"`
 	ImageURL  string `json:"image_url,omitempty"`
 	OCRText   string `json:"ocr_text,omitempty"`
+	Kind      string `json:"kind,omitempty"`
 }
 
 func (s *Store) ReplaceDoc(ctx context.Context, src DocSource, chunks []DocChunkIn, figures []DocFigureIn) (string, error) {
@@ -113,7 +114,7 @@ func (s *Store) ReplaceDoc(ctx context.Context, src DocSource, chunks []DocChunk
 	return id, tx.Commit(ctx)
 }
 
-func (s *Store) SearchManuals(ctx context.Context, makeName, model string, year int, codes []string, query string) ([]RetrievedChunk, []RetrievedFigure, error) {
+func (s *Store) SearchManuals(ctx context.Context, makeName, model string, year int, codes []string, query string, wiring bool) ([]RetrievedChunk, []RetrievedFigure, error) {
 	makeName = strings.TrimSpace(makeName)
 	model = strings.TrimSpace(model)
 	if makeName == "" || model == "" {
@@ -125,6 +126,17 @@ func (s *Store) SearchManuals(ctx context.Context, makeName, model string, year 
 	query = strings.TrimSpace(query)
 	if year <= 0 {
 		year = 2000
+	}
+	if wiring {
+		if query == "" {
+			query = "wiring connector EWD circuit"
+		} else {
+			query = query + " wiring connector EWD open circuit"
+		}
+	}
+	ewdBoost := 0
+	if wiring {
+		ewdBoost = 1
 	}
 	rows, err := s.pool.Query(ctx, `
 		SELECT c.id, c.source_id, s.title, c.page, c.language, c.body, c.body_en, c.codes
@@ -139,10 +151,11 @@ func (s *Store) SearchManuals(ctx context.Context, makeName, model string, year 
 		        OR ($5 <> '' AND c.tsv @@ plainto_tsquery('simple', $5))
 		        OR $5 = ''
 		      )
-		ORDER BY (c.codes && $4) DESC,
+		ORDER BY ($6::int * CASE WHEN c.rel_path ILIKE '%ewd%' OR c.rel_path ILIKE '%connector%' THEN 1 ELSE 0 END) DESC,
+		         (c.codes && $4) DESC,
 		         CASE WHEN $5 <> '' THEN ts_rank(c.tsv, plainto_tsquery('simple', $5)) ELSE 0 END DESC
-		LIMIT 8
-	`, makeName, model, year, codes, query)
+		LIMIT 10
+	`, makeName, model, year, codes, query, ewdBoost)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -187,6 +200,7 @@ func (s *Store) SearchManuals(ctx context.Context, makeName, model string, year 
 				return nil, nil, err
 			}
 			f.OCRText = ocr
+			f.Kind = figureKind(imgPath)
 			if strings.TrimSpace(imgPath) != "" {
 				f.HasImage = true
 				f.ImageURL = "/api/v1/manuals/figures/" + f.ID + "/image"
@@ -198,7 +212,85 @@ func (s *Store) SearchManuals(ctx context.Context, makeName, model string, year 
 			return nil, nil, err
 		}
 	}
+	if wiring {
+		extra, err := s.searchWiringFigures(ctx, makeName, model, year)
+		if err != nil {
+			return nil, nil, err
+		}
+		figs = mergeFigures(figs, extra)
+	}
 	return chunks, figs, nil
+}
+
+func (s *Store) searchWiringFigures(ctx context.Context, makeName, model string, year int) ([]RetrievedFigure, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT f.id, f.source_id, s.title, f.page, f.caption, f.language, f.image_path, f.ocr_text
+		FROM doc_figures f
+		JOIN doc_sources s ON s.id = f.source_id
+		WHERE lower(s.make) = lower($1)
+		  AND lower(s.model) = lower($2)
+		  AND ($3 = 2000 OR (s.year_from <= $3 AND s.year_to >= $3))
+		  AND (f.image_path ILIKE '%/ewd/%' OR f.image_path ILIKE '%connector%' OR f.caption ILIKE '%connector%')
+		ORDER BY (f.image_path ILIKE '%/ewd/%') DESC, f.page
+		LIMIT 8
+	`, makeName, model, year)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []RetrievedFigure{}
+	for rows.Next() {
+		var f RetrievedFigure
+		var imgPath, ocr string
+		if err := rows.Scan(&f.ID, &f.SourceID, &f.Title, &f.Page, &f.Caption, &f.Language, &imgPath, &ocr); err != nil {
+			return nil, err
+		}
+		f.OCRText = ocr
+		f.Kind = figureKind(imgPath)
+		if strings.TrimSpace(imgPath) != "" {
+			f.HasImage = true
+			f.ImageURL = "/api/v1/manuals/figures/" + f.ID + "/image"
+		}
+		out = append(out, f)
+	}
+	return out, rows.Err()
+}
+
+func figureKind(path string) string {
+	p := strings.ToLower(path)
+	if strings.Contains(p, "/ewd/") {
+		return "ewd"
+	}
+	if strings.Contains(p, "connector") {
+		return "connector"
+	}
+	return "procedure"
+}
+
+func mergeFigures(base, extra []RetrievedFigure) []RetrievedFigure {
+	seen := map[string]struct{}{}
+	out := make([]RetrievedFigure, 0, len(base)+len(extra))
+	for _, f := range base {
+		if f.ID == "" {
+			continue
+		}
+		if _, ok := seen[f.ID]; ok {
+			continue
+		}
+		seen[f.ID] = struct{}{}
+		out = append(out, f)
+	}
+	for _, f := range extra {
+		if f.ID == "" {
+			continue
+		}
+		if _, ok := seen[f.ID]; ok {
+			continue
+		}
+		seen[f.ID] = struct{}{}
+		out = append(out, f)
+	}
+	return out
 }
 
 func (s *Store) FigureImagePath(ctx context.Context, id string) (string, error) {

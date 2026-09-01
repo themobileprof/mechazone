@@ -1,8 +1,8 @@
 # Mechazone — Product & Architecture Specification
 
-Mechazone is a community diagnostic network for independent auto technicians. The product is software on a capable Pass-Thru kit we already own: a Tactrix OpenPort 2.0 (Revision E) clone and a laptop. The client reads manufacturer modules on modern ICE vehicles (and later EVs), logs the job, and shows that vehicle's mechanical history plus proven fixes from other shops.
+Mechazone is a shop-floor diagnostic ledger for independent auto technicians. The product is software on a capable Pass-Thru kit we already own: a Tactrix OpenPort 2.0 (Revision E) clone and a laptop. The client reads manufacturer modules on modern ICE vehicles (and later EVs), logs the work done on that vehicle **at this shop**, and uses that shop's job file plus retrieved manuals to close the repair.
 
-The product is not a generic OBD2 scanner, not a dealership OEM laptop, and not a hardware startup. It is a shared ledger of real repairs, keyed by VIN. Spend discipline means integrate OSS, public APIs, and scrape-and-cache sources — not downgrade to a bargain ELM327 that cannot address modern modules or a future EV BMS.
+The product is not a generic OBD2 scanner, not a dealership OEM laptop, and not a public vehicle-history bureau. A car's jobs stay with the shop that did them so a later seller is not carrying a centralized rap sheet. Spend discipline means integrate OSS, public APIs, and scrape-and-cache sources — not downgrade to a bargain ELM327 that cannot address modern modules or a future EV BMS.
 
 ---
 
@@ -18,7 +18,7 @@ Mechazone closes that gap with three assets that compound — none of them a new
 
 1. **Software on the OpenPort we already have** — J2534 Pass-Thru to the modules that actually fail (ECM, TCU, Valvematic now; BMS and related EV controllers later).
 2. **The vehicle ledger** — every scan, freeze-frame, and confirmed fix indexed by VIN.
-3. **The technician network** — regional, reputation-weighted solutions that turn the next identical fault into a short playbook instead of a guess.
+3. **This shop's job file** — every scan, closeout, and parts list this workshop recorded on that VIN. It does not follow the car to another shop.
 
 Primary market: independent technicians and small shops in Nigeria and the wider African import market, where late-model Toyota ICE platforms and Chinese EVs arrive faster than dealer support.
 
@@ -32,18 +32,18 @@ Primary market: independent technicians and small shops in Nigeria and the wider
 ### Core loop
 
 ```
-OpenPort scan  →  Local ingest  →  VIN history + live telemetry
+OpenPort scan  →  Local ingest  →  this shop's jobs + live telemetry
                                       │
 Technician closeout  ←  AI playbook  ←  Community + TSB retrieval
         │
-        └──► Ledger + reputation  (next shop starts ahead)
+        └──► This shop's job file  (the next visit here starts ahead)
 ```
 
 1. **Scan** — Technician connects the OpenPort and reads advanced modules, not just Mode $01 PIDs.
 2. **Recall** — The client loads that VIN's timeline: prior shops, mileage, DTCs, freeze-frames, parts, verified fixes.
 3. **Analyze** — Cloud AI fuses live telemetry, ledger history, and retrieved TSBs/manuals/community resolutions into a shop-floor playbook.
 4. **Repair & log** — Technician performs the work and closes the session (success + parts, or actual fix if the playbook failed).
-5. **Share** — Mechanical data syncs to the network. The next shop that sees the same VIN — or the same fault on the same platform — starts with evidence.
+5. **Log the work** — Mechanical facts stay in this shop's file on that VIN. The next visit *here* starts with evidence. Another shop does not inherit it.
 
 Customer identity never leaves the shop. VIN and mechanical facts do.
 
@@ -93,15 +93,15 @@ Design every screen and API around this sequence.
 ```
 1. Connect OpenPort → vehicle
 2. Read VIN / confirm vehicle
-3. Show VIN timeline  (other shops, prior DTCs, verified fixes)
+3. Show this shop's jobs  (work done, parts, closeouts — not a public VIN file)
 4. Deep module scan   (UDS, not emissions PIDs)
-5. Deliver playbook   (history + community + TSB + live data)
+5. Deliver playbook   (this shop's jobs + manuals + live data)
 6. Technician repairs
 7. Closeout           (success + parts  |  fail + actual fix)
 8. Sync               (local always; cloud when online)
 ```
 
-**History-first rule:** if the VIN already exists in the ledger, the first thing the technician sees is that car's story, not a blank scan form.
+**History-first rule:** if **this shop** already has jobs on the VIN, the first thing the technician sees is that work, not a blank scan form. Other shops do not see this file.
 
 **Closeout rule:** a session is incomplete until the technician records an outcome. Incomplete sessions may stay local; they must not be treated as verified network knowledge.
 
@@ -114,9 +114,9 @@ Identity is provisioned, not open signup.
 | Actor | How they get in | Needs from the product |
 | --- | --- | --- |
 | Super admin | Seeded once (`SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD`) | Create shops; issue technician/freelancer logins |
-| Shop technician | Admin creates the account and assigns a shop | Bay scan, VIN history, closeout stamped to that shop |
-| Freelancer | Admin creates the account with no shop | Same bay; sessions have `technician_id` and a null `shop_id` |
-| Next shop on the same VIN | Already on the network | Prior mileage, faults, freeze-frames, parts, what actually fixed it |
+| Shop technician | Admin creates the account and assigns a shop | Bay scan, this shop's jobs on the VIN, closeout stamped to that shop |
+| Freelancer | Admin creates the account with no shop | Same bay; jobs have `technician_id` and a null `shop_id` |
+| Next shop on the same VIN | Already a Mechazone shop | Starts a **new** shop file. Does not inherit the previous shop's jobs. |
 
 Ledger writes ignore client-supplied `shop_id` / `technician_id`. The session cookie is the source of truth.
 
@@ -161,7 +161,7 @@ UI never talks to the Pass-Thru library. The Python worker never stores customer
 
 ### 6.1 Local client
 
-- **UI:** Existing laptop. VIN timeline, module live data, playbook steps, two-click closeout, clear online/offline state.
+- **UI:** Existing laptop. This shop's jobs on the VIN, module live data, playbook steps, two-click closeout, clear online/offline state.
 - **Diagnostic worker (Python 3.11+):** Primary path is J2534 (`openport.dll` / `libopenport.so`) on the OpenPort 2.0 Rev E clone. Wrap maintained OSS for ISO-TP/UDS/CAN (e.g. `udsoncan`, `can-isotp`, `python-can`); own adapter quirks, timeouts, hex validation, and session capture. ELM327 serial is fallback only.
 - **IPC:** Local WebSocket or stdin/stdout JSON. Typed contracts only.
 - **Local shop partition:** Existing embedded/encrypted SQLite (SQLCipher or equivalent OSS). Mechanical session rows are copied into the sync queue without customer fields.
@@ -289,29 +289,29 @@ CREATE INDEX idx_resolutions_verified ON confirmed_resolutions (is_verified_fix)
 | Shop comms / peer help | Channels shops already use (e.g. WhatsApp) | Link a session; do not build a helpdesk. |
 | Work orders / accounting | Out of scope | Do not build a garage ERP. |
 
-**Cloud AI** is reserved for manufacturer-specific codes (e.g. Toyota P1xxx), deep telemetry, and playbooks that already include ledger + community retrieval.
+**Cloud AI** is reserved for manufacturer-specific codes (e.g. Toyota P1xxx), deep telemetry, and playbooks that already include this shop's jobs + retrieved manuals.
 
 ---
 
 ## 8. AI Diagnosis (RAG)
 
-AI is not a chatbot on a DTC. It is the fusion layer that tells a technician **what to do on this vehicle**: which test, in which order, what this VIN’s history says to look out for, and — when we have a retrieved figure — how to reach the part.
+AI is not a chatbot on a DTC. It is the fusion layer that tells a technician **what to do on this vehicle**: which test, in which order, what **this shop already did here**, and — when we have a retrieved figure — how to reach the part.
 
-The model is not allowed to invent a repair, a pin number, or a diagram. It only ranks and sequences evidence we already have: live adapter data, this VIN’s timeline, same-platform verified fixes, and retrieved TSB/manual chunks (text + figures).
+The model is not allowed to invent a repair, a pin number, or a diagram. It only ranks and sequences evidence we already have: live adapter data, **this shop's jobs on this VIN**, this shop's similar platform closeouts, and retrieved TSB/manual chunks (text + figures).
 
 ```
 Incoming session (VIN, mileage, DTCs, freeze-frame, live DIDs, adapter)
         │
-        ├─► PostgreSQL VIN timeline + verified resolutions  (this car first)
-        ├─► Same platform + same codes (network, reputation-weighted)
-        ├─► pgvector: imported TSBs/manuals + community write-ups + figure index
+        ├─► This shop's jobs + closeouts on this VIN
+        ├─► This shop's similar jobs (same platform + codes, other vehicles, no VIN)
+        ├─► pgvector: imported TSBs/manuals + figure index
         └─► Local P0xxx seed text (if a generic code is present)
         │
         ▼
  Structured prompt  →  Playbook (lookouts, ordered tests, access, cited diagrams, validation)
 ```
 
-Do not emit a playbook from DTCs alone when ledger or network matches exist. If retrieval has no procedure and no figure, say so and still give adapter tests we can run — do not draw a sketch or quote a pin that was not in a cited chunk.
+Do not emit a playbook from DTCs alone when this shop already has jobs or manuals. If retrieval has no procedure and no figure, say so and still give adapter tests we can run — do not draw a sketch or quote a pin that was not in a cited chunk.
 
 ### 8.1 Prompt pattern
 
@@ -323,12 +323,12 @@ This exact year / make / model / engine. No “typical Toyota” filler.
 [VEHICLE + LIVE ADAPTER DATA]
 Identity, powertrain, mileage, active DTCs, freeze-frame, live DIDs, adapter/protocol.
 
-[VIN LEDGER — infer lookouts]
-Prior sessions on this VIN: dates, region, codes, parts, verified outcomes.
-Call out repeats (same connector, same leak, same code coming back).
+[SHOP JOBS ON THIS VIN — infer lookouts]
+This shop's scans and closeouts only: dates, codes, work done, parts.
+Call out repeats (same connector, same leak, same code coming back here).
 
-[NETWORK MATCHES]
-Same platform + same codes: counts, top verified root causes, regional clusters.
+[THIS SHOP'S SIMILAR PLATFORM JOBS]
+Same make/model/year-band + codes, other vehicles this shop fixed. No VIN.
 
 [RETRIEVED DOCS + FIGURES]
 TSB / manual excerpts. Pin numbers and voltages stay in the same chunk.
@@ -344,7 +344,7 @@ platform. Each figure is a citation, not a generation.
 
 ### 8.2 Playbook shape (what the technician sees)
 
-1. **Lookouts for this vehicle** — inferred from history before any generic test. Example: this VIN already had a corroded Valvematic connector; inspect that before replacing the actuator.
+1. **Lookouts for this vehicle** — inferred from **this shop's** jobs before any generic test. Example: this shop already closed a corroded Valvematic connector on this car; inspect that before replacing the actuator.
 2. **Probability breakdown** — grounded in ledger + network counts, not vibe.
 3. **Ordered tests** — connector/pin/voltage with the shop multimeter, plus live DID/PID the OpenPort worker can read. Pass/fail and where to go next. Do not prescribe extra instruments.
 4. **Access on this car** — trim, covers, routing for this year/make/model/engine. If we do not have a retrieved procedure, write “no access procedure on file” instead of inventing one.
@@ -374,13 +374,13 @@ mark verified index as new edge case
 re-weight RAG
 ```
 
-1. Playbook is shown with the VIN timeline, not instead of it.
+1. Playbook is shown with this shop's job file, not instead of it.
 2. Closeout is mandatory to finish the session: **Fix successful** (parts/actions checklist) or **Fix unsuccessful** (actual fix, short text).
-3. Successful verified resolutions are embedded and become first-class retrieval hits.
-4. Failed playbooks plus the real fix become new community documents; they do not silently overwrite a verified resolution.
-5. Reputation moves only on closeout quality (verified success, peer-confirmed VIN revisits), not on scan volume.
+3. Successful verified closeouts stay in this shop's file and inform the next visit here.
+4. Failed playbooks plus the real fix update this shop's job — they do not write a public VIN record.
+5. Reputation is a data-quality signal for this shop's technicians, not a public vehicle score.
 
-The network's advantage is accumulated *confirmed* mechanical history, not more raw hex.
+The shop's advantage is accumulated *confirmed* work on the cars it actually saw, not a centralized VIN rap sheet.
 
 ---
 
@@ -395,15 +395,15 @@ The network's advantage is accumulated *confirmed* mechanical history, not more 
 
 ### Phase 2 — History, AI, first shops (months 3–5)
 
-- VIN timeline in the UI before the playbook.
-- RAG: `pgvector` + existing LLM API over scraped/imported public TSBs/manuals plus the first verified closeouts. Playbooks: VIN lookouts, ordered adapter/multimeter tests, access on this body/engine, cited figures (never generated).
+- VIN timeline in the UI before the playbook — **this shop's jobs only**.
+- RAG: `pgvector` + existing LLM API over scraped/imported public TSBs/manuals plus this shop's verified closeouts. Playbooks: shop lookouts, ordered adapter/multimeter tests, access on this body/engine, cited figures (never generated).
 - Onboard ~10 trusted independent shops with the installer and an OpenPort-class J2534 clone (same class already in hand). No custom boards. ELM327 shops can join later with a reduced module set.
 - Keep the worker honest for later Chinese EV work (BMS UDS, CAN-FD path). ICE playbooks ship first.
 
 ### Phase 3 — Network product (months 6+)
 
 - Reputation as retrieval weight; badges only as a reflection of that weight.
-- Same-VIN revisit: next shop opens the car and sees the prior fix immediately.
+- Same-VIN revisit at **this shop** opens the prior work immediately. A different shop does not receive that file.
 - EV SOH views that use existing live data. Peer help via channels shops already use, linked to a session. No work-order product, no custom helpdesk.
 
 ---
@@ -415,4 +415,4 @@ The network's advantage is accumulated *confirmed* mechanical history, not more 
 | `.cursorrules` | Binding laws for generated code and architecture choices |
 | `docs/project.md` | Product north star: OpenPort software, shop loop, ledger, community, roadmap |
 
-Out of scope: extra hardware we do not already own, custom boards, designing to ELM327 as if it were enough for modern ICE or later EVs, rebuilding VIN/DTC/ISO-TP/J2534/RAG/ERP/helpdesk when OSS or an API exists, VIN history hidden behind a blank scan form, customer PII in the cloud, or defaulting to generic OBD2.
+Out of scope: extra hardware we do not already own, custom boards, designing to ELM327 as if it were enough for modern ICE or later EVs, rebuilding VIN/DTC/ISO-TP/J2534/RAG/ERP/helpdesk when OSS or an API exists, this shop's jobs hidden behind a blank scan form, a public VIN rap sheet, customer PII in the cloud, or defaulting to generic OBD2.

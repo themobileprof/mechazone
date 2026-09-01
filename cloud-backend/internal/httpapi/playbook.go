@@ -22,6 +22,13 @@ func (s *Server) buildPlaybook(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
+	p, ok := principalFrom(r.Context())
+	if !ok || p.TechnicianID == "" {
+		writeError(w, http.StatusForbidden, "technician login required")
+		return
+	}
+	req.ShopID = p.ShopID
+	req.TechnicianID = p.TechnicianID
 	book, err := s.fuser.Build(r.Context(), req)
 	if err != nil {
 		s.log.Error("playbook", "err", err)
