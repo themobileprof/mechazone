@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -10,7 +11,14 @@ from udsoncan.exceptions import NegativeResponseException, TimeoutException
 
 from mechazone_worker.circuit import classify_codes, network_hint
 from mechazone_worker.hexutil import decode_dtc
-from mechazone_worker.profiles import IDENTITY_DIDS, VIN_DID, VehicleProfile, avensis, select_profile
+from mechazone_worker.profiles import (
+    IDENTITY_DIDS,
+    VIN_DID,
+    VehicleProfile,
+    mock_replies_for,
+    mock_stream_for,
+    select_profile,
+)
 from mechazone_worker.profiles.base import ISO15765_4_MODULES
 from mechazone_worker.transport import (
     J2534IsoTpConnection,
@@ -62,7 +70,8 @@ class DiagnosticSession:
         self._factory = connection_factory
         self.adapter_type = adapter_type
         self.hexlog = MemoryHexLog()
-        self.profile: VehicleProfile = avensis.PROFILE if adapter_type == "mock" else select_profile("")
+        self.vin = ""
+        self.profile: VehicleProfile = select_profile("")
 
     def identify(self) -> dict[str, Any]:
         vin = ""
@@ -74,6 +83,7 @@ class DiagnosticSession:
             if vin:
                 break
         if vin:
+            self.vin = vin
             self.profile = select_profile(vin)
         return {
             "vin": vin,
@@ -86,35 +96,19 @@ class DiagnosticSession:
 
     def scan(self, make: str = "", model: str = "", year: int = 0) -> ScanResult:
         self.hexlog = MemoryHexLog()
-        vin = ""
-        codes: list[str] = []
-        live: list[dict[str, Any]] = []
-        identity: list[dict[str, str]] = []
-        modules: list[dict[str, Any]] = []
-
-        probed_tx: set[int] = set()
-        for module in self.profile.modules:
-            timeout = 2.0 if module.name == "ECM" else 0.35
-            info = self._probe_module(module, timeout)
-            probed_tx.add(module.tx_id)
-            if module.name == "ECM" and info.get("vin"):
-                vin = str(info["vin"])
-            codes.extend(info.get("dtcs") or [])
-            live.extend(info.get("live") or [])
-            identity.extend(info.get("identity") or [])
-            modules.append({k: v for k, v in info.items() if k not in {"live", "identity", "vin"}})
+        # Lock the map from VIN + decode hints before probing. Captured platforms
+        # apply when we know the car — they are not the session default.
+        self.profile = select_profile(self.vin, make, model, year)
+        vin, codes, live, identity, modules = self._probe_profile()
 
         if vin:
-            self.profile = select_profile(vin, make, model, year)
-            for module in self.profile.modules:
-                if module.tx_id in probed_tx:
-                    continue
-                info = self._probe_module(module, 0.35)
-                probed_tx.add(module.tx_id)
-                codes.extend(info.get("dtcs") or [])
-                modules.append({k: v for k, v in info.items() if k not in {"live", "identity", "vin"}})
+            upgraded = select_profile(vin, make, model, year)
+            if upgraded.id != self.profile.id:
+                self.profile = upgraded
+                vin, codes, live, identity, modules = self._probe_profile()
+            else:
+                self.profile = upgraded
 
-        # Prefer decode hints over empty profile fields; captured Avensis keeps its map.
         make_out = make or self.profile.make
         model_out = model or self.profile.model
         year_out = year or self.profile.year
@@ -146,8 +140,10 @@ class DiagnosticSession:
             seconds = 6.0
         if seconds > 20:
             seconds = 20.0
-        if self.adapter_type == "mock" and self.profile.id == avensis.PROFILE_ID:
-            return _mock_stream()
+        if self.adapter_type == "mock":
+            canned = mock_stream_for(self.profile.id)
+            if canned is not None:
+                return canned()
         if not self.profile.dids:
             return {
                 "seconds": 0,
@@ -186,6 +182,24 @@ class DiagnosticSession:
             "samples": samples,
             "raw_hex_stream": list(self.hexlog.lines),
         }
+
+    def _probe_profile(self) -> tuple[str, list[str], list[dict[str, Any]], list[dict[str, str]], list[dict[str, Any]]]:
+        vin = self.vin
+        codes: list[str] = []
+        live: list[dict[str, Any]] = []
+        identity: list[dict[str, str]] = []
+        modules: list[dict[str, Any]] = []
+        for module in self.profile.modules:
+            timeout = 2.0 if module.name == "ECM" else 0.35
+            info = self._probe_module(module, timeout)
+            if module.name == "ECM" and info.get("vin"):
+                vin = str(info["vin"])
+                self.vin = vin
+            codes.extend(info.get("dtcs") or [])
+            live.extend(info.get("live") or [])
+            identity.extend(info.get("identity") or [])
+            modules.append({k: v for k, v in info.items() if k not in {"live", "identity", "vin"}})
+        return vin, codes, live, identity, modules
 
     def _vin_on(self, tx_id: int, rx_id: int) -> str:
         conn = self._factory(tx_id, rx_id, self.hexlog)
@@ -302,32 +316,6 @@ def _decode_scaled(raw: bytes, size: int, scale: float, offset: float) -> float:
     return round(n * scale + offset, 3)
 
 
-def _mock_stream() -> dict[str, Any]:
-    samples = []
-    actuals = [0.0, 0.0, 12.4, 0.0, 0.0, 12.5, 0.0, 0.0]
-    for i, actual in enumerate(actuals):
-        samples.append(
-            {
-                "t": round(i * 0.4, 2),
-                "values": {
-                    "valvematic_target_angle": 12.5,
-                    "valvematic_actual_angle": actual,
-                    "engine_rpm": 1820,
-                    "coolant_temp": 92.0,
-                    "system_voltage": 13.8 if actual > 0 else 11.2,
-                },
-            }
-        )
-    return {
-        "seconds": 3.2,
-        "module": "ECM",
-        "tx_id": "0x7E0",
-        "io_control": "none_captured",
-        "samples": samples,
-        "raw_hex_stream": [],
-    }
-
-
 def openport_factory(lib, channel):
     def factory(tx_id: int, rx_id: int, hexlog: MemoryHexLog) -> J2534IsoTpConnection:
         return J2534IsoTpConnection(lib, channel, tx_id, rx_id, hexlog)
@@ -335,9 +323,13 @@ def openport_factory(lib, channel):
     return factory
 
 
-def mock_factory():
+def mock_factory(profile_id: str | None = None):
+    """Bench ECU. Default is ISO 15765-4. Pin a captured map with profile_id or MECHAZONE_MOCK_PROFILE."""
+    pid = profile_id if profile_id is not None else os.environ.get("MECHAZONE_MOCK_PROFILE", "")
+    replies_fn = mock_replies_for(pid)
+
     def factory(tx_id: int, rx_id: int, hexlog: MemoryHexLog) -> MockIsoTpConnection:
-        replies = avensis.mock_replies(tx_id)
+        replies = replies_fn(tx_id)
         silent = replies is None
         return MockIsoTpConnection(
             replies or {},
@@ -350,16 +342,4 @@ def mock_factory():
 
 
 def generic_mock_factory():
-    from mechazone_worker.profiles import generic_uds
-
-    def factory(tx_id: int, rx_id: int, hexlog: MemoryHexLog) -> MockIsoTpConnection:
-        replies = generic_uds.mock_replies(tx_id)
-        silent = replies is None
-        return MockIsoTpConnection(
-            replies or {},
-            hexlog,
-            name=f"mock:{tx_id:03X}",
-            silent=silent,
-        )
-
-    return factory
+    return mock_factory("generic_uds")

@@ -8,7 +8,7 @@ It is not a chat box on a fault code. It does not invent pins, voltages, or draw
 
 | Input | Source | If missing |
 | --- | --- | --- |
-| Live scan | OpenPort worker (VIN, DTCs, freeze-frame, DIDs, module map, adapter). Profile is captured Avensis, Toyota 11-bit probe, or ISO 15765-4. | Adapter tests only; no “typical car” essay. No DTCs is still a scan — advise from live + modules + shop jobs. Coverage gaps stay visible. |
+| Live scan | OpenPort worker (VIN, DTCs, freeze-frame, DIDs, module map, adapter). Profile is a captured platform map when we have one, otherwise Toyota 11-bit probe or ISO 15765-4. | Adapter tests only; no “typical car” essay. No DTCs is still a scan — advise from live + modules + shop jobs. Coverage gaps stay visible. |
 | This shop's jobs on this VIN | PostgreSQL sessions + closeouts scoped to the login shop (or freelancer) | Still retrieve manuals; say first visit to this shop |
 | This shop's similar platform jobs | Same make/model/year-band + codes, **this shop only**, no other VIN | Omit that section |
 | Retrieved docs | Manual corpus (`data/manuals` ingest) + later `pgvector` | No pin numbers that were not retrieved. Chunks may be in any language. |
@@ -17,6 +17,8 @@ It is not a chat box on a fault code. It does not invent pins, voltages, or draw
 Do not call the LLM until the shop-job lookup and retrieval queries have run. A scan with no DTCs still gets a playbook from live data, the module map, and this shop's jobs. Generic P0xxx seed text may attach; it must not replace this shop's work log. A vehicle's jobs do not follow it to another shop.
 
 ## Output the bay renders
+
+Example for a vehicle that matched a captured platform map (here, Avensis). The same shape applies to any VIN; lookouts and steps come from this shop's jobs and retrieved docs, not from a hardcoded car.
 
 ```json
 {
@@ -81,7 +83,7 @@ Then this shop's similar jobs on the same platform (other vehicles, no VIN in th
 
 Circuit / U-codes are classified (open, short-to-batt, short-to-gnd, lost communication, bus-off) before the model runs. Retrieval then prefers EWD and connector figures already ingested. The worker probes confirmed powertrain nodes plus Toyota 11-bit addresses; a timeout is a dark node, an NRC still counts as on the bus.
 
-A DID wiggle log streams ECM identifiers while the technician moves the loom. There are no captured UDS `$2F` IO-control IDs on the Avensis profile — do not invent them.
+A DID wiggle log streams ECM identifiers while the technician moves the loom. There are no captured UDS `$2F` IO-control IDs on any profile yet — do not invent them.
 
 ## Implementation home
 

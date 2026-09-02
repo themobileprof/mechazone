@@ -17,11 +17,11 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
   const [scan, setScan] = useState<ScanResult | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [dtcTitles, setDtcTitles] = useState<Record<string, string>>({})
-  const [mileage, setMileage] = useState('142500')
+  const [mileage, setMileage] = useState('')
   const [localCustomer, setLocalCustomer] = useState('')
   const [outcome, setOutcome] = useState<'success' | 'failed'>('success')
   const [rootCause, setRootCause] = useState('')
-  const [parts, setParts] = useState('Cleaned connector pins')
+  const [parts, setParts] = useState('')
   const [playbook, setPlaybook] = useState<Playbook | null>(null)
   const [wiggle, setWiggle] = useState<DidStream | null>(null)
   const [dtcClass, setDtcClass] = useState<Record<string, string>>({})
@@ -87,6 +87,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
       return `${history.vehicle.manufacture_year || ''} ${history.vehicle.make} ${history.vehicle.model}`.trim()
     }
     if (scan?.make || scan?.model) return `${scan.year || ''} ${scan.make} ${scan.model}`.trim()
+    if (scan?.coverage?.depth === 'captured') return scan.profile.replaceAll('_', ' ')
     if (scan?.profile === 'generic_uds') return 'ISO 15765-4 probe — no captured OEM map'
     if (scan?.profile === 'toyota_common') return 'Toyota 11-bit probe'
     return 'Awaiting identify'
@@ -370,7 +371,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
 
         <section className="rounded-sm border border-brass/20 bg-panel p-5">
           <h2 className="mb-3 font-mono text-sm tracking-[0.25em] text-brass">LIVE MODULES</h2>
-          {!scan && <p className="text-steel">Deep scan uses the VIN profile: captured Avensis map, Toyota 11-bit probe, or ISO 15765-4 (7E0–7E2). Dark means no UDS answer — not a generic PID miss.</p>}
+          {!scan && <p className="text-steel">Deep scan uses the VIN profile: a captured platform map when we have one, otherwise a Toyota 11-bit probe or ISO 15765-4 (7E0–7E2). Dark means no UDS answer — not a generic PID miss.</p>}
           {scan?.network && (
             <p className="mb-3 text-sm text-steel">{scan.network.summary}</p>
           )}
@@ -440,7 +441,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
           <h2 className="mb-3 font-mono text-sm tracking-[0.25em] text-brass">CLOSEOUT</h2>
           <label className="mb-3 block">
             <span className="font-mono text-[11px] text-steel">MILEAGE KM</span>
-            <input className="mt-1 w-full border border-steel/30 bg-oil px-3 py-2 font-mono" value={mileage} onChange={(e) => setMileage(e.target.value)} />
+            <input className="mt-1 w-full border border-steel/30 bg-oil px-3 py-2 font-mono" value={mileage} onChange={(e) => setMileage(e.target.value)} placeholder="km" />
           </label>
           <button className="mb-4 min-h-12 w-full border border-brass px-4 text-brass" disabled={!scan} onClick={() => run('log', async () => {
             if (!scan) return
@@ -474,7 +475,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
             <button className={`min-h-11 border ${outcome === 'failed' ? 'border-fault bg-fault/20' : 'border-steel/30'}`} onClick={() => setOutcome('failed')}>FAILED</button>
           </div>
           <textarea className="mb-3 min-h-24 w-full border border-steel/30 bg-oil px-3 py-2" placeholder="What actually fixed it?" value={rootCause} onChange={(e) => setRootCause(e.target.value)} />
-          <input className="mb-3 w-full border border-steel/30 bg-oil px-3 py-2" value={parts} onChange={(e) => setParts(e.target.value)} />
+          <input className="mb-3 w-full border border-steel/30 bg-oil px-3 py-2" value={parts} onChange={(e) => setParts(e.target.value)} placeholder="Parts replaced, comma-separated" />
           <button className="min-h-12 w-full bg-paper font-semibold text-oil" disabled={!session || !rootCause} onClick={() => run('closeout', async () => {
             if (!session) return
             const body = {

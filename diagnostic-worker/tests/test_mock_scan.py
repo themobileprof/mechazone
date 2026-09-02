@@ -3,7 +3,7 @@ from mechazone_worker.session import DiagnosticSession, mock_factory
 
 
 def test_mock_identify_and_scan() -> None:
-    session = DiagnosticSession(mock_factory(), "mock")
+    session = DiagnosticSession(mock_factory("avensis_3zr_fae"), "mock")
     ident = session.identify()
     vin = ident["vin"]
     assert vin == "SB1KV56E40E012345"
@@ -26,8 +26,27 @@ def test_mock_identify_and_scan() -> None:
     assert classes["U011B"] == "lost_communication"
 
 
+def test_scan_upgrades_from_ecu_vin_without_identify() -> None:
+    session = DiagnosticSession(mock_factory("avensis_3zr_fae"), "mock")
+    result = session.scan()
+    assert result.profile == "avensis_3zr_fae"
+    assert any(m["name"] == "VALVEMATIC" for m in result.modules)
+    names = {row["name"] for row in result.live}
+    assert "valvematic_actual_angle" in names
+
+
+def test_scan_overlay_year_from_decode() -> None:
+    session = DiagnosticSession(mock_factory("avensis_3zr_fae"), "mock")
+    session.identify()
+    result = session.scan(make="Toyota", model="Avensis", year=2010)
+    assert result.profile == "avensis_3zr_fae"
+    assert result.year == 2010
+    assert result.model == "Avensis"
+
+
 def test_wiggle_stream_mock() -> None:
-    session = DiagnosticSession(mock_factory(), "mock")
+    session = DiagnosticSession(mock_factory("avensis_3zr_fae"), "mock")
+    session.identify()
     stream = session.stream_dids(6)
     assert stream["io_control"] == "none_captured"
     assert len(stream["samples"]) >= 4

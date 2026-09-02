@@ -1,8 +1,8 @@
-"""Toyota/Lexus 11-bit probe when the VIN is Toyota but not a captured platform.
+"""Toyota/Lexus 11-bit probe when the VIN is Toyota but no captured platform matched.
 
 ECM 7E0 is ISO 15765-4. Other addresses are common on this era — a timeout is
-dark, not proof the car was built with that ECU. No Valvematic DIDs unless the
-Avensis profile matched.
+dark, not proof the car was built with that ECU. Family-specific live DIDs
+(Valvematic and similar) stay off until a captured platform map is selected.
 """
 
 from __future__ import annotations

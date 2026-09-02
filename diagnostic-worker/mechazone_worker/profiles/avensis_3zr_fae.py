@@ -1,4 +1,7 @@
-"""2010/2011 Toyota Avensis 3ZR-FAE / Valvematic — UDS module map.
+"""Captured UDS map: Toyota Avensis 3ZR-FAE / Valvematic (T27, ~2009–2012).
+
+Selected when VIN decode (or the technician) says Avensis, or when the bench
+fixture VIN is used. Not a default for Toyota, mock ECU, or SB1 WMI.
 
 ECM 7E0 and Valvematic 7E2 are the confirmed powertrain nodes for this profile.
 Other 11-bit addresses are probes only: ISO 15765-4 (TCM) or addresses Toyota
@@ -56,6 +59,14 @@ PROFILE = VehicleProfile(
 )
 
 
+def matches(vin: str, make: str, model: str, year: int = 0) -> bool:
+    """True only for this platform — never from a Toyota WMI prefix alone."""
+    del make, year
+    if vin.strip().upper() == MOCK_VIN:
+        return True
+    return model.strip().lower().startswith("avensis")
+
+
 def _u16(n: int) -> bytes:
     return int(n).to_bytes(2, "big")
 
@@ -73,4 +84,31 @@ def mock_replies(tx_id: int) -> dict[bytes, bytes] | None:
         bytes([0x22, 0x1A, 0x10]): bytes([0x62, 0x1A, 0x10]) + _u16(1820),
         bytes([0x22, 0x1A, 0x11]): bytes([0x62, 0x1A, 0x11, 132]),  # 92 C
         bytes([0x22, 0x1A, 0x12]): bytes([0x62, 0x1A, 0x12]) + _u16(138),  # 13.8 V
+    }
+
+
+def mock_stream() -> dict:
+    """Scripted wiggle log for the bench fixture. Live OpenPort uses real DID samples."""
+    samples = []
+    actuals = [0.0, 0.0, 12.4, 0.0, 0.0, 12.5, 0.0, 0.0]
+    for i, actual in enumerate(actuals):
+        samples.append(
+            {
+                "t": round(i * 0.4, 2),
+                "values": {
+                    "valvematic_target_angle": 12.5,
+                    "valvematic_actual_angle": actual,
+                    "engine_rpm": 1820,
+                    "coolant_temp": 92.0,
+                    "system_voltage": 13.8 if actual > 0 else 11.2,
+                },
+            }
+        )
+    return {
+        "seconds": 3.2,
+        "module": "ECM",
+        "tx_id": "0x7E0",
+        "io_control": "none_captured",
+        "samples": samples,
+        "raw_hex_stream": [],
     }

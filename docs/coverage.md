@@ -10,9 +10,9 @@ The product does not launch other scanner apps. It keeps one session (identify �
 | --- | --- | --- |
 | USB detect | **Refresh kits** | VID/PID for OpenPort `0403:cc4d` / `0403:cca2`, ELM-class chips, unknown USB. Recommends OpenPort when that cable is present. |
 | OpenPort / J2534 | Connect kit | `udsoncan` + NikolaKozina/j2534 (Linux) or frozen clone DLL (`J2534_LIB`). UDS over ISO-TP, 11-bit, 500 kbit. |
-| Mock ECU | Bench | Scripted Avensis 3ZR-FAE. |
-| `avensis_3zr_fae` | VIN `SB1KV…`, mock VIN, or decode model Avensis | Captured ECM `7E0`, Valvematic `7E2`, Toyota 11-bit probes, live DIDs `1A01`–`1A12`. |
-| `toyota_common` | Toyota/Lexus WMI, not Avensis | Same 11-bit **probe**. No Valvematic DIDs. Identity DIDs only (`F187`, `F18A`, `F18C`). |
+| Mock ECU | Bench | Generic ISO 15765-4 (Honda-shaped VIN). Pin a captured map with `MECHAZONE_MOCK_PROFILE=<id>` (e.g. `avensis_3zr_fae`). |
+| `avensis_3zr_fae` | Decode model Avensis, or the Avensis bench VIN | Captured ECM `7E0`, Valvematic `7E2`, Toyota 11-bit probes, live DIDs `1A01`–`1A12`. Not selected from Toyota WMI / `SB1` alone. |
+| `toyota_common` | Toyota/Lexus WMI, no captured platform | Same 11-bit **probe**. No family-specific live DIDs. Identity DIDs only (`F187`, `F18A`, `F18C`). |
 | `generic_uds` | Everything else | ISO 15765-4 physical `7E0`–`7E2`: VIN `F190`, DTCs `$19`, ISO identity DIDs. No OEM body map, no invented live scales. |
 | Tesla / China-EV WMI | `5YJ`/`7SA`/`LRW` or listed BYD/GAC/Geely/Chery prefixes | Still `generic_uds`, plus an explicit BMS/proprietary **gap**. |
 
@@ -33,7 +33,7 @@ For each make/model/year band (Honda, later Toyota, Nissan, Hyundai — whatever
 3. If you have a workshop manual or EWD, drop it in `data/manuals/` with a sidecar and `make ingest` (`docs/manuals.md`).
 4. Optional: one DID list you **saw** (service `$22` responses), not a guess. `$2F` IO-control IDs only if the capture shows them.
 
-That becomes a new file under `diagnostic-worker/mechazone_worker/profiles/` and a row in `select_profile`. Until then the car gets the generic or Toyota probe and the playbook says so.
+That becomes a new file under `diagnostic-worker/mechazone_worker/profiles/` and an entry in `CAPTURED` (`profiles/__init__.py`). Until then the car gets the generic or Toyota probe and the playbook says so.
 
 ### 2. Other J2534 cables (not bargain ELM)
 
