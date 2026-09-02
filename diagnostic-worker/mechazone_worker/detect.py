@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import os
 import re
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
-from mechazone_worker.j2534 import _default_lib_candidates
+from mechazone_worker.j2534 import resolve_j2534_lib
 
 # OpenPort 2.0 Rev E clone — same IDs as deploy/99-openport.rules
 OPENPORT_IDS = {("0403", "cc4d"), ("0403", "cca2")}
@@ -38,11 +37,7 @@ SKIP_CLASSES = {"09", "0e", "e0", "03"}
 
 
 def _j2534_lib_path() -> str | None:
-    for cand in _default_lib_candidates():
-        if cand and Path(cand).is_file():
-            return cand
-    env = os.environ.get("J2534_LIB", "").strip()
-    return env or None
+    return resolve_j2534_lib()
 
 
 def _sysfs_class(node: Path) -> str:

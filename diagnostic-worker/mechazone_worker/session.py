@@ -10,7 +10,6 @@ from udsoncan.configs import default_client_config
 from udsoncan.exceptions import NegativeResponseException, TimeoutException
 
 from mechazone_worker.circuit import classify_codes, network_hint
-from mechazone_worker.hexutil import decode_dtc
 from mechazone_worker.profiles import (
     IDENTITY_DIDS,
     VIN_DID,
@@ -23,11 +22,12 @@ from mechazone_worker.profiles.base import ISO15765_4_MODULES
 from mechazone_worker.transport import (
     J2534IsoTpConnection,
     MemoryHexLog,
-    MockIsoTpConnection,
+    ScriptedEcu,
 )
 
 
 class RemainingCodec(DidCodec):
+    """udsoncan DidCodec with ReadAllRemainingData — VIN and identity strings are not fixed-width."""
     def decode(self, did_payload: bytes) -> bytes:
         return did_payload
 
@@ -260,12 +260,7 @@ def _read_dtcs(client: Client) -> list[str]:
         return []
     out: list[str] = []
     for dtc in resp.service_data.dtcs:
-        if hasattr(dtc, "id_iso"):
-            out.append(dtc.id_iso().split("-")[0])
-            continue
-        high = (dtc.id >> 16) & 0xFF
-        low = (dtc.id >> 8) & 0xFF
-        out.append(decode_dtc(high, low))
+        out.append(dtc.id_iso().split("-")[0])
     return out
 
 
@@ -316,22 +311,22 @@ def _decode_scaled(raw: bytes, size: int, scale: float, offset: float) -> float:
     return round(n * scale + offset, 3)
 
 
-def openport_factory(lib, channel):
+def openport_factory(pt):
     def factory(tx_id: int, rx_id: int, hexlog: MemoryHexLog) -> J2534IsoTpConnection:
-        return J2534IsoTpConnection(lib, channel, tx_id, rx_id, hexlog)
+        return J2534IsoTpConnection(pt, tx_id, rx_id, hexlog)
 
     return factory
 
 
 def mock_factory(profile_id: str | None = None):
-    """Bench ECU. Default is ISO 15765-4. Pin a captured map with profile_id or MECHAZONE_MOCK_PROFILE."""
+    """Bench ECU via udsoncan FakeConnection. Pin a captured map with MECHAZONE_MOCK_PROFILE."""
     pid = profile_id if profile_id is not None else os.environ.get("MECHAZONE_MOCK_PROFILE", "")
     replies_fn = mock_replies_for(pid)
 
-    def factory(tx_id: int, rx_id: int, hexlog: MemoryHexLog) -> MockIsoTpConnection:
+    def factory(tx_id: int, rx_id: int, hexlog: MemoryHexLog) -> ScriptedEcu:
         replies = replies_fn(tx_id)
         silent = replies is None
-        return MockIsoTpConnection(
+        return ScriptedEcu(
             replies or {},
             hexlog,
             name=f"mock:{tx_id:03X}",

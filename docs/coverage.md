@@ -1,97 +1,86 @@
 # Vehicle and dongle coverage
 
-What the bay can do today, which **third-party tools** it already wraps, and what we still need from a live shop (captures, manuals, cable IDs) before claiming a platform or an EV.
+The bay wraps **udsoncan** (`Client`, `j2534`, `FakeConnection`, `DidCodec`, `Dtc`). It is not a second scanner. Captured maps are data from a live car, not a Mechazone OEM database.
 
-The product does not launch other scanner apps. It keeps one session (identify → scan → playbook → closeout) and plugs OSS under it.
+Linux only adds `CFUNCTYPE` so `udsoncan.j2534` can import (upstream uses `WINFUNCTYPE`). Pass-Thru opens `J2534_LIB` with a NULL device name — no Tactrix registry, no firmware IOCTLs.
 
 ## In the worker now
 
 | Path | When it runs | What it does |
 | --- | --- | --- |
-| USB detect | **Refresh kits** | VID/PID for OpenPort `0403:cc4d` / `0403:cca2`, ELM-class chips, unknown USB. Recommends OpenPort when that cable is present. |
-| OpenPort / J2534 | Connect kit | `udsoncan` + NikolaKozina/j2534 (Linux) or frozen clone DLL (`J2534_LIB`). UDS over ISO-TP, 11-bit, 500 kbit. |
-| Mock ECU | Bench | Generic ISO 15765-4 (Honda-shaped VIN). Pin a captured map with `MECHAZONE_MOCK_PROFILE=<id>` (e.g. `avensis_3zr_fae`). |
-| `avensis_3zr_fae` | Decode model Avensis, or the Avensis bench VIN | Captured ECM `7E0`, Valvematic `7E2`, Toyota 11-bit probes, live DIDs `1A01`–`1A12`. Not selected from Toyota WMI / `SB1` alone. |
-| `toyota_common` | Toyota/Lexus WMI, no captured platform | Same 11-bit **probe**. No family-specific live DIDs. Identity DIDs only (`F187`, `F18A`, `F18C`). |
-| `generic_uds` | Everything else | ISO 15765-4 physical `7E0`–`7E2`: VIN `F190`, DTCs `$19`, ISO identity DIDs. No OEM body map, no invented live scales. |
-| Tesla / China-EV WMI | `5YJ`/`7SA`/`LRW` or listed BYD/GAC/Geely/Chery prefixes | Still `generic_uds`, plus an explicit BMS/proprietary **gap**. |
+| USB detect | **Refresh kits** | VID/PID for OpenPort `0403:cc4d` / `0403:cca2`, ELM-class chips, unknown USB. |
+| OpenPort / J2534 | Connect kit | `udsoncan.j2534` on NikolaKozina/j2534 (Linux) or frozen clone DLL (`J2534_LIB`). |
+| Mock ECU | Bench | `udsoncan.FakeConnection`. Generic ISO 15765-4 unless `MECHAZONE_MOCK_PROFILE=<captured id>`. |
+| `avensis_3zr_fae` | Decode model Avensis, or the Avensis bench VIN | The only captured map on file. ECM `7E0`, Valvematic `7E2`, DIDs `1A01`–`1A12`. |
+| `toyota_common` | Toyota/Lexus WMI, no capture | 11-bit probe. Identity DIDs only. |
+| `generic_uds` | Everything else | ISO 15765-4 `7E0`–`7E2`. |
+| Tesla / China-EV WMI | listed prefixes | Same probe + an explicit gap. Bring bus type + capture. |
 
-ELM327 is **detected only**. Connecting it is refused. `python-can` and `can-isotp` are already in the worker venv for a later thin serial fallback — not SAE J1979 as the default scan.
+ELM327 is **detect only**. `python-can` / `can-isotp` are udsoncan extras, not a PID reader we wrote.
 
-VIN decode stays **vPIC**, then CarAPI / Vincario when those keys are set (`docs/integrations.md`).
+VIN decode: **vPIC**, then CarAPI / Vincario when keys are set.
 
-## What you need to fill
+## Materials we will not invent — you bring them
 
-Do not invent addresses. A new platform lands when we have a **live OpenPort capture** on a car you can put in the bay, plus manuals if you have them.
+Do not ask the worker to grow a scanner. If a fact is missing, it stays in **gaps**. Get the artifact.
 
-### 1. ICE platforms you actually see (first)
+### 1. Live OpenPort capture (required for every new platform)
 
-For each make/model/year band (Honda, later Toyota, Nissan, Hyundai — whatever is on the ramp):
-
-1. Ignition on, OpenPort connected, **Read VIN** + **Deep Scan**. Save the worker hex (`raw_hex_stream`) and the JSON scan.
-2. Note which modules answered (tx/rx, NRC vs timeout).
-3. If you have a workshop manual or EWD, drop it in `data/manuals/` with a sidecar and `make ingest` (`docs/manuals.md`).
-4. Optional: one DID list you **saw** (service `$22` responses), not a guess. `$2F` IO-control IDs only if the capture shows them.
-
-That becomes a new file under `diagnostic-worker/mechazone_worker/profiles/` and an entry in `CAPTURED` (`profiles/__init__.py`). Until then the car gets the generic or Toyota probe and the playbook says so.
-
-### 2. Other J2534 cables (not bargain ELM)
-
-If a shop has another Pass-Thru stick (DrewTech, Mongoose, …):
-
-- USB **VID:PID** from `Refresh kits` (unknown USB line) or `lsusb`.
-- Path to **that** vendor’s J2534 library. Set `J2534_LIB`. Never download `op20pt32.dll` from tactrix.com for this clone.
-
-We can then treat it as another `uds_j2534` device. We will not wrap Autel/Launch tablet apps or Bluetooth ELM clones as the design path.
-
-### 3. ELM327 fallback (only if a shop has nothing else)
-
-Need a **maintained** ISO-TP-over-ELM path (we already depend on `python-can` / `can-isotp`). Still a degraded session: record `adapter_type=elm327`, no pretend Valvematic/BMS. Do not turn the product into a PID reader.
-
-### 4. Chinese EVs (BYD, GAC, Geely, Chery, …)
-
-Need, on a car you can reach with **this** OpenPort:
-
-- Whether the DLC is classic CAN 500k ISO-TP, **29-bit**, **CAN-FD**, or **DoIP** (Ethernet). This clone is J2534-1 CAN. If the car only speaks CAN-FD/DoIP on the DLC, write that down — we do not add a second dongle to hide it.
-- Captured BMS / VCU / inverter **tx/rx** and a VIN DID that actually answered.
-- Any public or licensed manual we can ingest (same scrape-and-cache rules).
-
-WMI prefixes in `profiles/__init__.py` only **flag** the gap. They are not a diagnosis.
-
-### 5. American EVs (Tesla, some GM/Ford)
-
-- Tesla: OBD UDS is usually not a service path. Need a captured map or we keep the Tesla gap. Do not wrap Tesla Toolbox.
-- Ford/GM: same as (4) — bus type + UDS addresses from a live Pass-Thru session, plus security/gateway notes. No invented IDs.
-
-### 6. VIN decode for African / China VINs
-
-vPIC is US-heavy. For EU/Africa/China imports, **Vincario** (or CarAPI) keys in `.env` are the fill. Cache still wins; we never re-query a stored VIN.
-
-## Capture bundle (send this, not a guess)
-
-For one vehicle:
+Ignition on, this cable, **Read VIN** + **Deep Scan**. Save:
 
 ```
 vin
-make / model / year (if known)
+make / model / year (from decode, not a guess)
 adapter_type, host_os, protocol
 scan JSON (modules, codes, identity, coverage)
 raw_hex_stream
-optional: photo of the DLC / cable, lsusb line
-optional: manual PDF or HTML tree for ingest
+which tx/rx answered vs timeout vs NRC
 ```
 
-That is enough to add a profile without inventing pins.
+Without that file we will not add DIDs, `$2F` IDs, or named modules. A WMI prefix is not a map.
+
+### 2. Licensed diagnostic description (ODX / PDX / CDX / OEM XML)
+
+If you can legally obtain the platform’s ODX (or equivalent), drop it in. We will parse it with **odxtools** (Mercedes-Benz OSS) instead of hand-writing `profiles/`. Until you have the file, do not ask for a DID encyclopedia.
+
+Toyota Techstream / GTS data is not something we scrape. If you have an export you are allowed to use, that is the input.
+
+### 3. Workshop manual / EWD
+
+PDF or HTML tree in `data/manuals/` with a sidecar (`docs/manuals.md`). No sidecar, no ingest. No ingest, no cited pins or figures. The model will not draw a wiring diagram.
+
+### 4. VIN decode keys (EU / Africa / China imports)
+
+vPIC is US-heavy. Set `VINCARIO_*` and/or `CARAPI_*` in `.env`. Cache still wins.
+
+### 5. Frozen Pass-Thru library
+
+- Linux: compile `third_party/j2534` → `J2534_LIB=.../j2534.so`
+- Windows: the **clone CD** DLL at an absolute `J2534_LIB`. Never tactrix.com.
+
+### 6. Chinese EV (when you have one on this OpenPort)
+
+Write down DLC bus: CAN 500k ISO-TP vs 29-bit vs **CAN-FD** vs **DoIP**. Captured BMS/VCU tx/rx and a VIN DID that answered. If this clone cannot speak the bus, that is a coverage gap — we do not add a second dongle to hide it.
+
+### 7. Closeout photos (optional, high value)
+
+A connector / loom photo on a **verified** closeout can be shown next to a retrieved figure. It is not a generated diagram.
+
+## What we will not build
+
+- Another UDS/J2534 ctypes stack (udsoncan already has it)
+- Autel / Launch / Techstream wrapping
+- A DTC website scrape
+- Invented Valvematic / BMS IDs for cars we have not captured
 
 ## Third-party tools already in use
 
 | Tool | Role |
 | --- | --- |
-| udsoncan | UDS client |
-| python-can + can-isotp | In venv; reserved for a later ELM ISO-TP shim |
-| NikolaKozina/j2534 | Linux OpenPort Pass-Thru |
+| udsoncan | UDS client, J2534 bindings, FakeConnection, Dtc, DidCodec |
+| python-can + can-isotp | udsoncan extras; later ELM ISO-TP shim only |
+| NikolaKozina/j2534 | Linux OpenPort Pass-Thru `.so` |
+| odxtools | When you have ODX — not wired until a file exists |
 | NHTSA vPIC / CarAPI / Vincario | VIN decode |
 | todrobbins/dtcdb | Generic P0xxx titles |
-| Hosted LLM | Playbook fusion (not a code encyclopedia) |
-
-Do not add a second scanner GUI. Do not scrape a DTC website per lookup.
+| Hosted LLM | Playbook fusion |

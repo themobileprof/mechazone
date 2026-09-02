@@ -27,7 +27,8 @@ PROFILE = VehicleProfile(
     depth="toyota_probe",
     gaps=(
         "Toyota 11-bit probe only — not a captured platform map.",
-        "No manufacturer live DIDs (Valvematic / family-specific) until a live OpenPort capture.",
+        "Bring a live OpenPort capture (hex + which nodes answered) or a licensed Toyota ODX. Until then: identity DIDs only.",
+        "Drop the workshop manual / EWD for this body in data/manuals/ if you have it.",
         "No $2F IO-control IDs on file.",
     ),
 )

@@ -156,7 +156,7 @@ diagnostic-worker/.venv
   websockets==14.2
 ```
 
-We wrap `udsoncan` for services. J2534 ISO-TP is the OpenPort path. `python-can` / `can-isotp` are present for later sockets — do not rewrite framing.
+We wrap `udsoncan.Client` for UDS services and `udsoncan.j2534` for Pass-Thru. Linux maps `WINFUNCTYPE` → `CFUNCTYPE` so that module imports; we do not ship a second ctypes J2534 stack. `python-can` / `can-isotp` are udsoncan extras (socket ISO-TP), reserved for a later ELM shim — not SAE J1979.
 
 ---
 

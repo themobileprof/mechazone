@@ -1,241 +1,141 @@
-"""Thin ctypes binding for SAE J2534-1 Pass-Thru (OpenPort 2.0 Rev E)."""
+"""Clone-safe Pass-Thru using udsoncan.j2534 — not a second ctypes stack.
+
+Loads only J2534_LIB (absolute path). No Windows J2534 registry. No firmware IOCTLs.
+Linux: package __init__ maps WINFUNCTYPE → CFUNCTYPE so udsoncan.j2534 imports.
+"""
 
 from __future__ import annotations
 
-import ctypes
 import os
 import sys
-from ctypes import POINTER, c_char_p, c_ulong, c_void_p, c_ubyte
 from pathlib import Path
-from dataclasses import dataclass
-from typing import Optional
 
-STATUS_NOERROR = 0x00
-ERR_TIMEOUT = 0x09
-ERR_BUFFER_EMPTY = 0x07
-
-PROTOCOL_CAN = 0x05
-PROTOCOL_ISO15765 = 0x06
-
-CAN_29BIT_ID = 0x00000100
-ISO15765_FRAME_PAD = 0x00000040
-ISO15765_ADDR_TYPE = 0x00000080
-
-SET_CONFIG = 0x01
-CLEAR_TX_BUFFER = 0x07
-CLEAR_RX_BUFFER = 0x08
-CLEAR_MSG_FILTERS = 0x0A
-START_MSG_FILTER = 0x0B
-
-PASS_FILTER = 0x00000001
-FLOW_CONTROL_FILTER = 0x00000003
-
-DATA_RATE = 0x01
+from udsoncan.j2534 import (
+    Error_ID,
+    Ioctl_ID,
+    J2534,
+    Protocol_ID,
+    SCONFIG_LIST,
+)
 
 
-class PASSTHRU_MSG(ctypes.Structure):
-    _fields_ = [
-        ("ProtocolID", c_ulong),
-        ("RxStatus", c_ulong),
-        ("TxFlags", c_ulong),
-        ("Timestamp", c_ulong),
-        ("DataSize", c_ulong),
-        ("ExtraDataIndex", c_ulong),
-        ("Data", c_ubyte * 4128),
-    ]
-
-
-class SCONFIG(ctypes.Structure):
-    _fields_ = [("Parameter", c_ulong), ("Value", c_ulong)]
-
-
-class SCONFIG_LIST(ctypes.Structure):
-    _fields_ = [("NumOfParams", c_ulong), ("ConfigPtr", POINTER(SCONFIG))]
-
-
-def _default_lib_candidates() -> list[str]:
+def default_lib_candidates() -> list[str]:
     env = os.environ.get("J2534_LIB", "").strip()
     if env:
         return [env]
     if sys.platform.startswith("win"):
-        return ["openport.dll"]
+        return []
+    root = Path(__file__).resolve().parents[2]
     return [
-        "libopenport.so",
-        "libj2534.so",
-        "j2534.so",
-        "/usr/local/lib/libj2534.so",
+        str(root / "third_party" / "j2534" / "j2534" / "j2534.so"),
+        str(root / "third_party" / "j2534" / "j2534" / "libj2534.so"),
         "/usr/local/lib/j2534.so",
+        "/usr/local/lib/libj2534.so",
         "/usr/lib/libopenport.so",
-        "/usr/local/lib/libopenport.so",
-        "/usr/lib/j2534/libopenport.so",
-        str(Path(__file__).resolve().parents[2] / "third_party" / "j2534" / "j2534" / "j2534.so"),
-        str(Path(__file__).resolve().parents[2] / "third_party" / "j2534" / "j2534" / "libj2534.so"),
     ]
 
 
-@dataclass
-class Channel:
-    device_id: int
-    channel_id: int
-    protocol: int
+def resolve_j2534_lib() -> str | None:
+    for cand in default_lib_candidates():
+        if cand and Path(cand).is_file():
+            return cand
+    env = os.environ.get("J2534_LIB", "").strip()
+    return env or None
 
 
-class J2534Error(RuntimeError):
-    def __init__(self, code: int, action: str) -> None:
-        super().__init__(f"J2534 {action} failed with status 0x{code:02X}")
-        self.code = code
+def _ok(result: Error_ID) -> bool:
+    return result in (Error_ID.ERR_SUCCESS, Error_ID.STATUS_NOERROR)
 
 
-class J2534Library:
-    def __init__(self, path: Optional[str] = None) -> None:
-        last_err: Exception | None = None
-        candidates = [path] if path else _default_lib_candidates()
-        self._lib = None
-        self.path = ""
-        for cand in candidates:
-            if not cand:
-                continue
-            try:
-                self._lib = ctypes.CDLL(cand)
-                self.path = cand
-                break
-            except OSError as exc:
-                last_err = exc
-        if self._lib is None:
+class CloneSafeJ2534(J2534):
+    """Same bindings as udsoncan; PassThruOpen(NULL) so we never name a Tactrix device."""
+
+    def PassThruOpen(self, pDeviceID=None):  # noqa: N802 — SAE name
+        import ctypes
+
+        import udsoncan.j2534 as j2534_mod
+
+        if not pDeviceID:
+            pDeviceID = ctypes.c_ulong()
+        result = j2534_mod.dllPassThruOpen(None, ctypes.byref(pDeviceID))
+        return Error_ID(hex(result)), pDeviceID
+
+
+class PassThru:
+    """One open ISO 15765 channel. Filter-switch per module; do not PassThruClose until disconnect."""
+
+    def __init__(self, lib_path: str | None = None) -> None:
+        path = lib_path or resolve_j2534_lib()
+        if not path:
             raise FileNotFoundError(
-                f"OpenPort J2534 library not found ({candidates!r}): {last_err}"
+                "J2534 library not found. Compile third_party/j2534 or set J2534_LIB to the frozen clone DLL."
             )
-        self._bind()
-
-    def _bind(self) -> None:
-        lib = self._lib
-        lib.PassThruOpen.argtypes = [c_void_p, POINTER(c_ulong)]
-        lib.PassThruOpen.restype = c_ulong
-        lib.PassThruClose.argtypes = [c_ulong]
-        lib.PassThruClose.restype = c_ulong
-        lib.PassThruConnect.argtypes = [
-            c_ulong, c_ulong, c_ulong, c_ulong, POINTER(c_ulong)
-        ]
-        lib.PassThruConnect.restype = c_ulong
-        lib.PassThruDisconnect.argtypes = [c_ulong]
-        lib.PassThruDisconnect.restype = c_ulong
-        lib.PassThruReadMsgs.argtypes = [
-            c_ulong, POINTER(PASSTHRU_MSG), POINTER(c_ulong), c_ulong
-        ]
-        lib.PassThruReadMsgs.restype = c_ulong
-        lib.PassThruWriteMsgs.argtypes = [
-            c_ulong, POINTER(PASSTHRU_MSG), POINTER(c_ulong), c_ulong
-        ]
-        lib.PassThruWriteMsgs.restype = c_ulong
-        lib.PassThruStartMsgFilter.argtypes = [
-            c_ulong, c_ulong, POINTER(PASSTHRU_MSG), POINTER(PASSTHRU_MSG),
-            POINTER(PASSTHRU_MSG), POINTER(c_ulong),
-        ]
-        lib.PassThruStartMsgFilter.restype = c_ulong
-        lib.PassThruIoctl.argtypes = [c_ulong, c_ulong, c_void_p, c_void_p]
-        lib.PassThruIoctl.restype = c_ulong
-        lib.PassThruGetLastError.argtypes = [c_char_p]
-        lib.PassThruGetLastError.restype = c_ulong
-
-    def last_error(self) -> str:
-        buf = ctypes.create_string_buffer(256)
-        self._lib.PassThruGetLastError(buf)
-        return buf.value.decode("ascii", errors="replace")
-
-    def _check(self, code: int, action: str) -> None:
-        if code != STATUS_NOERROR:
-            raise J2534Error(code, f"{action}: {self.last_error()}")
-
-    def open(self) -> int:
-        device_id = c_ulong(0)
-        self._check(self._lib.PassThruOpen(None, ctypes.byref(device_id)), "PassThruOpen")
-        return int(device_id.value)
-
-    def close(self, device_id: int) -> None:
-        self._check(self._lib.PassThruClose(device_id), "PassThruClose")
-
-    def connect_iso15765(self, device_id: int, baud: int = 500000) -> int:
-        channel_id = c_ulong(0)
-        flags = ISO15765_FRAME_PAD
-        self._check(
-            self._lib.PassThruConnect(
-                device_id, PROTOCOL_ISO15765, flags, baud, ctypes.byref(channel_id)
-            ),
-            "PassThruConnect(ISO15765)",
+        self.path = path
+        self.iface = CloneSafeJ2534(windll=path, rxid=0x7E8, txid=0x7E0)
+        result, self.dev_id = self.iface.PassThruOpen()
+        if not _ok(result):
+            raise RuntimeError(f"PassThruOpen failed: {result}")
+        result, self.channel_id = self.iface.PassThruConnect(
+            self.dev_id, Protocol_ID.ISO15765.value, 500000
         )
-        cfg = SCONFIG(DATA_RATE, baud)
-        cfg_list = SCONFIG_LIST(1, ctypes.pointer(cfg))
-        self._lib.PassThruIoctl(channel_id.value, SET_CONFIG, ctypes.byref(cfg_list), None)
-        self._lib.PassThruIoctl(channel_id.value, CLEAR_TX_BUFFER, None, None)
-        self._lib.PassThruIoctl(channel_id.value, CLEAR_RX_BUFFER, None, None)
-        self._lib.PassThruIoctl(channel_id.value, CLEAR_MSG_FILTERS, None, None)
-        return int(channel_id.value)
-
-    def start_isotp_filter(self, channel_id: int, tx_id: int, rx_id: int) -> int:
-        mask = PASSTHRU_MSG()
-        pattern = PASSTHRU_MSG()
-        flow = PASSTHRU_MSG()
-        for msg in (mask, pattern, flow):
-            msg.ProtocolID = PROTOCOL_ISO15765
-            msg.TxFlags = ISO15765_FRAME_PAD
-            msg.DataSize = 4
-        _put_can_id(mask, 0xFFFFFFFF)
-        _put_can_id(pattern, rx_id)
-        _put_can_id(flow, tx_id)
-        filter_id = c_ulong(0)
-        self._check(
-            self._lib.PassThruStartMsgFilter(
-                channel_id,
-                FLOW_CONTROL_FILTER,
-                ctypes.byref(mask),
-                ctypes.byref(pattern),
-                ctypes.byref(flow),
-                ctypes.byref(filter_id),
-            ),
-            "PassThruStartMsgFilter",
+        if not _ok(result):
+            raise RuntimeError(f"PassThruConnect failed: {result}")
+        configs = SCONFIG_LIST(
+            [
+                (Ioctl_ID.DATA_RATE.value, 500000),
+                (Ioctl_ID.LOOPBACK.value, 0),
+                (Ioctl_ID.ISO15765_BS.value, 0x20),
+                (Ioctl_ID.ISO15765_STMIN.value, 0),
+            ]
         )
-        return int(filter_id.value)
+        self.iface.PassThruIoctl(self.channel_id, Ioctl_ID.SET_CONFIG, configs)
+        self.set_can_ids(0x7E0, 0x7E8)
 
-    def write_uds(self, channel_id: int, tx_id: int, payload: bytes, timeout_ms: int = 100) -> None:
-        msg = PASSTHRU_MSG()
-        msg.ProtocolID = PROTOCOL_ISO15765
-        msg.TxFlags = ISO15765_FRAME_PAD
-        frame = _can_id_bytes(tx_id) + payload
-        msg.DataSize = len(frame)
-        for i, b in enumerate(frame):
-            msg.Data[i] = b
-        count = c_ulong(1)
-        self._check(
-            self._lib.PassThruWriteMsgs(
-                channel_id, ctypes.byref(msg), ctypes.byref(count), timeout_ms
-            ),
-            "PassThruWriteMsgs",
-        )
+    def set_can_ids(self, tx_id: int, rx_id: int) -> None:
+        self.iface.txid = tx_id.to_bytes(4, "big")
+        self.iface.rxid = rx_id.to_bytes(4, "big")
+        eleven = tx_id <= 0x7FF
+        from udsoncan.j2534 import TxStatusFlag
 
-    def read_uds(self, channel_id: int, timeout_ms: int = 500) -> bytes | None:
-        msg = PASSTHRU_MSG()
-        msg.ProtocolID = PROTOCOL_ISO15765
-        count = c_ulong(1)
-        code = self._lib.PassThruReadMsgs(
-            channel_id, ctypes.byref(msg), ctypes.byref(count), timeout_ms
+        flags = TxStatusFlag.ISO15765_CAN_ID_11.value if eleven else TxStatusFlag.ISO15765_CAN_ID_29.value
+        self.iface.txConnectFlags = flags
+        # Enum reuses 0x40 as CAN_ID_11; SAE ISO15765_FRAME_PAD is the same bit.
+        self.iface.txFlags = flags | TxStatusFlag.ISO15765_CAN_ID_11.value
+        self.iface.PassThruIoctl(self.channel_id, Ioctl_ID.CLEAR_MSG_FILTERS)
+        self.iface.PassThruStartMsgFilter(self.channel_id, Protocol_ID.ISO15765.value)
+        self.iface.PassThruIoctl(self.channel_id, Ioctl_ID.CLEAR_RX_BUFFER)
+        self.iface.PassThruIoctl(self.channel_id, Ioctl_ID.CLEAR_TX_BUFFER)
+
+    def write_uds(self, payload: bytes, timeout_ms: int = 100) -> None:
+        result = self.iface.PassThruWriteMsgs(
+            self.channel_id, payload, Protocol_ID.ISO15765.value, Timeout=timeout_ms
         )
-        if code in (ERR_TIMEOUT, ERR_BUFFER_EMPTY):
+        if not _ok(result):
+            raise RuntimeError(f"PassThruWriteMsgs failed: {result}")
+
+    def read_uds(self, timeout_ms: int = 500) -> bytes | None:
+        # udsoncan.PassThruReadMsgs busy-loops on ERR_TIMEOUT. Use the same binding, one shot.
+        import ctypes
+
+        import udsoncan.j2534 as j2534_mod
+
+        msg = j2534_mod.PASSTHRU_MSG()
+        msg.ProtocolID = Protocol_ID.ISO15765.value
+        n = ctypes.c_ulong(1)
+        result = j2534_mod.dllPassThruReadMsgs(
+            self.channel_id, ctypes.byref(msg), ctypes.byref(n), ctypes.c_ulong(timeout_ms)
+        )
+        err = Error_ID(hex(result))
+        if err in (Error_ID.ERR_TIMEOUT, Error_ID.ERR_BUFFER_EMPTY) or n.value == 0:
             return None
-        if code != STATUS_NOERROR:
-            raise J2534Error(code, f"PassThruReadMsgs: {self.last_error()}")
-        if count.value == 0 or msg.DataSize < 4:
+        if not _ok(err):
+            raise RuntimeError(f"PassThruReadMsgs failed: {err}")
+        if msg.DataSize < 4:
             return None
-        return bytes(msg.Data[4:msg.DataSize])
+        return bytes(msg.Data[4 : msg.DataSize])
 
-    def disconnect(self, channel_id: int) -> None:
-        self._check(self._lib.PassThruDisconnect(channel_id), "PassThruDisconnect")
-
-
-def _can_id_bytes(can_id: int) -> bytes:
-    return can_id.to_bytes(4, "big")
-
-
-def _put_can_id(msg: PASSTHRU_MSG, can_id: int) -> None:
-    raw = _can_id_bytes(can_id)
-    for i, b in enumerate(raw):
-        msg.Data[i] = b
+    def close(self) -> None:
+        try:
+            self.iface.PassThruDisconnect(self.channel_id)
+        finally:
+            self.iface.PassThruClose(self.dev_id)

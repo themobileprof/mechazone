@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from udsoncan import DataIdentifier as IsoDataIdentifier
+
 
 @dataclass(frozen=True)
 class Module:
@@ -32,7 +34,7 @@ IDENTITY_DIDS: tuple[tuple[int, str], ...] = (
     (0xF18C, "ecu_serial"),
 )
 
-VIN_DID = 0xF190
+VIN_DID = IsoDataIdentifier.VIN
 
 # ISO 15765-4 physical addresses (11-bit). Functional 0x7DF is not used — multi-response ISO-TP is messy.
 ISO15765_4_MODULES: tuple[Module, ...] = (

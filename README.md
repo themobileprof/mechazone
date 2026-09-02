@@ -30,4 +30,4 @@ After `./install.sh`, daily use is `make start` (or the Desktop icon) → http:/
 
 Third-party connect guide: `docs/integrations.md` (OpenPort/J2534, vPIC, CarAPI, Vincario, DTC seed, pgvector).
 
-**Refresh kits** autodetects the OpenPort USB IDs (and lists ELM as detect-only). Mock ECU is a generic ISO 15765-4 bench. Captured platform maps (including Avensis 3ZR-FAE / Valvematic) apply when VIN decode or the fixture VIN says so — see `docs/coverage.md`.
+**Refresh kits** autodetects the OpenPort USB IDs (and lists ELM as detect-only). The worker is udsoncan on that cable, not a custom scanner. Mock ECU is generic ISO 15765-4; captured maps (including Avensis) apply when VIN decode says so — see `docs/coverage.md` for the materials we still need from you.

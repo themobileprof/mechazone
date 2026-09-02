@@ -73,11 +73,13 @@ def extra_gaps_for(vin: str) -> tuple[str, ...]:
     wmi = _wmi(vin)
     if wmi in TESLA_WMI:
         return (
-            "Tesla-class VIN: OBD UDS is not a service path. Need a captured map or say so in gaps.",
+            "Tesla-class VIN: OBD UDS is not a service path. Do not wrap Tesla Toolbox. "
+            "If you have a captured Pass-Thru map, file it; otherwise the playbook stays in gaps.",
         )
     if wmi in CHINA_EV_WMI:
         return (
-            "China EV WMI: BMS/VCU IDs and CAN-FD/DoIP are not on file. Capture on OpenPort before claiming a diagnosis.",
+            "China EV WMI: bring DLC bus type (CAN 500k vs CAN-FD vs DoIP), BMS/VCU tx/rx from a live OpenPort session, "
+            "and any licensed manual. This clone is J2534-1 CAN — if the car is CAN-FD/DoIP only, write that down.",
         )
     return ()
 

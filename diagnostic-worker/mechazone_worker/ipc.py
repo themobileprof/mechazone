@@ -7,7 +7,7 @@ import os
 from typing import Any
 
 from mechazone_worker.detect import detect_adapters
-from mechazone_worker.j2534 import J2534Library
+from mechazone_worker.j2534 import PassThru
 from mechazone_worker.session import DiagnosticSession, mock_factory, openport_factory
 
 log = logging.getLogger("mechazone.worker")
@@ -17,9 +17,7 @@ class WorkerState:
     def __init__(self) -> None:
         self.adapter = os.environ.get("MECHAZONE_ADAPTER", "mock")
         self.session: DiagnosticSession | None = None
-        self.lib: J2534Library | None = None
-        self.device_id: int | None = None
-        self.channel_id: int | None = None
+        self.passthru: PassThru | None = None
 
     def connect(self, adapter: str) -> dict[str, Any]:
         self.disconnect()
@@ -33,32 +31,18 @@ class WorkerState:
             )
         if adapter != "openport2_rev_e":
             raise ValueError(f"unknown adapter {adapter}")
-        lib = J2534Library()
-        device_id = lib.open()
-        channel_id = lib.connect_iso15765(device_id)
-        from mechazone_worker.j2534 import Channel
-
-        channel = Channel(device_id, channel_id, protocol=0x06)
-        self.lib = lib
-        self.device_id = device_id
-        self.channel_id = channel_id
-        self.session = DiagnosticSession(openport_factory(lib, channel), "openport2_rev_e")
-        return {"adapter": "openport2_rev_e", "library": lib.path, "connected": True}
+        pt = PassThru()
+        self.passthru = pt
+        self.session = DiagnosticSession(openport_factory(pt), "openport2_rev_e")
+        return {"adapter": "openport2_rev_e", "library": pt.path, "connected": True}
 
     def disconnect(self) -> None:
-        if self.lib and self.channel_id is not None:
+        if self.passthru is not None:
             try:
-                self.lib.disconnect(self.channel_id)
+                self.passthru.close()
             except Exception as exc:  # noqa: BLE001
-                log.warning("disconnect channel: %s", exc)
-        if self.lib and self.device_id is not None:
-            try:
-                self.lib.close(self.device_id)
-            except Exception as exc:  # noqa: BLE001
-                log.warning("close device: %s", exc)
-        self.lib = None
-        self.device_id = None
-        self.channel_id = None
+                log.warning("passthru close: %s", exc)
+        self.passthru = None
         self.session = None
 
     def require(self) -> DiagnosticSession:

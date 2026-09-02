@@ -227,9 +227,12 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
         </div>
         {selectedKit?.gap && <p className="mt-2 text-sm text-steel">{selectedKit.gap}</p>}
         {coverage && coverage.gaps.length > 0 && (
-          <ul className="mt-2 space-y-1 text-sm text-steel">
-            {coverage.gaps.map((g) => <li key={g}>Coverage: {g}</li>)}
-          </ul>
+          <div className="mt-3 border border-brass/30 bg-oil/60 px-3 py-3">
+            <p className="font-mono text-[11px] tracking-widest text-brass">WHAT THIS VIN STILL NEEDS</p>
+            <ul className="mt-2 space-y-1 text-sm text-steel">
+              {coverage.gaps.map((g) => <li key={g}>{g}</li>)}
+            </ul>
+          </div>
         )}
         <label className="mt-4 block max-w-md">
           <span className="font-mono text-[11px] text-steel">CUSTOMER (LOCAL ONLY — NEVER SYNCED)</span>

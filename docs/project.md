@@ -282,7 +282,8 @@ CREATE INDEX idx_resolutions_verified ON confirmed_resolutions (is_verified_fix)
 | --- | --- | --- |
 | VIN decode | NHTSA vPIC, then CarAPI / Vincario | Call once, write through to `vin_decode_cache` / `vehicles`. Never re-hit a cached VIN. |
 | Generic DTC text (P0xxx) | Public/OSS SAE seed lists | Import into PostgreSQL. No per-lookup web DTC APIs. No hand-written encyclopedia. |
-| ISO-TP / UDS / CAN / J2534 | Maintained Python OSS | Wrap. Do not reimplement framing stacks. |
+| ISO-TP / UDS / CAN / J2534 | `udsoncan` (+ `python-can` / `can-isotp` extras) | Wrap. Linux CFUNCTYPE shim only. Do not reimplement framing. |
+| OEM diagnostic description | Licensed ODX/PDX + `odxtools` when a file exists | Do not hand-write a DID encyclopedia. |
 | TSB / manual / forum text | Public pages and PDFs | Scrape or bulk-import, cache, chunk with OSS parsers. |
 | Embeddings + search | `pgvector` in the same Postgres | No separate vector-DB product. |
 | LLM playbooks | Existing hosted LLM API | Prompt + retrieve. Do not train or host a model. |

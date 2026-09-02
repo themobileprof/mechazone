@@ -18,8 +18,9 @@ PROFILE = VehicleProfile(
     depth="iso_15765_4",
     gaps=(
         "ISO 15765-4 physical only (7E0–7E2). No OEM body/chassis map.",
-        "No manufacturer DID scales or $2F IO-control IDs on file.",
-        "Playbook is adapter tests, this shop's jobs, and manuals if make/model decoded.",
+        "Bring a live OpenPort hex dump + scan JSON from this car, or a licensed ODX/PDX for odxtools. Do not invent DIDs.",
+        "Workshop manual / EWD in data/manuals/ with a sidecar, or the playbook has no pins or figures.",
+        "No $2F IO-control IDs until a capture shows them.",
     ),
 )
 
