@@ -8,30 +8,9 @@ with that ECU. Do not invent IO-control / routine IDs; none are captured yet.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
+from mechazone_worker.profiles.base import DataIdentifier, Module, VehicleProfile
 
 MOCK_VIN = "SB1KV56E40E012345"
-
-
-@dataclass(frozen=True)
-class Module:
-    name: str
-    tx_id: int
-    rx_id: int
-    family: str
-    confirmed: bool = False
-
-
-@dataclass(frozen=True)
-class DataIdentifier:
-    did: int
-    name: str
-    unit: str
-    scale: float
-    offset: float = 0.0
-    size: int = 2
-
 
 PROFILE_ID = "avensis_3zr_fae"
 MAKE = "Toyota"
@@ -61,6 +40,19 @@ DIDS = (
     DataIdentifier(0x1A10, "engine_rpm", "rpm", 1.0),
     DataIdentifier(0x1A11, "coolant_temp", "C", 1.0, offset=-40, size=1),
     DataIdentifier(0x1A12, "system_voltage", "V", 0.1),
+)
+
+PROFILE = VehicleProfile(
+    id=PROFILE_ID,
+    make=MAKE,
+    model=MODEL,
+    year=YEAR,
+    modules=MODULES,
+    dids=DIDS,
+    vin_did=VIN_DID,
+    io_controls=IO_CONTROLS,
+    depth="captured",
+    gaps=(),
 )
 
 

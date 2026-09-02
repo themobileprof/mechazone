@@ -1,4 +1,4 @@
-import type { DidStream, ScanResult } from './types'
+import type { DetectedAdapter, DidStream, ScanResult } from './types'
 
 const wsUrl = import.meta.env.VITE_WORKER_WS ?? 'ws://127.0.0.1:8765'
 
@@ -48,16 +48,20 @@ export class WorkerClient {
     return this.request<{ connected: boolean; adapter: string | null }>('status')
   }
 
-  connectAdapter(adapter: 'mock' | 'openport2_rev_e') {
+  detect() {
+    return this.request<{ devices: DetectedAdapter[]; recommended: string; j2534_lib: string | null }>('detect')
+  }
+
+  connectAdapter(adapter: string) {
     return this.request<{ adapter: string; connected: boolean; library: string | null }>('connect', { adapter })
   }
 
   identify() {
-    return this.request<{ vin: string }>('identify')
+    return this.request<{ vin: string; profile: string; make: string; model: string; year: number; coverage?: { id: string; depth: string; gaps: string[] } }>('identify')
   }
 
-  scan() {
-    return this.request<ScanResult>('scan', {}, 45000)
+  scan(hints?: { make?: string; model?: string; year?: number }) {
+    return this.request<ScanResult>('scan', { ...hints }, 45000)
   }
 
   streamDids(seconds = 6) {

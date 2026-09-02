@@ -1,15 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { buildPlaybook, closeoutSession, decodeVin, fetchHistory, ingestSession, ledgerOnline, lookupDtc, logout } from './api'
 import { enqueue, flushQueue, pendingCount } from './queue'
-import type { DidStream, HistoryResponse, Playbook, Principal, ScanResult, Session } from './types'
+import type { DetectedAdapter, DidStream, HistoryResponse, Playbook, Principal, ScanCoverage, ScanResult, Session } from './types'
 import { worker } from './worker'
-
-type Adapter = 'mock' | 'openport2_rev_e'
 
 export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void }) {
   const [online, setOnline] = useState(false)
   const [queued, setQueued] = useState(pendingCount())
-  const [adapter, setAdapter] = useState<Adapter>('mock')
+  const [adapter, setAdapter] = useState('mock')
+  const [kits, setKits] = useState<DetectedAdapter[]>([])
   const [connected, setConnected] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -26,6 +25,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
   const [playbook, setPlaybook] = useState<Playbook | null>(null)
   const [wiggle, setWiggle] = useState<DidStream | null>(null)
   const [dtcClass, setDtcClass] = useState<Record<string, string>>({})
+  const [preCoverage, setPreCoverage] = useState<ScanCoverage | null>(null)
 
   useEffect(() => {
     const tick = async () => {
@@ -39,6 +39,26 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
     void tick()
     const id = window.setInterval(() => void tick(), 8000)
     return () => window.clearInterval(id)
+  }, [])
+
+  async function refreshKits() {
+    try {
+      const d = await worker.detect()
+      setKits(d.devices)
+      setAdapter((current) => {
+        const still = d.devices.some((x) => x.id === current)
+        return still ? current : d.recommended
+      })
+    } catch {
+      setKits([
+        { id: 'mock', label: 'Mock ECU (bench)', capability: 'uds_mock', present: true, connectable: true, recommended: true },
+        { id: 'openport2_rev_e', label: 'OpenPort 2.0 Rev E', capability: 'uds_j2534', present: false, connectable: true, recommended: false },
+      ])
+    }
+  }
+
+  useEffect(() => {
+    void refreshKits()
   }, [])
 
   const codes = scan?.active_codes ?? []
@@ -59,11 +79,16 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
     })
   }, [codes.join('|')])
 
+  const selectedKit = kits.find((k) => k.id === adapter)
+  const coverage = scan?.coverage ?? preCoverage
+
   const vehicleLabel = useMemo(() => {
     if (history?.vehicle) {
       return `${history.vehicle.manufacture_year || ''} ${history.vehicle.make} ${history.vehicle.model}`.trim()
     }
-    if (scan) return `${scan.year} ${scan.make} ${scan.model}`
+    if (scan?.make || scan?.model) return `${scan.year || ''} ${scan.make} ${scan.model}`.trim()
+    if (scan?.profile === 'generic_uds') return 'ISO 15765-4 probe — no captured OEM map'
+    if (scan?.profile === 'toyota_common') return 'Toyota 11-bit probe'
     return 'Awaiting identify'
   }, [history, scan])
 
@@ -83,9 +108,9 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
     const v = result.vin || loggedVin
     const book = await buildPlaybook({
       vin: v,
-      make: result.make,
-      model: result.model,
-      year: result.year,
+      make: history?.vehicle?.make || result.make,
+      model: history?.vehicle?.model || result.model,
+      year: history?.vehicle?.manufacture_year || result.year,
       engine_hint: result.profile,
       active_codes: result.active_codes ?? [],
       live: result.live,
@@ -117,19 +142,28 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
         </div>
       </header>
 
-      <section className="mb-6 grid gap-3 rounded-sm border border-brass/25 bg-panel/80 p-4 md:grid-cols-[1fr_auto_auto_auto] md:items-end">
+      <section className="mb-6 grid gap-3 rounded-sm border border-brass/25 bg-panel/80 p-4 md:grid-cols-[1fr_auto_auto_auto_auto] md:items-end">
         <label className="block">
           <span className="font-mono text-[11px] tracking-widest text-steel">ADAPTER</span>
           <select
             className="mt-1 w-full border border-steel/40 bg-oil px-3 py-3 text-paper"
             value={adapter}
-            onChange={(e) => setAdapter(e.target.value as Adapter)}
+            onChange={(e) => setAdapter(e.target.value)}
           >
-            <option value="mock">Mock ECU (bench)</option>
-            <option value="openport2_rev_e">OpenPort 2.0 Rev E</option>
+            {(kits.length ? kits : [
+              { id: 'mock', label: 'Mock ECU (bench)', connectable: true },
+              { id: 'openport2_rev_e', label: 'OpenPort 2.0 Rev E', connectable: true },
+            ]).map((k) => (
+              <option key={k.id} value={k.id}>
+                {k.label}{'present' in k && k.present && k.id !== 'mock' ? ' · seen' : ''}{k.connectable ? '' : ' · detect only'}
+              </option>
+            ))}
           </select>
         </label>
-        <button className="min-h-12 border border-brass bg-brass px-5 font-semibold text-oil" onClick={() => run('connect', async () => {
+        <button className="min-h-12 border border-paper/40 px-4" onClick={() => run('detect', refreshKits)}>
+          REFRESH KITS
+        </button>
+        <button className="min-h-12 border border-brass bg-brass px-5 font-semibold text-oil" disabled={selectedKit?.connectable === false} onClick={() => run('connect', async () => {
           const r = await worker.connectAdapter(adapter)
           setConnected(r.connected)
         })}>
@@ -141,6 +175,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
           setScan(null)
           setSession(null)
           setPlaybook(null)
+          setPreCoverage(r.coverage ?? null)
           if (online) {
             await decodeVin(r.vin).catch(() => undefined)
             setHistory(await fetchHistory(r.vin))
@@ -151,7 +186,11 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
           READ VIN
         </button>
         <button className="min-h-12 border border-paper/40 px-5" disabled={!vin} onClick={() => run(online ? 'scan + playbook' : 'scan', async () => {
-          const result = await worker.scan()
+          const result = await worker.scan({
+            make: history?.vehicle?.make,
+            model: history?.vehicle?.model,
+            year: history?.vehicle?.manufacture_year,
+          })
           setScan(result)
           setPlaybook(null)
           setWiggle(null)
@@ -181,7 +220,16 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
               {history.first_seen ? 'FIRST VISIT TO THIS SHOP' : `${history.jobs?.length ?? history.sessions.length} JOB(S) HERE`}
             </span>
           )}
+          {coverage && (
+            <span className="font-mono text-xs text-brass">{coverage.id} · {coverage.depth.replaceAll('_', ' ')}</span>
+          )}
         </div>
+        {selectedKit?.gap && <p className="mt-2 text-sm text-steel">{selectedKit.gap}</p>}
+        {coverage && coverage.gaps.length > 0 && (
+          <ul className="mt-2 space-y-1 text-sm text-steel">
+            {coverage.gaps.map((g) => <li key={g}>Coverage: {g}</li>)}
+          </ul>
+        )}
         <label className="mt-4 block max-w-md">
           <span className="font-mono text-[11px] text-steel">CUSTOMER (LOCAL ONLY — NEVER SYNCED)</span>
           <input className="mt-1 w-full border border-steel/30 bg-oil px-3 py-2" value={localCustomer} onChange={(e) => setLocalCustomer(e.target.value)} placeholder="Name / plate stay on this laptop" />
@@ -322,7 +370,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
 
         <section className="rounded-sm border border-brass/20 bg-panel p-5">
           <h2 className="mb-3 font-mono text-sm tracking-[0.25em] text-brass">LIVE MODULES</h2>
-          {!scan && <p className="text-steel">Deep scan probes ECM, Valvematic, and Toyota 11-bit body/chassis addresses. Dark means no UDS answer — not a generic PID miss.</p>}
+          {!scan && <p className="text-steel">Deep scan uses the VIN profile: captured Avensis map, Toyota 11-bit probe, or ISO 15765-4 (7E0–7E2). Dark means no UDS answer — not a generic PID miss.</p>}
           {scan?.network && (
             <p className="mb-3 text-sm text-steel">{scan.network.summary}</p>
           )}
@@ -344,6 +392,16 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
               </li>
             ))}
           </ul>
+          {scan?.identity && scan.identity.length > 0 && (
+            <dl className="mb-3 grid grid-cols-2 gap-2 font-mono text-xs text-steel">
+              {scan.identity.map((row) => (
+                <div key={row.did} className="border border-steel/20 px-3 py-2">
+                  <dt>{row.name}</dt>
+                  <dd className="text-paper">{row.text}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
           <dl className="grid grid-cols-2 gap-2 font-mono text-sm">
             {scan?.live.map((row) => (
               <div key={row.name} className="border border-steel/20 px-3 py-2">
@@ -354,7 +412,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
           </dl>
           <button
             className="mt-4 min-h-11 w-full border border-brass/50 px-3 text-sm text-brass"
-            disabled={!connected || !scan}
+            disabled={!connected || !scan || !(scan.live?.length)}
             onClick={() => run('wiggle', async () => {
               setWiggle(await worker.streamDids(6))
             })}
@@ -363,13 +421,16 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
           </button>
           {wiggle && (
             <div className="mt-3 font-mono text-xs text-steel">
-              <p>{wiggle.samples.length} samples · IO control {wiggle.io_control.replaceAll('_', ' ')}</p>
+              <p>{wiggle.gap || `${wiggle.samples.length} samples · IO control ${wiggle.io_control.replaceAll('_', ' ')}`}</p>
               <ul className="mt-2 max-h-40 space-y-1 overflow-auto">
-                {wiggle.samples.map((s, i) => (
-                  <li key={i}>
-                    t={s.t}s  actual {s.values.valvematic_actual_angle ?? '—'}°  volt {s.values.system_voltage ?? '—'}
-                  </li>
-                ))}
+                {wiggle.samples.map((s, i) => {
+                  const keys = Object.keys(s.values)
+                  return (
+                    <li key={i}>
+                      t={s.t}s {keys.slice(0, 3).map((k) => `${k} ${s.values[k] ?? '—'}`).join('  ')}
+                    </li>
+                  )
+                })}
               </ul>
             </div>
           )}

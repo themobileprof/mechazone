@@ -4,8 +4,10 @@ from mechazone_worker.session import DiagnosticSession, mock_factory
 
 def test_mock_identify_and_scan() -> None:
     session = DiagnosticSession(mock_factory(), "mock")
-    vin = session.identify()
+    ident = session.identify()
+    vin = ident["vin"]
     assert vin == "SB1KV56E40E012345"
+    assert ident["profile"] == "avensis_3zr_fae"
     result = session.scan()
     assert result.vin == vin
     assert "P1047" in result.active_codes

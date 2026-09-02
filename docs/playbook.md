@@ -8,7 +8,7 @@ It is not a chat box on a fault code. It does not invent pins, voltages, or draw
 
 | Input | Source | If missing |
 | --- | --- | --- |
-| Live scan | OpenPort worker (VIN, DTCs, freeze-frame, DIDs, module map, adapter) | Adapter tests only; no “typical car” essay. No DTCs is still a scan — advise from live + modules + shop jobs. |
+| Live scan | OpenPort worker (VIN, DTCs, freeze-frame, DIDs, module map, adapter). Profile is captured Avensis, Toyota 11-bit probe, or ISO 15765-4. | Adapter tests only; no “typical car” essay. No DTCs is still a scan — advise from live + modules + shop jobs. Coverage gaps stay visible. |
 | This shop's jobs on this VIN | PostgreSQL sessions + closeouts scoped to the login shop (or freelancer) | Still retrieve manuals; say first visit to this shop |
 | This shop's similar platform jobs | Same make/model/year-band + codes, **this shop only**, no other VIN | Omit that section |
 | Retrieved docs | Manual corpus (`data/manuals` ingest) + later `pgvector` | No pin numbers that were not retrieved. Chunks may be in any language. |

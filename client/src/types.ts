@@ -135,6 +135,24 @@ export type ScanModule = {
   error?: string
 }
 
+export type ScanCoverage = {
+  id: string
+  depth: string
+  gaps: string[]
+}
+
+export type DetectedAdapter = {
+  id: string
+  label: string
+  vid_pid?: string | null
+  capability: string
+  present: boolean
+  connectable: boolean
+  recommended: boolean
+  library?: string | null
+  gap?: string | null
+}
+
 export type ScanResult = {
   vin: string
   profile: string
@@ -150,6 +168,8 @@ export type ScanResult = {
   modules: ScanModule[]
   circuit_classes?: { code: string; class: string; reason: string }[]
   network?: { reading: string; summary: string; live: number; dark: number }
+  coverage?: ScanCoverage
+  identity?: { name: string; did: string; text: string }[]
 }
 
 export type DidStream = {
@@ -158,6 +178,7 @@ export type DidStream = {
   tx_id: string
   io_control: string
   samples: { t: number; values: Record<string, number | null> }[]
+  gap?: string
 }
 
 export type QueuedJob = {

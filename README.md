@@ -30,4 +30,4 @@ After `./install.sh`, daily use is `make start` (or the Desktop icon) → http:/
 
 Third-party connect guide: `docs/integrations.md` (OpenPort/J2534, vPIC, CarAPI, Vincario, DTC seed, pgvector).
 
-Connect **Mock ECU** to exercise the Avensis 3ZR-FAE / Valvematic path without a car. Switch to **OpenPort 2.0 Rev E** when `libopenport.so` is on the laptop (`J2534_LIB` if it is not on the default path).
+**Refresh kits** autodetects the OpenPort USB IDs (and lists ELM as detect-only). Mock ECU still exercises the Avensis 3ZR-FAE / Valvematic path. Other VINs get an ISO 15765-4 or Toyota probe — see `docs/coverage.md`.

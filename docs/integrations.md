@@ -10,7 +10,7 @@ Mechazone integrates existing APIs and libraries. Do not rebuild these. Keys sta
 | CarAPI | VIN fallback (US-heavy) | Freemium / paid | Wired when `CARAPI_*` set |
 | Vincario | VIN fallback (global / EU imports) | Trial then paid | Wired when `VINCARIO_*` set |
 | todrobbins/dtcdb | Generic SAE DTC titles | Public CSV | Imported into `dtc_codes` |
-| udsoncan + python-can + can-isotp | UDS / ISO-TP | OSS | In the worker venv |
+| udsoncan + python-can + can-isotp | UDS / ISO-TP | OSS | udsoncan is the scan client; python-can / can-isotp reserved for a later ELM ISO-TP shim |
 | NikolaKozina/j2534 | Linux OpenPort 2.0 Pass-Thru | OSS (libusb) | Cloned to `third_party/j2534` — needs one `sudo apt` to compile |
 | Tactrix official J2534 | Windows Pass-Thru DLL | Free from Tactrix | Use on Windows only |
 | PostgreSQL + pgvector | Ledger + later RAG | OSS | Ledger uses local Postgres; `postgresql-18-pgvector` is the apt package |
@@ -50,7 +50,7 @@ sudo udevadm control --reload
 sudo usermod -aG dialout "$USER"   # then log out and back in
 ```
 
-Remove the SD card from the OpenPort before use. Plug the USB cable in, ignition on, then in the bay choose **OpenPort 2.0 Rev E**.
+Remove the SD card from the OpenPort before use. Plug the USB cable in, ignition on, then **Refresh kits** — the bay should recommend OpenPort when `0403:cc4d` or `0403:cca2` is present. ELM-class USB is listed as detect-only (no UDS connect). Unknown VID:PID is listed so you can point `J2534_LIB` at another Pass-Thru library. Coverage and capture checklist: `docs/coverage.md`.
 
 USB IDs we allow in `deploy/99-openport.rules`: `0403:cc4d` and `0403:cca2`.
 

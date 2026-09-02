@@ -6,6 +6,7 @@ import logging
 import os
 from typing import Any
 
+from mechazone_worker.detect import detect_adapters
 from mechazone_worker.j2534 import J2534Library
 from mechazone_worker.session import DiagnosticSession, mock_factory, openport_factory
 
@@ -26,6 +27,10 @@ class WorkerState:
         if adapter == "mock":
             self.session = DiagnosticSession(mock_factory(), "mock")
             return {"adapter": "mock", "library": None, "connected": True}
+        if adapter == "elm327":
+            raise ValueError(
+                "ELM327 is on USB but UDS Pass-Thru is not wired on that cable. Connect the OpenPort 2.0 Rev E."
+            )
         if adapter != "openport2_rev_e":
             raise ValueError(f"unknown adapter {adapter}")
         lib = J2534Library()
@@ -85,6 +90,8 @@ def _dispatch(state: WorkerState, cmd: str, msg: dict[str, Any]) -> Any:
             "connected": state.session is not None,
             "adapter": state.adapter if state.session else None,
         }
+    if cmd == "detect":
+        return detect_adapters()
     if cmd == "connect":
         adapter = msg.get("adapter") or state.adapter
         return state.connect(adapter)
@@ -92,10 +99,15 @@ def _dispatch(state: WorkerState, cmd: str, msg: dict[str, Any]) -> Any:
         state.disconnect()
         return {"connected": False}
     if cmd == "identify":
-        vin = state.require().identify()
-        return {"vin": vin, "raw_hex": state.require().hexlog.lines}
+        ident = state.require().identify()
+        ident["raw_hex"] = state.require().hexlog.lines
+        return ident
     if cmd == "scan":
-        result = state.require().scan()
+        result = state.require().scan(
+            make=str(msg.get("make") or ""),
+            model=str(msg.get("model") or ""),
+            year=int(msg.get("year") or 0),
+        )
         return {
             "vin": result.vin,
             "profile": result.profile,
@@ -111,6 +123,8 @@ def _dispatch(state: WorkerState, cmd: str, msg: dict[str, Any]) -> Any:
             "modules": result.modules,
             "circuit_classes": result.circuit_classes,
             "network": result.network,
+            "coverage": result.coverage,
+            "identity": result.identity,
         }
     if cmd == "stream_dids":
         seconds = float(msg.get("seconds") or 6)

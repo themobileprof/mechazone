@@ -10,7 +10,8 @@ from udsoncan.exceptions import NegativeResponseException, TimeoutException
 
 from mechazone_worker.circuit import classify_codes, network_hint
 from mechazone_worker.hexutil import decode_dtc
-from mechazone_worker.profiles import avensis_3zr_fae as avensis
+from mechazone_worker.profiles import IDENTITY_DIDS, VIN_DID, VehicleProfile, avensis, select_profile
+from mechazone_worker.profiles.base import ISO15765_4_MODULES
 from mechazone_worker.transport import (
     J2534IsoTpConnection,
     MemoryHexLog,
@@ -48,6 +49,8 @@ class ScanResult:
     modules: list[dict[str, Any]] = field(default_factory=list)
     circuit_classes: list[dict[str, str]] = field(default_factory=list)
     network: dict[str, Any] = field(default_factory=dict)
+    coverage: dict[str, Any] = field(default_factory=dict)
+    identity: list[dict[str, str]] = field(default_factory=list)
 
 
 class DiagnosticSession:
@@ -59,63 +62,71 @@ class DiagnosticSession:
         self._factory = connection_factory
         self.adapter_type = adapter_type
         self.hexlog = MemoryHexLog()
+        self.profile: VehicleProfile = avensis.PROFILE if adapter_type == "mock" else select_profile("")
 
-    def identify(self) -> str:
-        conn = self._factory(avensis.ECM.tx_id, avensis.ECM.rx_id, self.hexlog)
-        with Client(conn, request_timeout=2.0, config=_uds_config()) as client:
-            resp = client.read_data_by_identifier(avensis.VIN_DID)
-            raw = resp.service_data.values[avensis.VIN_DID]
-            if isinstance(raw, bytes):
-                return raw.decode("ascii", errors="replace").strip("\x00")
-            return str(raw)
+    def identify(self) -> dict[str, Any]:
+        vin = ""
+        for module in ISO15765_4_MODULES:
+            try:
+                vin = self._vin_on(module.tx_id, module.rx_id)
+            except (TimeoutException, TimeoutError, NegativeResponseException):
+                continue
+            if vin:
+                break
+        if vin:
+            self.profile = select_profile(vin)
+        return {
+            "vin": vin,
+            "profile": self.profile.id,
+            "make": self.profile.make,
+            "model": self.profile.model,
+            "year": self.profile.year,
+            "coverage": self.profile.coverage(),
+        }
 
-    def scan(self) -> ScanResult:
+    def scan(self, make: str = "", model: str = "", year: int = 0) -> ScanResult:
         self.hexlog = MemoryHexLog()
         vin = ""
         codes: list[str] = []
         live: list[dict[str, Any]] = []
+        identity: list[dict[str, str]] = []
         modules: list[dict[str, Any]] = []
 
-        for module in avensis.MODULES:
+        probed_tx: set[int] = set()
+        for module in self.profile.modules:
             timeout = 2.0 if module.name == "ECM" else 0.35
-            conn = self._factory(module.tx_id, module.rx_id, self.hexlog)
-            info: dict[str, Any] = {
-                "name": module.name,
-                "tx_id": f"0x{module.tx_id:03X}",
-                "rx_id": f"0x{module.rx_id:03X}",
-                "family": module.family,
-                "confirmed": module.confirmed,
-                "reachable": False,
-                "dtcs": [],
-            }
-            try:
-                with Client(conn, request_timeout=timeout, config=_uds_config(timeout)) as client:
-                    node_codes = _read_dtcs(client)
-                    info["dtcs"] = node_codes
-                    info["reachable"] = True
-                    if module.name == "ECM":
-                        vin = _read_vin(client)
-                        codes.extend(node_codes)
-                        live.extend(_read_live(client))
-                    else:
-                        codes.extend(node_codes)
-            except TimeoutException:
-                info["error"] = "timeout"
-            except TimeoutError:
-                info["error"] = "timeout"
-            except NegativeResponseException:
-                info["reachable"] = True
-                info["error"] = "nrc"
-            modules.append(info)
+            info = self._probe_module(module, timeout)
+            probed_tx.add(module.tx_id)
+            if module.name == "ECM" and info.get("vin"):
+                vin = str(info["vin"])
+            codes.extend(info.get("dtcs") or [])
+            live.extend(info.get("live") or [])
+            identity.extend(info.get("identity") or [])
+            modules.append({k: v for k, v in info.items() if k not in {"live", "identity", "vin"}})
+
+        if vin:
+            self.profile = select_profile(vin, make, model, year)
+            for module in self.profile.modules:
+                if module.tx_id in probed_tx:
+                    continue
+                info = self._probe_module(module, 0.35)
+                probed_tx.add(module.tx_id)
+                codes.extend(info.get("dtcs") or [])
+                modules.append({k: v for k, v in info.items() if k not in {"live", "identity", "vin"}})
+
+        # Prefer decode hints over empty profile fields; captured Avensis keeps its map.
+        make_out = make or self.profile.make
+        model_out = model or self.profile.model
+        year_out = year or self.profile.year
 
         freeze = {item["name"]: item["value"] for item in live}
         classes = classify_codes(codes)
         return ScanResult(
             vin=vin,
-            profile=avensis.PROFILE_ID,
-            make=avensis.MAKE,
-            model=avensis.MODEL,
-            year=avensis.YEAR,
+            profile=self.profile.id,
+            make=make_out,
+            model=model_out,
+            year=year_out,
             adapter_type=self.adapter_type,
             protocol="uds_isotp_can",
             active_codes=codes,
@@ -125,26 +136,39 @@ class DiagnosticSession:
             modules=modules,
             circuit_classes=classes,
             network=network_hint(modules),
+            coverage=self.profile.coverage(),
+            identity=identity,
         )
 
     def stream_dids(self, seconds: float = 6.0) -> dict[str, Any]:
-        """Sample ECM DIDs for a wiggle test. No IO-control IDs are captured on this profile."""
+        """Sample ECM DIDs for a wiggle test. No IO-control IDs unless captured on the profile."""
         if seconds <= 0:
             seconds = 6.0
         if seconds > 20:
             seconds = 20.0
-        if self.adapter_type == "mock":
+        if self.adapter_type == "mock" and self.profile.id == avensis.PROFILE_ID:
             return _mock_stream()
+        if not self.profile.dids:
+            return {
+                "seconds": 0,
+                "module": "ECM",
+                "tx_id": "0x7E0",
+                "io_control": "none_captured",
+                "samples": [],
+                "raw_hex_stream": [],
+                "gap": "No captured numeric DIDs on this profile — wiggle log needs a live OpenPort capture.",
+            }
         self.hexlog = MemoryHexLog()
         samples: list[dict[str, Any]] = []
         import time
 
         deadline = time.monotonic() + seconds
-        conn = self._factory(avensis.ECM.tx_id, avensis.ECM.rx_id, self.hexlog)
-        with Client(conn, request_timeout=1.0, config=_uds_config(1.0)) as client:
+        ecm = next((m for m in self.profile.modules if m.name == "ECM"), ISO15765_4_MODULES[0])
+        conn = self._factory(ecm.tx_id, ecm.rx_id, self.hexlog)
+        with Client(conn, request_timeout=1.0, config=_uds_config(self.profile, 1.0)) as client:
             while time.monotonic() < deadline:
                 row: dict[str, Any] = {"t": round(seconds - (deadline - time.monotonic()), 2), "values": {}}
-                for item in avensis.DIDS:
+                for item in self.profile.dids:
                     try:
                         resp = client.read_data_by_identifier(item.did)
                         raw = resp.service_data.values[item.did]
@@ -157,29 +181,62 @@ class DiagnosticSession:
         return {
             "seconds": seconds,
             "module": "ECM",
-            "tx_id": f"0x{avensis.ECM.tx_id:03X}",
+            "tx_id": f"0x{ecm.tx_id:03X}",
             "io_control": "none_captured",
             "samples": samples,
             "raw_hex_stream": list(self.hexlog.lines),
         }
 
+    def _vin_on(self, tx_id: int, rx_id: int) -> str:
+        conn = self._factory(tx_id, rx_id, self.hexlog)
+        with Client(conn, request_timeout=2.0, config=_uds_config(self.profile, 2.0)) as client:
+            return _read_vin(client, self.profile.vin_did)
 
-def _uds_config(timeout: float = 2.0) -> dict[str, Any]:
+    def _probe_module(self, module: Any, timeout: float) -> dict[str, Any]:
+        conn = self._factory(module.tx_id, module.rx_id, self.hexlog)
+        info: dict[str, Any] = {
+            "name": module.name,
+            "tx_id": f"0x{module.tx_id:03X}",
+            "rx_id": f"0x{module.rx_id:03X}",
+            "family": module.family,
+            "confirmed": module.confirmed,
+            "reachable": False,
+            "dtcs": [],
+        }
+        try:
+            with Client(conn, request_timeout=timeout, config=_uds_config(self.profile, timeout)) as client:
+                node_codes = _read_dtcs(client)
+                info["dtcs"] = node_codes
+                info["reachable"] = True
+                if module.name == "ECM":
+                    info["vin"] = _read_vin(client, self.profile.vin_did)
+                    info["live"] = _read_live(client, self.profile)
+                    info["identity"] = _read_identity(client)
+        except TimeoutException:
+            info["error"] = "timeout"
+        except TimeoutError:
+            info["error"] = "timeout"
+        except NegativeResponseException:
+            info["reachable"] = True
+            info["error"] = "nrc"
+        return info
+
+
+def _uds_config(profile: VehicleProfile, timeout: float = 2.0) -> dict[str, Any]:
     cfg = dict(default_client_config)
-    cfg["data_identifiers"] = {
-        avensis.VIN_DID: RemainingCodec(),
-        **{item.did: RemainingCodec() for item in avensis.DIDS},
-    }
+    dids = {VIN_DID: RemainingCodec(), **{did: RemainingCodec() for did, _ in IDENTITY_DIDS}}
+    dids.update({item.did: RemainingCodec() for item in profile.dids})
+    cfg["data_identifiers"] = dids
     cfg["p2_timeout"] = timeout
     cfg["request_timeout"] = timeout + 1.0
     return cfg
 
 
-def _read_vin(client: Client) -> str:
-    resp = client.read_data_by_identifier(avensis.VIN_DID)
-    raw = resp.service_data.values[avensis.VIN_DID]
+def _read_vin(client: Client, vin_did: int = VIN_DID) -> str:
+    resp = client.read_data_by_identifier(vin_did)
+    raw = resp.service_data.values[vin_did]
     if isinstance(raw, bytes):
-        return raw.decode("ascii", errors="replace").strip("\x00")
+        return raw.decode("ascii", errors="replace").strip("\x00 ").strip()
     return str(raw)
 
 
@@ -198,9 +255,9 @@ def _read_dtcs(client: Client) -> list[str]:
     return out
 
 
-def _read_live(client: Client) -> list[dict[str, Any]]:
+def _read_live(client: Client, profile: VehicleProfile) -> list[dict[str, Any]]:
     live: list[dict[str, Any]] = []
-    for item in avensis.DIDS:
+    for item in profile.dids:
         try:
             resp = client.read_data_by_identifier(item.did)
             raw = resp.service_data.values[item.did]
@@ -220,6 +277,25 @@ def _read_live(client: Client) -> list[dict[str, Any]]:
     return live
 
 
+def _read_identity(client: Client) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for did, name in IDENTITY_DIDS:
+        if did == VIN_DID:
+            continue
+        try:
+            resp = client.read_data_by_identifier(did)
+            raw = resp.service_data.values[did]
+            if isinstance(raw, (bytes, bytearray)):
+                text = bytes(raw).decode("ascii", errors="replace").strip("\x00 ").strip()
+            else:
+                text = str(raw)
+            if text:
+                rows.append({"name": name, "did": f"0x{did:04X}", "text": text})
+        except (NegativeResponseException, TimeoutException, TimeoutError):
+            continue
+    return rows
+
+
 def _decode_scaled(raw: bytes, size: int, scale: float, offset: float) -> float:
     chunk = raw[:size] if size else raw
     n = int.from_bytes(chunk, "big")
@@ -227,7 +303,6 @@ def _decode_scaled(raw: bytes, size: int, scale: float, offset: float) -> float:
 
 
 def _mock_stream() -> dict[str, Any]:
-    # Wiggle story: actual angle drops out while target stays put (connector/loom).
     samples = []
     actuals = [0.0, 0.0, 12.4, 0.0, 0.0, 12.5, 0.0, 0.0]
     for i, actual in enumerate(actuals):
@@ -263,6 +338,22 @@ def openport_factory(lib, channel):
 def mock_factory():
     def factory(tx_id: int, rx_id: int, hexlog: MemoryHexLog) -> MockIsoTpConnection:
         replies = avensis.mock_replies(tx_id)
+        silent = replies is None
+        return MockIsoTpConnection(
+            replies or {},
+            hexlog,
+            name=f"mock:{tx_id:03X}",
+            silent=silent,
+        )
+
+    return factory
+
+
+def generic_mock_factory():
+    from mechazone_worker.profiles import generic_uds
+
+    def factory(tx_id: int, rx_id: int, hexlog: MemoryHexLog) -> MockIsoTpConnection:
+        replies = generic_uds.mock_replies(tx_id)
         silent = replies is None
         return MockIsoTpConnection(
             replies or {},

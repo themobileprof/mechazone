@@ -131,7 +131,7 @@ Reputation is a data-quality signal, not a social feed. Verified successful clos
 - **Host (reference):** The existing Windows/Linux laptop. Android USB-OTG is optional later.
 - **Interface (reference):** Tactrix OpenPort 2.0 Rev E clone via J2534. ELM327 v1.5 is fallback only.
 - **Do not add:** custom CAN hardware, a second prescribed dongle, issued tablets.
-- **Vehicles:** Modern ICE first (reference: 2010/2011 Toyota Avensis 3ZR-FAE / Valvematic). Chinese EVs (BYD, GAC, Geely) on high-speed CAN, CAN-FD, and UDS are an explicit later target — keep Pass-Thru/UDS capable of reaching them.
+- **Vehicles:** Modern ICE first (reference: 2010/2011 Toyota Avensis 3ZR-FAE / Valvematic). Unknown VINs get an ISO 15765-4 UDS probe; Toyota WMIs get an 11-bit probe. Chinese EVs (BYD, GAC, Geely) on high-speed CAN, CAN-FD, and UDS are an explicit later target — keep Pass-Thru/UDS capable of reaching them. What is captured vs still needed: `docs/coverage.md`.
 
 ### 5.2 Architectural split
 
