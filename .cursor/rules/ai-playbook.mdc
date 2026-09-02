@@ -8,8 +8,8 @@ alwaysApply: true
 When adding playbooks, RAG, or LLM calls:
 
 - **Job:** Tell the technician what to test and look out for on **this VIN / this platform**, and how to reach the part when we have a retrieved procedure or figure.
-- **Inputs first:** live scan + this shop's jobs on this VIN + this shop's similar platform jobs + retrieved TSB/manual chunks. Do not call the model with DTCs alone if shop history or retrieval exists.
-- **Lookouts from history:** infer repeats at this shop (same code, same connector, part already replaced) before generic tests. Do not use another shop's file on this VIN.
+- **Every deep scan gets a playbook.** Fuse live scan (codes, DIDs, module map) + this shop's jobs on this VIN + this shop's similar platform jobs + retrieved TSB/manual chunks. No DTCs is not a skip. Do not call the model with DTCs alone if shop history or retrieval exists.
+- **Lookouts from history:** infer repeats at this shop (same code, same connector, part already replaced) and suspected challenges from this scan (dark nodes, wiring-class codes, odd live values) before generic tests. Do not use another shop's file on this VIN.
 - **Diagrams are retrieved, never generated.** Index figures next to chunks; the bay shows `figure_id`. If none, `gaps: no diagram on file`. No LLM image/SVG wiring diagrams.
 - **No invented pins, voltages, or access steps.** Uncited facts belong in `gaps`.
 - Hosted LLM API only (`LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL`). Do not train or host a model. Ingestion stays in `cloud-backend/internal/ai/` with OSS parsers.

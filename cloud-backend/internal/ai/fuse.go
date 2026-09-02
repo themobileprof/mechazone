@@ -23,8 +23,8 @@ func (f *Fuser) Build(ctx context.Context, req Request) (Playbook, error) {
 		return Playbook{}, err
 	}
 	req.VIN = norm
-	if len(req.ActiveCodes) == 0 && req.SessionID == "" {
-		return Playbook{}, fmt.Errorf("active_codes or session_id is required")
+	if len(req.ActiveCodes) == 0 && req.SessionID == "" && len(req.Live) == 0 && len(req.Modules) == 0 {
+		return Playbook{}, fmt.Errorf("a live scan is required")
 	}
 
 	hist, err := f.Store.History(ctx, req.VIN, req.ShopID, req.TechnicianID)
@@ -146,7 +146,7 @@ Rules:
 - If network.reading is backbone, check DLC power/ground/CAN before a single module. If branch, stay on the silent confirmed node.
 - There are no captured UDS $2F IO-control IDs on this profile. Do not invent actuator commands. Put that in gaps if an output test would help.
 - If this shop already closed the same code on this vehicle, say so in lookouts and do not lead with that same part swap.
-- If first_seen is true, this shop has not worked this vehicle before. Say so in gaps. Use live data, this shop's similar platform jobs, and manuals — not another shop's VIN file.
+- If there are no DTCs, still advise from live DIDs, the module map, and this shop's jobs. Lookouts are suspected challenges (repeats, wiring, missing nodes), not a code dump.
 - No customer names, phones, or plates.`
 
 func buildUserPrompt(req Request, hist ledger.History, matches []ledger.NetworkMatch, titles map[string]ledger.DTC, docs []ledger.RetrievedChunk, figs []ledger.RetrievedFigure, classes []CircuitClass, net NetworkHint, wiring bool) (string, error) {
@@ -187,7 +187,7 @@ func buildUserPrompt(req Request, hist ledger.History, matches []ledger.NetworkM
 		return "", err
 	}
 	var sb strings.Builder
-	sb.WriteString("Build the playbook from this gathered context. shop_work is this shop's jobs on this vehicle only. shop_platform_jobs are this shop's similar repairs on other cars (no VIN). Cite retrieved docs as doc:<id> and figures as figure:<id>. If retrieved.docs is empty, do not invent manual text.\n\n")
+	sb.WriteString("Build the playbook from this gathered context. Always produce lookouts and next tests. shop_work is this shop's jobs on this vehicle only. shop_platform_jobs are this shop's similar repairs on other cars (no VIN). Cite retrieved docs as doc:<id> and figures as figure:<id>. If retrieved.docs is empty, do not invent manual text. Lookouts are suspected challenges from the live scan (codes, dark modules, odd DIDs) plus this shop's jobs (repeats, parts already replaced). If live_scan.active_codes is empty, still advise from live DIDs, the module map, and shop_work — do not return an empty playbook.\n\n")
 	sb.Write(b)
 	return sb.String(), nil
 }

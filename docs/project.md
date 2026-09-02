@@ -95,7 +95,7 @@ Design every screen and API around this sequence.
 2. Read VIN / confirm vehicle
 3. Show this shop's jobs  (work done, parts, closeouts — not a public VIN file)
 4. Deep module scan   (UDS, not emissions PIDs)
-5. Deliver playbook   (this shop's jobs + manuals + live data)
+5. Deliver playbook   (automatic after deep scan: faults + live + this shop's jobs + manuals)
 6. Technician repairs
 7. Closeout           (success + parts  |  fail + actual fix)
 8. Sync               (local always; cloud when online)
@@ -311,7 +311,7 @@ Incoming session (VIN, mileage, DTCs, freeze-frame, live DIDs, adapter)
  Structured prompt  →  Playbook (lookouts, ordered tests, access, cited diagrams, validation)
 ```
 
-Do not emit a playbook from DTCs alone when this shop already has jobs or manuals. If retrieval has no procedure and no figure, say so and still give adapter tests we can run — do not draw a sketch or quote a pin that was not in a cited chunk.
+Do not emit a playbook from DTCs alone when this shop already has jobs or manuals. A scan with no DTCs still gets a playbook from live data, the module map, and this shop's jobs. If retrieval has no procedure and no figure, say so and still give adapter tests we can run — do not draw a sketch or quote a pin that was not in a cited chunk.
 
 ### 8.1 Prompt pattern
 

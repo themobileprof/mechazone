@@ -79,6 +79,25 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
     }
   }
 
+  async function adviseFromScan(result: ScanResult, loggedVin: string) {
+    const v = result.vin || loggedVin
+    const book = await buildPlaybook({
+      vin: v,
+      make: result.make,
+      model: result.model,
+      year: result.year,
+      engine_hint: result.profile,
+      active_codes: result.active_codes ?? [],
+      live: result.live,
+      modules: result.modules,
+      freeze_frame: result.freeze_frame,
+      adapter_type: result.adapter_type,
+      protocol: result.protocol,
+      language: navigator.language.slice(0, 2) || 'en',
+    })
+    setPlaybook(book)
+  }
+
   const affiliation = user.freelancer ? 'Freelancer' : (user.shop_name || 'Shop')
 
   return (
@@ -131,14 +150,18 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
         })}>
           READ VIN
         </button>
-        <button className="min-h-12 border border-paper/40 px-5" disabled={!vin} onClick={() => run('scan', async () => {
+        <button className="min-h-12 border border-paper/40 px-5" disabled={!vin} onClick={() => run(online ? 'scan + playbook' : 'scan', async () => {
           const result = await worker.scan()
           setScan(result)
           setPlaybook(null)
           setWiggle(null)
+          const v = result.vin || vin
           if (result.vin && result.vin !== vin) {
             setVin(result.vin)
-            if (online) setHistory(await fetchHistory(result.vin))
+          }
+          if (online) {
+            setHistory(await fetchHistory(v))
+            await adviseFromScan(result, v)
           }
         })}>
           DEEP SCAN
@@ -169,35 +192,20 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
         <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="font-mono text-sm tracking-[0.25em] text-brass">AI PLAYBOOK</h2>
-            <p className="mt-1 text-sm text-steel">Uses this scan and this shop's jobs on this car, plus workshop manuals. It will not invent a diagram. Work stays in this shop.</p>
+            <p className="mt-1 text-sm text-steel">After every deep scan it uses the faults, live data, and this shop's jobs on this car — lookouts and next tests, not a code dump. Work stays in this shop.</p>
           </div>
           <button
             className="min-h-12 bg-brass px-5 font-semibold text-oil"
             disabled={!scan || !vin || !online}
             onClick={() => run('playbook', async () => {
               if (!scan) return
-              const book = await buildPlaybook({
-                vin: scan.vin || vin,
-                session_id: session?.id,
-                make: scan.make,
-                model: scan.model,
-                year: scan.year,
-                engine_hint: scan.profile,
-                active_codes: scan.active_codes,
-                live: scan.live,
-                modules: scan.modules,
-                freeze_frame: scan.freeze_frame,
-                adapter_type: scan.adapter_type,
-                protocol: scan.protocol,
-                language: navigator.language.slice(0, 2) || 'en',
-              })
-              setPlaybook(book)
+              await adviseFromScan(scan, vin)
             })}
           >
-            BUILD PLAYBOOK
+            REBUILD PLAYBOOK
           </button>
         </div>
-        {!playbook && <p className="text-steel">Read VIN, deep scan, then build. This shop's job file loads before the model is called.</p>}
+        {!playbook && <p className="text-steel">Deep scan writes the playbook when the ledger is online. Offline, scan first and rebuild when you reconnect.</p>}
         {playbook && (
           <div className="space-y-4">
             <p className="font-mono text-xs text-steel">
