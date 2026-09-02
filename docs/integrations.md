@@ -201,6 +201,7 @@ Copy `.env.example`. Only fill keys you actually have.
 | `VINCARIO_API_KEY` / `VINCARIO_SECRET_KEY` | Vincario |
 | `J2534_LIB` | Path to `j2534.so` or frozen clone DLL (never from tactrix.com) |
 | `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` | Hosted playbook model (Phase 2) |
+| `IMPORT_DIR` | Attached scanner PDFs/photos (default `data/imported-reports`) |
 | `MECHAZONE_ADAPTER` | `mock` or `openport2_rev_e` |
 | `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD` | First admin (not a third party) |
 

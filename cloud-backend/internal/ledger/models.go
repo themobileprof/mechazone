@@ -6,40 +6,40 @@ import (
 )
 
 type Vehicle struct {
-	VIN           string    `json:"vin"`
-	Make          string    `json:"make"`
-	Model         string    `json:"model"`
-	Year          int       `json:"manufacture_year"`
-	DecodeSource  string    `json:"decode_source"`
-	FirstSeenAt   time.Time `json:"first_seen_at"`
+	VIN          string    `json:"vin"`
+	Make         string    `json:"make"`
+	Model        string    `json:"model"`
+	Year         int       `json:"manufacture_year"`
+	DecodeSource string    `json:"decode_source"`
+	FirstSeenAt  time.Time `json:"first_seen_at"`
 }
 
 type Session struct {
-	ID             string          `json:"id"`
-	VIN            string          `json:"vin"`
-	ShopID         string          `json:"shop_id"`
-	TechnicianID   string          `json:"technician_id"`
-	Mileage        int             `json:"mileage_km"`
-	AdapterType    string          `json:"adapter_type"`
-	HostOS         string          `json:"host_os"`
-	Protocol       string          `json:"protocol"`
-	ActiveCodes    []string        `json:"active_codes"`
-	FreezeFrame    json.RawMessage `json:"freeze_frame"`
-	RawHexExcerpt  string          `json:"raw_hex_excerpt,omitempty"`
-	Outcome        string          `json:"outcome"`
-	CreatedAt      time.Time       `json:"created_at"`
+	ID            string          `json:"id"`
+	VIN           string          `json:"vin"`
+	ShopID        string          `json:"shop_id"`
+	TechnicianID  string          `json:"technician_id"`
+	Mileage       int             `json:"mileage_km"`
+	AdapterType   string          `json:"adapter_type"`
+	HostOS        string          `json:"host_os"`
+	Protocol      string          `json:"protocol"`
+	ActiveCodes   []string        `json:"active_codes"`
+	FreezeFrame   json.RawMessage `json:"freeze_frame"`
+	RawHexExcerpt string          `json:"raw_hex_excerpt,omitempty"`
+	Outcome       string          `json:"outcome"`
+	CreatedAt     time.Time       `json:"created_at"`
 }
 
 type Resolution struct {
-	ID              string    `json:"id"`
-	SessionID       string    `json:"session_id"`
-	VIN             string    `json:"vin"`
-	TechnicianID    string    `json:"technician_id"`
-	DTC             string    `json:"diagnostic_trouble_code"`
-	RootCause       string    `json:"root_cause_explanation"`
-	PartsReplaced   []string  `json:"parts_replaced"`
-	Verified        bool      `json:"is_verified_fix"`
-	CreatedAt       time.Time `json:"created_at"`
+	ID            string    `json:"id"`
+	SessionID     string    `json:"session_id"`
+	VIN           string    `json:"vin"`
+	TechnicianID  string    `json:"technician_id"`
+	DTC           string    `json:"diagnostic_trouble_code"`
+	RootCause     string    `json:"root_cause_explanation"`
+	PartsReplaced []string  `json:"parts_replaced"`
+	Verified      bool      `json:"is_verified_fix"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 type DTC struct {
@@ -49,19 +49,30 @@ type DTC struct {
 	Source   string `json:"source"`
 }
 
+type JobImport struct {
+	Source       string `json:"source"`
+	OriginalName string `json:"original_name"`
+	ContentType  string `json:"content_type"`
+	ByteSize     int    `json:"byte_size"`
+	Note         string `json:"note"`
+}
+
 type Job struct {
-	SessionID      string    `json:"session_id"`
-	CreatedAt      time.Time `json:"created_at"`
-	MileageKM      int       `json:"mileage_km"`
-	TechnicianName string    `json:"technician_name"`
-	TechnicianID   string    `json:"technician_id"`
-	Outcome        string    `json:"outcome"`
-	ActiveCodes    []string  `json:"active_codes"`
-	Work           string    `json:"work"`
-	PartsReplaced  []string  `json:"parts_replaced"`
-	VerifiedFix    bool      `json:"verified_fix"`
-	ResolutionID   string    `json:"resolution_id,omitempty"`
-	CloseoutCode   string    `json:"closeout_code,omitempty"`
+	SessionID      string     `json:"session_id"`
+	CreatedAt      time.Time  `json:"created_at"`
+	MileageKM      int        `json:"mileage_km"`
+	TechnicianName string     `json:"technician_name"`
+	TechnicianID   string     `json:"technician_id"`
+	Outcome        string     `json:"outcome"`
+	ActiveCodes    []string   `json:"active_codes"`
+	Work           string     `json:"work"`
+	PartsReplaced  []string   `json:"parts_replaced"`
+	VerifiedFix    bool       `json:"verified_fix"`
+	ResolutionID   string     `json:"resolution_id,omitempty"`
+	CloseoutCode   string     `json:"closeout_code,omitempty"`
+	AdapterType    string     `json:"adapter_type"`
+	Protocol       string     `json:"protocol"`
+	Import         *JobImport `json:"import,omitempty"`
 }
 
 type History struct {
@@ -90,8 +101,8 @@ type SessionIngest struct {
 }
 
 type Closeout struct {
-	Outcome     string   `json:"outcome"`
-	DTC         string   `json:"diagnostic_trouble_code"`
-	RootCause   string   `json:"root_cause_explanation"`
-	Parts       []string `json:"parts_replaced"`
+	Outcome   string   `json:"outcome"`
+	DTC       string   `json:"diagnostic_trouble_code"`
+	RootCause string   `json:"root_cause_explanation"`
+	Parts     []string `json:"parts_replaced"`
 }

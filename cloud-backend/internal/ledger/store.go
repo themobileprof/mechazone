@@ -224,7 +224,9 @@ func (s *Store) History(ctx context.Context, vin, shopID, technicianID string) (
 		       s.active_dtc_list, s.freeze_frame_telemetry, COALESCE(s.raw_hex_excerpt, ''), s.outcome, s.created_at,
 		       COALESCE(t.full_name, ''),
 		       COALESCE(r.id::text, ''), COALESCE(r.diagnostic_trouble_code, ''), COALESCE(r.root_cause_explanation, ''),
-		       COALESCE(r.parts_replaced, '{}'), COALESCE(r.is_verified_fix, false)
+		       COALESCE(r.parts_replaced, '{}'), COALESCE(r.is_verified_fix, false),
+		       COALESCE(i.source, ''), COALESCE(i.original_name, ''), COALESCE(i.content_type, ''),
+		       COALESCE(i.byte_size, 0), COALESCE(i.note, '')
 		FROM diagnostic_sessions s
 		JOIN technicians t ON t.id = s.technician_id
 		LEFT JOIN LATERAL (
@@ -234,6 +236,7 @@ func (s *Store) History(ctx context.Context, vin, shopID, technicianID string) (
 			ORDER BY created_at DESC
 			LIMIT 1
 		) r ON true
+		LEFT JOIN session_imports i ON i.session_id = s.id
 		WHERE s.vin = $1
 		  AND (
 		        ($2 <> '' AND s.shop_id::text = $2)
@@ -253,12 +256,14 @@ func (s *Store) History(ctx context.Context, vin, shopID, technicianID string) (
 		var resID, closeoutCode, work string
 		var parts []string
 		var verified bool
+		var imp JobImport
 		if err := rows.Scan(
 			&sess.ID, &sess.VIN, &sess.ShopID, &sess.TechnicianID, &sess.Mileage,
 			&sess.AdapterType, &sess.HostOS, &sess.Protocol, &codes, &ff,
 			&sess.RawHexExcerpt, &sess.Outcome, &sess.CreatedAt,
 			&job.TechnicianName,
 			&resID, &closeoutCode, &work, &parts, &verified,
+			&imp.Source, &imp.OriginalName, &imp.ContentType, &imp.ByteSize, &imp.Note,
 		); err != nil {
 			return History{}, err
 		}
@@ -283,6 +288,11 @@ func (s *Store) History(ctx context.Context, vin, shopID, technicianID string) (
 		job.VerifiedFix = verified
 		job.ResolutionID = resID
 		job.CloseoutCode = closeoutCode
+		job.AdapterType = sess.AdapterType
+		job.Protocol = sess.Protocol
+		if imp.Source != "" {
+			job.Import = &imp
+		}
 		h.Jobs = append(h.Jobs, job)
 		if resID != "" {
 			h.Resolutions = append(h.Resolutions, Resolution{

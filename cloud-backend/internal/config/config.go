@@ -20,6 +20,7 @@ type Config struct {
 	VincarioAPIKey     string
 	VincarioSecret     string
 	UIDir              string
+	ImportDir          string
 	LLMEnabled         bool
 	LLMBaseURL         string
 	LLMAPIKey          string
@@ -40,6 +41,7 @@ func Load() (Config, error) {
 		VincarioAPIKey:     env("VINCARIO_API_KEY", ""),
 		VincarioSecret:     env("VINCARIO_SECRET_KEY", ""),
 		UIDir:              env("UI_DIR", ""),
+		ImportDir:          defaultImportDir(),
 		LLMEnabled:         envBool("LLM_ENABLED", env("LLM_API_KEY", "") != ""),
 		LLMBaseURL:         strings.TrimRight(env("LLM_BASE_URL", "https://api.deepseek.com"), "/"),
 		LLMAPIKey:          env("LLM_API_KEY", ""),
@@ -68,6 +70,27 @@ func envBool(key string, fallback bool) bool {
 		return fallback
 	}
 	return strings.EqualFold(v, "true") || v == "1" || strings.EqualFold(v, "yes")
+}
+
+func defaultImportDir() string {
+	if v := env("IMPORT_DIR", ""); v != "" {
+		return v
+	}
+	dir, err := os.Getwd()
+	if err != nil {
+		return "data/imported-reports"
+	}
+	for i := 0; i < 6; i++ {
+		if _, err := os.Stat(filepath.Join(dir, "docs", "project.md")); err == nil {
+			return filepath.Join(dir, "data", "imported-reports")
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	return "data/imported-reports"
 }
 
 func loadDotEnv() {

@@ -114,6 +114,19 @@ func (f *Fuser) Build(ctx context.Context, req Request) (Playbook, error) {
 	book.FirstSeen = hist.FirstSeen
 	book.Model = f.LLM.Model
 	book = Sanitize(book, allowedFigures)
+	if strings.EqualFold(req.AdapterType, "imported_report") {
+		gap := "Codes came from an imported scanner report, not this OpenPort. Confirm with a live scan before treating DIDs or module maps as fact."
+		already := false
+		for _, g := range book.Gaps {
+			if g == gap {
+				already = true
+				break
+			}
+		}
+		if !already {
+			book.Gaps = append([]string{gap}, book.Gaps...)
+		}
+	}
 	book.CircuitClasses = classes
 	book.Network = net
 	for _, fig := range figs {
@@ -147,6 +160,7 @@ Rules:
 - There are no captured UDS $2F IO-control IDs on this profile. Do not invent actuator commands. Put that in gaps if an output test would help.
 - If this shop already closed the same code on this vehicle, say so in lookouts and do not lead with that same part swap.
 - If there are no DTCs, still advise from live DIDs, the module map, and this shop's jobs. Lookouts are suspected challenges (repeats, wiring, missing nodes), not a code dump.
+- If live_scan.adapter_type is imported_report, the codes were typed from another scanner's file. Do not invent live DIDs, module tx/rx, or freeze-frame. Cite session:<id>. Put the missing live OpenPort scan in gaps.
 - No customer names, phones, or plates.`
 
 func buildUserPrompt(req Request, hist ledger.History, matches []ledger.NetworkMatch, titles map[string]ledger.DTC, docs []ledger.RetrievedChunk, figs []ledger.RetrievedFigure, classes []CircuitClass, net NetworkHint, wiring bool) (string, error) {
@@ -187,7 +201,7 @@ func buildUserPrompt(req Request, hist ledger.History, matches []ledger.NetworkM
 		return "", err
 	}
 	var sb strings.Builder
-	sb.WriteString("Build the playbook from this gathered context. Always produce lookouts and next tests. shop_work is this shop's jobs on this vehicle only. shop_platform_jobs are this shop's similar repairs on other cars (no VIN). Cite retrieved docs as doc:<id> and figures as figure:<id>. If retrieved.docs is empty, do not invent manual text. Lookouts are suspected challenges from the live scan (codes, dark modules, odd DIDs) plus this shop's jobs (repeats, parts already replaced). If live_scan.active_codes is empty, still advise from live DIDs, the module map, and shop_work — do not return an empty playbook.\n\n")
+	sb.WriteString("Build the playbook from this gathered context. Always produce lookouts and next tests. shop_work is this shop's jobs on this vehicle only. shop_platform_jobs are this shop's similar repairs on other cars (no VIN). Cite retrieved docs as doc:<id> and figures as figure:<id>. If retrieved.docs is empty, do not invent manual text. Lookouts are suspected challenges from the live scan (codes, dark modules, odd DIDs) plus this shop's jobs (repeats, parts already replaced). If live_scan.active_codes is empty, still advise from live DIDs, the module map, and shop_work — do not return an empty playbook. If live_scan.adapter_type is imported_report, do not treat it as an OpenPort capture.\n\n")
 	sb.Write(b)
 	return sb.String(), nil
 }

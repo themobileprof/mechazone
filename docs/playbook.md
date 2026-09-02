@@ -9,6 +9,7 @@ It is not a chat box on a fault code. It does not invent pins, voltages, or draw
 | Input | Source | If missing |
 | --- | --- | --- |
 | Live scan | OpenPort worker (VIN, DTCs, freeze-frame, DIDs, module map, adapter). Profile is a captured platform map when we have one, otherwise Toyota 11-bit probe or ISO 15765-4. | Adapter tests only; no “typical car” essay. No DTCs is still a scan — advise from live + modules + shop jobs. Coverage gaps stay visible. |
+| Imported report (optional) | File attached on the bay (`adapter_type=imported_report`). Typed codes + note only — the PDF is not sent to the model. | Not a live capture. Gap: confirm with this OpenPort. |
 | This shop's jobs on this VIN | PostgreSQL sessions + closeouts scoped to the login shop (or freelancer) | Still retrieve manuals; say first visit to this shop |
 | This shop's similar platform jobs | Same make/model/year-band + codes, **this shop only**, no other VIN | Omit that section |
 | Retrieved docs | Manual corpus (`data/manuals` ingest) + later `pgvector`. Licensed ODX/PDX (odxtools) if you have it. | No pin numbers that were not retrieved. Chunks may be in any language. |

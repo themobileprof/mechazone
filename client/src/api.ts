@@ -1,4 +1,4 @@
-import type { AccessRequest, HistoryResponse, Playbook, Principal, Resolution, Session, Shop, Technician } from './types'
+import type { AccessRequest, HistoryResponse, JobImport, Playbook, Principal, Resolution, Session, Shop, Technician } from './types'
 
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(path, {
@@ -94,6 +94,28 @@ export function lookupDtc(code: string) {
 
 export function ingestSession(body: unknown) {
   return api<Session>('/api/v1/sessions', { method: 'POST', body: JSON.stringify(body) })
+}
+
+export async function attachImportedReport(vin: string, form: FormData) {
+  const res = await fetch(`/api/v1/vehicles/${vin}/imported-reports`, {
+    method: 'POST',
+    credentials: 'include',
+    body: form,
+  })
+  if (!res.ok) {
+    let msg = await res.text()
+    try {
+      msg = (JSON.parse(msg) as { error?: string }).error ?? msg
+    } catch {
+      /* keep text */
+    }
+    throw new Error(msg || res.statusText)
+  }
+  return res.json() as Promise<{ session: Session; import: JobImport }>
+}
+
+export function importedReportURL(sessionId: string) {
+  return `/api/v1/sessions/${sessionId}/import`
 }
 
 export function buildPlaybook(body: {

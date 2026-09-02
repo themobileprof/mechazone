@@ -62,9 +62,9 @@ vPIC is US-heavy. Set `VINCARIO_*` and/or `CARAPI_*` in `.env`. Cache still wins
 
 Write down DLC bus: CAN 500k ISO-TP vs 29-bit vs **CAN-FD** vs **DoIP**. Captured BMS/VCU tx/rx and a VIN DID that answered. If this clone cannot speak the bus, that is a coverage gap — we do not add a second dongle to hide it.
 
-### 7. Closeout photos (optional, high value)
+### 8. Someone else's scan report (optional)
 
-A connector / loom photo on a **verified** closeout can be shown next to a retrieved figure. It is not a generated diagram.
+A PDF, photo, or CSV from X431 / Autel / Techstream can be **attached** to this VIN on the bay (`ATTACH SCAN REPORT`). That writes `adapter_type=imported_report` — it is not a live OpenPort capture. Type the codes; we do not OCR the file (reports often contain name and plate). Close the job as usual. Confirm with this cable before treating DIDs or module maps as fact.
 
 ## What we will not build
 

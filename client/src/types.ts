@@ -59,6 +59,14 @@ export type HistoryResponse = {
   resolutions: Resolution[]
 }
 
+export type JobImport = {
+  source: string
+  original_name: string
+  content_type: string
+  byte_size: number
+  note: string
+}
+
 export type Job = {
   session_id: string
   created_at: string
@@ -72,6 +80,9 @@ export type Job = {
   verified_fix: boolean
   resolution_id?: string
   closeout_code?: string
+  adapter_type?: string
+  protocol?: string
+  import?: JobImport
 }
 
 export type Session = {

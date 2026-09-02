@@ -1,8 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
-import { buildPlaybook, closeoutSession, decodeVin, fetchHistory, ingestSession, ledgerOnline, lookupDtc, logout } from './api'
+import { attachImportedReport, buildPlaybook, closeoutSession, decodeVin, fetchHistory, importedReportURL, ingestSession, ledgerOnline, lookupDtc, logout } from './api'
 import { enqueue, flushQueue, pendingCount } from './queue'
 import type { DetectedAdapter, DidStream, HistoryResponse, Playbook, Principal, ScanCoverage, ScanResult, Session } from './types'
 import { worker } from './worker'
+
+const IMPORT_SOURCES = [
+  { id: 'x431', label: 'Launch X431' },
+  { id: 'autel', label: 'Autel' },
+  { id: 'techstream', label: 'Techstream / GTS' },
+  { id: 'forscan', label: 'FORScan' },
+  { id: 'golo', label: 'Golo' },
+  { id: 'snap_on', label: 'Snap-on' },
+  { id: 'other', label: 'Other scanner' },
+] as const
 
 export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void }) {
   const [online, setOnline] = useState(false)
@@ -26,6 +36,10 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
   const [wiggle, setWiggle] = useState<DidStream | null>(null)
   const [dtcClass, setDtcClass] = useState<Record<string, string>>({})
   const [preCoverage, setPreCoverage] = useState<ScanCoverage | null>(null)
+  const [importSource, setImportSource] = useState('x431')
+  const [importCodes, setImportCodes] = useState('')
+  const [importNote, setImportNote] = useState('')
+  const [importFile, setImportFile] = useState<File | null>(null)
 
   useEffect(() => {
     const tick = async () => {
@@ -124,6 +138,28 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
     setPlaybook(book)
   }
 
+  async function loadTypedVin() {
+    const v = vin.trim().toUpperCase()
+    if (v.length !== 17) throw new Error('VIN must be 17 characters')
+    await decodeVin(v).catch(() => undefined)
+    setHistory(await fetchHistory(v))
+  }
+
+  async function adviseFromImport(sess: Session, typedCodes: string[]) {
+    const book = await buildPlaybook({
+      vin: sess.vin,
+      session_id: sess.id,
+      make: history?.vehicle?.make,
+      model: history?.vehicle?.model,
+      year: history?.vehicle?.manufacture_year,
+      active_codes: typedCodes.length ? typedCodes : sess.active_codes,
+      adapter_type: 'imported_report',
+      protocol: 'file_import',
+      language: navigator.language.slice(0, 2) || 'en',
+    })
+    setPlaybook(book)
+  }
+
   const affiliation = user.freelancer ? 'Freelancer' : (user.shop_name || 'Shop')
 
   return (
@@ -213,7 +249,29 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
 
       <section className="mb-6 rounded-sm border border-brass/20 bg-panel p-5">
         <p className="font-mono text-[11px] tracking-[0.3em] text-steel">VEHICLE</p>
-        <p className="mt-1 font-mono text-3xl tracking-[0.18em] md:text-5xl">{vin || '———— — ——————'}</p>
+        <div className="mt-1 flex flex-wrap items-end gap-3">
+          <label className="min-w-[16rem] flex-1">
+            <span className="sr-only">VIN</span>
+            <input
+              className="w-full border-b border-brass/40 bg-transparent font-mono text-3xl tracking-[0.18em] text-paper outline-none md:text-5xl"
+              value={vin}
+              spellCheck={false}
+              autoCapitalize="characters"
+              placeholder="———— — ——————"
+              onChange={(e) => setVin(e.target.value.toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, '').slice(0, 17))}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && vin.length === 17 && online) void run('vin', loadTypedVin)
+              }}
+            />
+          </label>
+          <button
+            className="min-h-11 border border-paper/40 px-4 font-mono text-xs tracking-widest"
+            disabled={vin.length !== 17 || !online}
+            onClick={() => run('vin', loadTypedVin)}
+          >
+            LOAD THIS VIN
+          </button>
+        </div>
         <div className="mt-2 flex flex-wrap gap-4 text-sm text-steel">
           <span>{vehicleLabel}</span>
           {history && (
@@ -240,24 +298,109 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
         </label>
       </section>
 
+      <section className="mb-6 border border-dashed border-brass/50 bg-oil/70 p-5">
+        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-3">
+          <div>
+            <p className="font-mono text-[11px] tracking-[0.3em] text-brass">ATTACH SCAN REPORT</p>
+            <h2 className="mt-1 font-poster text-2xl tracking-wide text-paper">NOT THIS OPENPORT</h2>
+          </div>
+          <span className="font-mono text-[11px] tracking-widest text-steel">LEDGER ONLINE ONLY</span>
+        </div>
+        <p className="max-w-3xl text-sm text-steel">
+          PDF, photo, or CSV from X431 / Autel / Techstream. Type the codes you see. We do not OCR the file and we do not log into the vendor cloud.
+          Strip customer name and plate before you attach.
+        </p>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <label className="block">
+            <span className="font-mono text-[11px] tracking-widest text-steel">SOURCE</span>
+            <select className="mt-1 w-full border border-steel/40 bg-oil px-3 py-3 text-paper" value={importSource} onChange={(e) => setImportSource(e.target.value)}>
+              {IMPORT_SOURCES.map((s) => (
+                <option key={s.id} value={s.id}>{s.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block md:col-span-1 xl:col-span-2">
+            <span className="font-mono text-[11px] tracking-widest text-steel">CODES ON THE REPORT</span>
+            <input
+              className="mt-1 w-full border border-steel/40 bg-oil px-3 py-3 font-mono text-paper"
+              value={importCodes}
+              onChange={(e) => setImportCodes(e.target.value.toUpperCase())}
+              placeholder="P0301 P0420 U0100"
+            />
+          </label>
+          <label className="block">
+            <span className="font-mono text-[11px] tracking-widest text-steel">MILEAGE KM</span>
+            <input className="mt-1 w-full border border-steel/40 bg-oil px-3 py-3 font-mono" value={mileage} onChange={(e) => setMileage(e.target.value)} placeholder="km" />
+          </label>
+        </div>
+        <label className="mt-3 block">
+          <span className="font-mono text-[11px] tracking-widest text-steel">MECHANICAL NOTE (NO NAME / PHONE / PLATE)</span>
+          <input className="mt-1 w-full border border-steel/40 bg-oil px-3 py-3" value={importNote} onChange={(e) => setImportNote(e.target.value)} placeholder="Misfire under load, codes from X431 printout" />
+        </label>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <label className="min-h-12 cursor-pointer border border-brass/60 px-4 py-3 font-mono text-xs tracking-widest text-brass">
+            {importFile ? importFile.name : 'CHOOSE FILE'}
+            <input
+              className="sr-only"
+              type="file"
+              accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.csv,.json,application/pdf,image/jpeg,image/png,image/webp,text/plain,text/csv,application/json"
+              onChange={(e) => setImportFile(e.target.files?.[0] ?? null)}
+            />
+          </label>
+          <button
+            className="min-h-12 bg-brass px-5 font-semibold text-oil disabled:opacity-40"
+            disabled={!online || vin.length !== 17 || !importFile}
+            onClick={() => run('attach report', async () => {
+              if (!importFile) return
+              const form = new FormData()
+              form.append('file', importFile)
+              form.append('source', importSource)
+              form.append('codes', importCodes)
+              form.append('note', importNote)
+              form.append('mileage_km', mileage || '0')
+              form.append('host_os', navigator.platform.toLowerCase().includes('win') ? 'windows' : 'linux')
+              if (history?.vehicle?.make) form.append('make_hint', history.vehicle.make)
+              if (history?.vehicle?.model) form.append('model_hint', history.vehicle.model)
+              const saved = await attachImportedReport(vin, form)
+              setSession(saved.session)
+              setHistory(await fetchHistory(vin))
+              setImportFile(null)
+              const typed = saved.session.active_codes ?? []
+              if (online && (typed.length > 0 || saved.session.id)) {
+                try {
+                  await adviseFromImport(saved.session, typed)
+                } catch {
+                  /* playbook optional — file is on the ledger */
+                }
+              }
+            })}
+          >
+            ATTACH TO THIS VIN
+          </button>
+        </div>
+      </section>
+
       <section className="mb-6 rounded-sm border border-brass/20 bg-panel p-5">
         <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="font-mono text-sm tracking-[0.25em] text-brass">AI PLAYBOOK</h2>
-            <p className="mt-1 text-sm text-steel">After every deep scan it uses the faults, live data, and this shop's jobs on this car — lookouts and next tests, not a code dump. Work stays in this shop.</p>
+            <p className="mt-1 text-sm text-steel">After a deep scan — or an attached report with typed codes — it uses this shop's jobs on this car. Not a code dump. Work stays in this shop.</p>
           </div>
           <button
             className="min-h-12 bg-brass px-5 font-semibold text-oil"
-            disabled={!scan || !vin || !online}
+            disabled={!vin || !online || (!scan && !session)}
             onClick={() => run('playbook', async () => {
-              if (!scan) return
-              await adviseFromScan(scan, vin)
+              if (scan) {
+                await adviseFromScan(scan, vin)
+                return
+              }
+              if (session) await adviseFromImport(session, session.active_codes ?? [])
             })}
           >
             REBUILD PLAYBOOK
           </button>
         </div>
-        {!playbook && <p className="text-steel">Deep scan writes the playbook when the ledger is online. Offline, scan first and rebuild when you reconnect.</p>}
+        {!playbook && <p className="text-steel">Deep scan or an attached report writes the playbook when the ledger is online. Offline, scan first and rebuild when you reconnect.</p>}
         {playbook && (
           <div className="space-y-4">
             <p className="font-mono text-xs text-steel">
@@ -345,19 +488,22 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
       <div className="grid gap-6 xl:grid-cols-[1.1fr_1fr_0.9fr]">
         <section className="rounded-sm border border-brass/20 bg-panel p-5">
           <h2 className="mb-3 font-mono text-sm tracking-[0.25em] text-brass">THIS SHOP'S WORK</h2>
-          {!history && <p className="text-steel">Read VIN first. This shop's jobs load before a diagnosis.</p>}
+          {!history && <p className="text-steel">Read VIN from the kit, or type the 17-character VIN and load this shop's jobs.</p>}
           {history?.first_seen && <p className="text-steel">This shop has not worked this vehicle yet. Close the job to start the file.</p>}
           <ol className="space-y-3">
             {(history?.jobs ?? []).map((job) => (
               <li key={job.session_id} className={`border-l-2 pl-3 ${job.verified_fix ? 'border-ok' : 'border-steel/50'}`}>
                 <p className="font-mono text-xs text-steel">
                   {new Date(job.created_at).toLocaleString()} · {job.technician_name || 'tech'} · {job.mileage_km} km · {job.outcome}
+                  {job.import ? ` · IMPORTED · ${job.import.source.toUpperCase()}` : job.adapter_type ? ` · ${job.adapter_type}` : ''}
                   {job.verified_fix ? ' · CLOSED' : ''}
                 </p>
                 {job.work ? (
                   <p>{job.work}</p>
+                ) : job.import?.note ? (
+                  <p className="text-sm">{job.import.note}</p>
                 ) : (
-                  <p className="text-sm text-steel">Scan logged — close the job to record the work done.</p>
+                  <p className="text-sm text-steel">{job.import ? 'Report attached — close the job to record the work done.' : 'Scan logged — close the job to record the work done.'}</p>
                 )}
                 {job.parts_replaced.length > 0 && (
                   <p className="text-sm text-steel">Parts: {job.parts_replaced.join(', ')}</p>
@@ -366,6 +512,11 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
                   <p className="font-mono text-xs text-steel">
                     {job.closeout_code || job.active_codes.join('  ')}
                   </p>
+                )}
+                {job.import && (
+                  <a className="mt-1 inline-block font-mono text-[11px] tracking-widest text-brass underline-offset-2 hover:underline" href={importedReportURL(job.session_id)} target="_blank" rel="noreferrer">
+                    OPEN FILE · {job.import.original_name}
+                  </a>
                 )}
               </li>
             ))}
@@ -481,9 +632,10 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
           <input className="mb-3 w-full border border-steel/30 bg-oil px-3 py-2" value={parts} onChange={(e) => setParts(e.target.value)} placeholder="Parts replaced, comma-separated" />
           <button className="min-h-12 w-full bg-paper font-semibold text-oil" disabled={!session || !rootCause} onClick={() => run('closeout', async () => {
             if (!session) return
+            const closeCodes = codes.length ? codes : (session.active_codes ?? [])
             const body = {
               outcome,
-              diagnostic_trouble_code: codes[0] ?? '',
+              diagnostic_trouble_code: closeCodes[0] ?? '',
               root_cause_explanation: rootCause,
               parts_replaced: parts.split(',').map((p) => p.trim()).filter(Boolean),
             }
