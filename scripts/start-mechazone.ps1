@@ -11,7 +11,7 @@ if (Test-Path "$Root\.env") {
 $env:UI_DIR = if ($env:UI_DIR) { $env:UI_DIR } else { "$Root\client\dist" }
 $server = "$Root\bin\mechazone-server.exe"
 if (-not (Test-Path $server)) { throw "Run install.ps1 first. See docs\install.md." }
-Start-Process -WindowStyle Hidden -FilePath $server -WorkingDirectory "$Root\cloud-backend"
+Start-Process -WindowStyle Hidden -FilePath $server -WorkingDirectory $Root
 $py = "$Root\diagnostic-worker\.venv\Scripts\python.exe"
 if (Test-Path $py) {
   Start-Process -WindowStyle Hidden -FilePath $py -ArgumentList "-m", "mechazone_worker" -WorkingDirectory "$Root\diagnostic-worker"

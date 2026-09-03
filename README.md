@@ -4,10 +4,13 @@ Shop-floor diagnostic ledger. Phase 1: OpenPort 2.0 Rev E (or mock ECU) → this
 
 ## Shop install (non-technical)
 
-On the bay laptop, run the installer **once**, then double-click **Mechazone**.
+On the bay laptop, unpack a **compiled** folder, run the installer **once**, then double-click **Mechazone**. You do not need Go or Node.
 
-- Linux: `./install.sh`
-- Windows: right-click `install.ps1` → Run with PowerShell
+- Download `mechazone-linux-amd64.tar.gz` or `mechazone-windows-amd64.zip` from [Releases](https://github.com/themobileprof/mechazone/releases) (or the latest **Actions** artifact on `main`).
+- Linux: extract, then `./install.sh`
+- Windows: unzip, then right-click `install.ps1` → Run with PowerShell
+
+A git checkout still works: `./install.sh` compiles on that laptop if the binary is missing.
 
 Full picture-by-picture guide: **[docs/install.md](docs/install.md)**
 

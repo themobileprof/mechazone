@@ -15,14 +15,18 @@ Write-Host "==> Mechazone installer"
 Write-Host "    This sets up the bay app on this computer. Once only."
 
 Need python "Install Python 3 from https://www.python.org/downloads/ (tick Add to PATH)."
-Need node "Install Node.js LTS from https://nodejs.org/"
-Need go "Install Go 1.24 or newer from https://go.dev/dl/"
-Need git "Install Git from https://git-scm.com/"
 
-$goVer = (go version) -replace '.*go([0-9]+)\.([0-9]+).*', '$1.$2'
-$goMajor, $goMinor = $goVer.Split('.')
-if ([int]$goMajor -lt 1 -or ([int]$goMajor -eq 1 -and [int]$goMinor -lt 24)) {
-  throw "Go $goVer is too old. Install Go 1.24+ from https://go.dev/dl/"
+$prebuilt = (Test-Path "$Root\bin\mechazone-server.exe") -and (Test-Path "$Root\client\dist\index.html")
+if ($prebuilt) {
+  Write-Host "    Compiled ledger is already in this folder. Go and Node are not required."
+} else {
+  Need node "Install Node.js LTS from https://nodejs.org/"
+  Need go "Install Go 1.24 or newer from https://go.dev/dl/"
+  $goVer = (go version) -replace '.*go([0-9]+)\.([0-9]+).*', '$1.$2'
+  $goMajor, $goMinor = $goVer.Split('.')
+  if ([int]$goMajor -lt 1 -or ([int]$goMajor -eq 1 -and [int]$goMinor -lt 24)) {
+    throw "Go $goVer is too old. Install Go 1.24+ from https://go.dev/dl/"
+  }
 }
 
 if (-not (Get-Command psql -ErrorAction SilentlyContinue)) {
@@ -49,20 +53,30 @@ Set-Content -Path "$Root\.env" -Value $envText -NoNewline
 Write-Host "==> Worker"
 python -m venv "$Root\diagnostic-worker\.venv"
 & "$Root\diagnostic-worker\.venv\Scripts\python.exe" -m pip install -q --upgrade pip
-& "$Root\diagnostic-worker\.venv\Scripts\python.exe" -m pip install -q -r "$Root\diagnostic-worker\requirements.txt"
+$wheels = "$Root\diagnostic-worker\wheels"
+if (Test-Path $wheels) {
+  & "$Root\diagnostic-worker\.venv\Scripts\python.exe" -m pip install -q --no-index --find-links $wheels -r "$Root\diagnostic-worker\requirements.txt"
+} else {
+  & "$Root\diagnostic-worker\.venv\Scripts\python.exe" -m pip install -q -r "$Root\diagnostic-worker\requirements.txt"
+}
 
-Write-Host "==> Shop screen"
-Set-Location "$Root\client"
-if (Test-Path package-lock.json) { npm ci --no-fund --no-audit } else { npm install --no-fund --no-audit }
-npm run build
-Set-Location $Root
+if (-not $prebuilt) {
+  Write-Host "==> Shop screen"
+  Set-Location "$Root\client"
+  if (Test-Path package-lock.json) { npm ci --no-fund --no-audit } else { npm install --no-fund --no-audit }
+  npm run build
+  Set-Location $Root
 
-Write-Host "==> Ledger"
-New-Item -ItemType Directory -Force -Path "$Root\bin", "$Root\var" | Out-Null
-Set-Location "$Root\cloud-backend"
-$env:GOTOOLCHAIN = "local"
-go build -o "$Root\bin\mechazone-server.exe" .\cmd\server
-Set-Location $Root
+  Write-Host "==> Ledger"
+  New-Item -ItemType Directory -Force -Path "$Root\bin", "$Root\var" | Out-Null
+  Set-Location "$Root\cloud-backend"
+  $env:GOTOOLCHAIN = "local"
+  go build -ldflags "-s -w" -o "$Root\bin\mechazone-server.exe" .\cmd\server
+  Set-Location $Root
+} else {
+  New-Item -ItemType Directory -Force -Path "$Root\var" | Out-Null
+  Write-Host "    Ledger binary already present."
+}
 
 $Wsh = New-Object -ComObject WScript.Shell
 $desk = [Environment]::GetFolderPath("Desktop")

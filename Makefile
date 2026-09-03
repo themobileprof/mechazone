@@ -1,4 +1,4 @@
-.PHONY: backend worker client seed deps install start stop ingest ingest-translate
+.PHONY: backend worker client seed deps install start stop ingest ingest-translate pack
 
 install:
 	./install.sh
@@ -8,6 +8,9 @@ start:
 
 stop:
 	./scripts/stop-mechazone.sh
+
+pack:
+	./scripts/pack-release.sh linux amd64
 
 deps:
 	cd diagnostic-worker && test -d .venv || python3 -m venv .venv
