@@ -6,6 +6,7 @@ import (
 	"time"
 )
 
+// NetworkMatch is this shop's similar-platform closeout. Never another shop's file on this VIN.
 type NetworkMatch struct {
 	ID         string    `json:"id"`
 	DTC        string    `json:"diagnostic_trouble_code"`

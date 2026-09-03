@@ -1,3 +1,4 @@
+/** Route by login: landing, super-admin, or bay. */
 import { useEffect, useState } from 'react'
 import { Admin } from './Admin'
 import { me } from './api'

@@ -114,6 +114,7 @@ func (s *Server) lookupDTC(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// ingestSession records a live (or queued) scan. Shop and technician IDs come from the cookie.
 func (s *Server) ingestSession(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 	if err != nil {
@@ -182,6 +183,7 @@ func (s *Server) ingestSession(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, sess)
 }
 
+// closeout records what this shop did on this visit. Technician ID comes from the cookie.
 func (s *Server) closeout(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {

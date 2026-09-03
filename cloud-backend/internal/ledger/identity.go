@@ -12,6 +12,7 @@ import (
 	"mechazone/cloud-backend/internal/auth"
 )
 
+// Shop is a provisioned workshop. Nobody self-registers.
 type Shop struct {
 	ID        string    `json:"id"`
 	Name      string    `json:"name"`
@@ -20,6 +21,7 @@ type Shop struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// Technician belongs to a shop, or is a freelancer (shop_id empty; history scoped to technician_id).
 type Technician struct {
 	ID         string    `json:"id"`
 	ShopID     string    `json:"shop_id,omitempty"`

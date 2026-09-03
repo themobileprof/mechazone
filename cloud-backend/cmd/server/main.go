@@ -1,3 +1,4 @@
+// Command server is the Mechazone ledger: migrate, seed DTCs, serve API + optional UI_DIR.
 package main
 
 import (

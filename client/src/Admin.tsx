@@ -1,3 +1,4 @@
+/** Super admin: issue shops and technicians from landing tickets. */
 import { useEffect, useState } from 'react'
 import { createShop, createTechnician, listAccessRequests, listShops, listTechnicians, logout, setAccessRequestStatus } from './api'
 import type { AccessRequest, Principal, Shop, Technician } from './types'

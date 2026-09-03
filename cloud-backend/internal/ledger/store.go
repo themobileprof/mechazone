@@ -1,3 +1,5 @@
+// Package ledger is this shop's mechanical job file in PostgreSQL.
+// History is scoped by shop_id, or by technician_id when the tech is a freelancer.
 package ledger
 
 import (
@@ -22,6 +24,7 @@ type Store struct {
 	pool *pgxpool.Pool
 }
 
+// Open is the ledger database pool. Call Migrate before serving HTTP.
 func Open(ctx context.Context, databaseURL string) (*Store, error) {
 	pool, err := pgxpool.New(ctx, databaseURL)
 	if err != nil {

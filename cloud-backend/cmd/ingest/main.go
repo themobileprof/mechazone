@@ -1,3 +1,4 @@
+// Command ingest chunks workshop PDFs/HTML into Postgres. Diagrams stay retrieved files — never generated.
 package main
 
 import (

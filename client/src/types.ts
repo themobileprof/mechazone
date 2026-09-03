@@ -1,3 +1,4 @@
+/** Shared DTOs with the Go ledger and Python worker. Customer name/phone/plate stay in the bay, not here. */
 export type Principal = {
   user_id: string
   email: string

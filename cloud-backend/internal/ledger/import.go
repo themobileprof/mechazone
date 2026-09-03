@@ -14,6 +14,7 @@ import (
 	"mechazone/cloud-backend/internal/importreport"
 )
 
+// StoredImport is a session_imports row plus the on-disk path under IMPORT_DIR.
 type StoredImport struct {
 	JobImport
 	StoragePath string

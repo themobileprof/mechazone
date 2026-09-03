@@ -14,6 +14,7 @@ type Vehicle struct {
 	FirstSeenAt  time.Time `json:"first_seen_at"`
 }
 
+// Session is one visit: a live OpenPort scan or an attached vendor report.
 type Session struct {
 	ID            string          `json:"id"`
 	VIN           string          `json:"vin"`
@@ -30,6 +31,7 @@ type Session struct {
 	CreatedAt     time.Time       `json:"created_at"`
 }
 
+// Resolution is the technician's closeout: what was done, not a public VIN file.
 type Resolution struct {
 	ID            string    `json:"id"`
 	SessionID     string    `json:"session_id"`
@@ -49,6 +51,7 @@ type DTC struct {
 	Source   string `json:"source"`
 }
 
+// JobImport is metadata for a file attached as adapter_type=imported_report.
 type JobImport struct {
 	Source       string `json:"source"`
 	OriginalName string `json:"original_name"`
@@ -75,6 +78,7 @@ type Job struct {
 	Import         *JobImport `json:"import,omitempty"`
 }
 
+// History is this shop's (or freelancer's) jobs on a VIN — never another shop's file.
 type History struct {
 	Vehicle     *Vehicle     `json:"vehicle"`
 	FirstSeen   bool         `json:"first_seen"`
@@ -83,6 +87,7 @@ type History struct {
 	Resolutions []Resolution `json:"resolutions"`
 }
 
+// SessionIngest is the scan body. ShopID and TechnicianID in JSON are ignored; handlers copy them from the cookie.
 type SessionIngest struct {
 	VIN          string          `json:"vin"`
 	ShopID       string          `json:"shop_id"`

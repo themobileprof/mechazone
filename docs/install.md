@@ -181,4 +181,4 @@ The worker did not start. Check `var/worker.log`. Re-run `./install.sh`. Mock EC
 Run `./install.sh` again from the new place so the Desktop icon and settings point at the new path.
 
 **Developers (not for the shop floor)**  
-`make backend`, `make worker`, and `make client` still work. `make pack` builds the same shop tarball CI uploads. Daily shop use is the installer + Desktop icon, which serves the built UI from port 8080. Third-party keys and OpenPort compile notes stay in `docs/integrations.md`.
+`make backend`, `make worker`, and `make client` still work. `make pack` builds the same shop tarball CI uploads. Daily shop use is the installer + Desktop icon, which serves the built UI from port 8080. Third-party keys and OpenPort compile notes stay in `docs/integrations.md`. Product decisions and the code map: [README.md](README.md).

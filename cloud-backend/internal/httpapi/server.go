@@ -1,3 +1,5 @@
+// Package httpapi is the JSON REST surface for the bay, admin, and landing page.
+// Shop and technician IDs on ledger writes come from the login cookie, never the payload.
 package httpapi
 
 import (

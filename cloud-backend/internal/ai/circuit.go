@@ -4,6 +4,7 @@ import (
 	"strings"
 )
 
+// CircuitClass is wiring/bus vs component from the code text. It is not pin data.
 type CircuitClass struct {
 	Code   string `json:"code"`
 	Class  string `json:"class"`

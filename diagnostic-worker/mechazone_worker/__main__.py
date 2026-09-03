@@ -1,3 +1,5 @@
+"""Entry: WebSocket JSON server for the bay (`WORKER_WS_HOST` / `WORKER_WS_PORT`)."""
+
 from __future__ import annotations
 
 import asyncio

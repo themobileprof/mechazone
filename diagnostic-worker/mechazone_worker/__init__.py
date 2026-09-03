@@ -1,4 +1,7 @@
-"""Mechazone local diagnostic worker — OpenPort Pass-Thru via udsoncan."""
+"""Mechazone local diagnostic worker — OpenPort Pass-Thru via udsoncan.
+
+Do not restore a second ctypes J2534 stack. Hardware IO is j2534.PassThru + udsoncan.Client.
+"""
 
 from __future__ import annotations
 

@@ -1,3 +1,4 @@
+// Package pii rejects customer-identity JSON keys on payloads destined for the ledger.
 package pii
 
 import (

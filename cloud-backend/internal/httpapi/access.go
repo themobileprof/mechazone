@@ -49,6 +49,7 @@ func clientIP(r *http.Request) string {
 	return host
 }
 
+// createAccessRequest is the landing ticket. Super admin issues logins; this is not signup.
 func (s *Server) createAccessRequest(w http.ResponseWriter, r *http.Request) {
 	if !s.accessLimit.allow(clientIP(r), 5, time.Hour) {
 		writeError(w, http.StatusTooManyRequests, "too many requests from this network — try again later")

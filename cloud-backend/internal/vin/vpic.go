@@ -12,6 +12,7 @@ import (
 	"unicode"
 )
 
+// Decode is a VIN decode result. Persist it in vin_decode_cache; do not re-query a hit.
 type Decode struct {
 	VIN     string
 	Make    string

@@ -9,6 +9,7 @@ type LiveRow struct {
 	DID   string  `json:"did"`
 }
 
+// Request is the posted scan plus cookie-scoped ShopID/TechnicianID (json:"-").
 type Request struct {
 	VIN          string          `json:"vin"`
 	SessionID    string          `json:"session_id"`
@@ -27,6 +28,7 @@ type Request struct {
 	Language     string          `json:"language"`
 }
 
+// Lookout is a risk from this shop's jobs or this scan. Evidence prefixes must pass Sanitize.
 type Lookout struct {
 	Text     string   `json:"text"`
 	Evidence []string `json:"evidence"`
@@ -49,6 +51,7 @@ type Step struct {
 	Figures []string `json:"figures,omitempty"`
 }
 
+// Playbook is what to test on this VIN. Uncited pins belong in Gaps; figures are retrieved IDs only.
 type Playbook struct {
 	VIN            string         `json:"vin"`
 	Platform       string         `json:"platform"`

@@ -1,3 +1,4 @@
+// Package importreport validates scanner files attached to a VIN (not a live OpenPort read).
 package importreport
 
 import (
@@ -83,6 +84,7 @@ func SanitizeFilename(name string) string {
 	return out
 }
 
+// Sniff checks magic bytes. We store the file; we do not OCR it (reports often contain identity).
 func Sniff(head []byte, filename string) (contentType, ext string, err error) {
 	name := strings.ToLower(filepath.Base(filename))
 	switch {
@@ -144,6 +146,7 @@ func HostOS(formValue, userAgent string) string {
 	return "unknown"
 }
 
+// ScopeDir is the shop folder, or tech-{id} for freelancers. Imports do not follow the VIN to another shop.
 func ScopeDir(shopID, technicianID string) string {
 	shopID = strings.TrimSpace(shopID)
 	if shopID != "" {

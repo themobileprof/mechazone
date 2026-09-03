@@ -1,3 +1,4 @@
+/** Cookie login against the ledger. */
 import { useState } from 'react'
 import { login } from './api'
 import type { Principal } from './types'

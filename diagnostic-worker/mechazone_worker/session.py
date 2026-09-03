@@ -1,3 +1,8 @@
+"""Live UDS session: identify VIN, scan modules, stream DIDs via udsoncan.Client.
+
+One PassThru ISO 15765 channel; do not PassThru-close between modules.
+"""
+
 from __future__ import annotations
 
 import os

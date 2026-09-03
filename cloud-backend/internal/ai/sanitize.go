@@ -9,6 +9,7 @@ var allowedEvidence = []string{
 	"ledger:", "network:", "resolution:", "session:", "dtc:", "live:", "vehicle:", "gap:", "doc:", "figure:", "module:",
 }
 
+// Sanitize drops uncited pins, invented figure IDs, and evidence prefixes the model is not allowed to use.
 func Sanitize(p Playbook, allowedFigures map[string]struct{}) Playbook {
 	if p.Lookouts == nil {
 		p.Lookouts = []Lookout{}

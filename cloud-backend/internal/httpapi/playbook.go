@@ -8,6 +8,7 @@ import (
 	"mechazone/cloud-backend/internal/vin"
 )
 
+// buildPlaybook fuses this shop's jobs and retrieved manuals with the posted scan. Scope IDs from the cookie.
 func (s *Server) buildPlaybook(w http.ResponseWriter, r *http.Request) {
 	if s.fuser == nil {
 		writeError(w, http.StatusServiceUnavailable, "playbook AI is not configured")

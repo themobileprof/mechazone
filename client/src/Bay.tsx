@@ -1,3 +1,4 @@
+/** Shop floor: this shop's jobs, OpenPort or attached report, playbook, closeout. */
 import { useEffect, useMemo, useState } from 'react'
 import { attachImportedReport, buildPlaybook, closeoutSession, decodeVin, fetchHistory, importedReportURL, ingestSession, ledgerOnline, lookupDtc, logout } from './api'
 import { enqueue, flushQueue, pendingCount } from './queue'

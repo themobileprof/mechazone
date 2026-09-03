@@ -1,3 +1,4 @@
+// Package config loads HTTP, database, VIN, LLM, and import-dir settings from the environment.
 package config
 
 import (

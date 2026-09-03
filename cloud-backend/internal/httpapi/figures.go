@@ -6,6 +6,7 @@ import (
 	"strings"
 )
 
+// figureImage serves a retrieved manual figure. Paths must stay under the ingested tree.
 func (s *Server) figureImage(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {

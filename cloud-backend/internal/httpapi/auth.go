@@ -84,6 +84,7 @@ func (s *Server) requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 	})
 }
 
+// requireTechnician rejects super-admin cookies on bay routes (history, ingest, playbook).
 func (s *Server) requireTechnician(next http.HandlerFunc) http.HandlerFunc {
 	return s.requireAuth(func(w http.ResponseWriter, r *http.Request) {
 		p, _ := principalFrom(r.Context())

@@ -1,3 +1,5 @@
+"""Hex encode/decode for ledger excerpts. Framing itself is udsoncan."""
+
 from __future__ import annotations
 
 from udsoncan.common.dtc import Dtc

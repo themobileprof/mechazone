@@ -1,3 +1,5 @@
+"""WebSocket JSON bridge between the bay UI and DiagnosticSession. No PII in payloads."""
+
 from __future__ import annotations
 
 import asyncio

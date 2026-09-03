@@ -13,6 +13,7 @@ import (
 	"time"
 )
 
+// Fallbacks are paid VIN APIs used only when vPIC returns empty. Env names: CARAPI_TOKEN, VINCARIO_API_KEY.
 type Fallbacks struct {
 	CarAPIToken  string
 	CarAPISecret string

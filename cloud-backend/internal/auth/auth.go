@@ -1,3 +1,4 @@
+// Package auth hashes passwords and builds login principals (super admin vs technician).
 package auth
 
 import (
@@ -15,6 +16,7 @@ import (
 const CookieName = "mz_session"
 const SessionTTL = 7 * 24 * time.Hour
 
+// Principal is the login session. Ledger writes copy ShopID and TechnicianID from here, never from JSON.
 type Principal struct {
 	UserID        string `json:"user_id"`
 	Email         string `json:"email"`

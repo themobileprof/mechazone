@@ -1,3 +1,4 @@
+/** Local OpenPort worker over WebSocket. The UI never imports J2534. */
 import type { DetectedAdapter, DidStream, ScanResult } from './types'
 
 const wsUrl = import.meta.env.VITE_WORKER_WS ?? 'ws://127.0.0.1:8765'

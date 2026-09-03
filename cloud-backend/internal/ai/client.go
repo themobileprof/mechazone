@@ -11,6 +11,7 @@ import (
 	"time"
 )
 
+// Client is a hosted chat-completions caller. Mechazone does not train or host a model.
 type Client struct {
 	BaseURL    string
 	APIKey     string

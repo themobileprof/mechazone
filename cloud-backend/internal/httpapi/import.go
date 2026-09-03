@@ -15,6 +15,7 @@ import (
 	"mechazone/cloud-backend/internal/pii"
 )
 
+// attachImportedReport stores a vendor scanner file on this VIN. Not a live OpenPort read.
 func (s *Server) attachImportedReport(w http.ResponseWriter, r *http.Request) {
 	v, err := pathVIN(r)
 	if err != nil {

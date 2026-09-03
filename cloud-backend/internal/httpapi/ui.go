@@ -8,6 +8,7 @@ import (
 	"strings"
 )
 
+// withUI serves client/dist for non-API paths so an installed laptop uses one port.
 func withUI(uiDir string, api http.Handler) http.Handler {
 	if strings.TrimSpace(uiDir) == "" {
 		return api

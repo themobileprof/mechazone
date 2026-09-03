@@ -1,3 +1,5 @@
+// Package ai fuses a live or imported scan with this shop's jobs and retrieved manuals.
+// It calls a hosted LLM API. It must not invent pins, voltages, or diagrams.
 package ai
 
 import (
@@ -17,6 +19,7 @@ type Fuser struct {
 	Log   *slog.Logger
 }
 
+// Build loads this shop's VIN history and retrieved chunks, then asks the hosted LLM.
 func (f *Fuser) Build(ctx context.Context, req Request) (Playbook, error) {
 	norm, err := vin.Normalize(req.VIN)
 	if err != nil {

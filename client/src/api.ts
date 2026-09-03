@@ -1,3 +1,4 @@
+/** Ledger REST client. Cookies carry identity; do not set Content-Type on FormData uploads. */
 import type { AccessRequest, HistoryResponse, JobImport, Playbook, Principal, Resolution, Session, Shop, Technician } from './types'
 
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {

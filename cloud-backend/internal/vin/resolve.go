@@ -1,3 +1,5 @@
+// Package vin decodes a 17-character VIN: NHTSA vPIC first, then optional paid fallbacks.
+// Results are meant to be cached in vin_decode_cache; callers must not re-query a hit.
 package vin
 
 import (
@@ -11,6 +13,7 @@ type Resolver struct {
 	Log       *slog.Logger
 }
 
+// Decode tries vPIC, then optional paid fallbacks. Callers must cache the result.
 func (r *Resolver) Decode(ctx context.Context, vin string) (Decode, error) {
 	dec, err := r.VPIC.Decode(ctx, vin)
 	if err == nil && !dec.Empty {

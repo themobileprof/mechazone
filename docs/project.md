@@ -1,5 +1,7 @@
 # Mechazone — Product & Architecture Specification
 
+This is the product charter. **What the repo actually does today**, including decisions that diverged from early sketches (Tauri, hosted-only ledger, gRPC), is in [decisions.md](decisions.md). Package-level code map: [code.md](code.md). Doc index: [README.md](README.md).
+
 Mechazone is a shop-floor diagnostic ledger for independent auto technicians. The product is software on a capable Pass-Thru kit we already own: a Tactrix OpenPort 2.0 (Revision E) clone and a laptop. The client reads manufacturer modules on modern ICE vehicles (and later EVs), logs the work done on that vehicle **at this shop**, and uses that shop's job file plus retrieved manuals to close the repair.
 
 The product is not a generic OBD2 scanner, not a dealership OEM laptop, and not a public vehicle-history bureau. A car's jobs stay with the shop that did them so a later seller is not carrying a centralized rap sheet. Spend discipline means integrate OSS, public APIs, and scrape-and-cache sources — not downgrade to a bargain ELM327 that cannot address modern modules or a future EV BMS.
@@ -61,8 +63,8 @@ Development and the capability bar are the hardware already on the bench. There 
 | Tactrix OpenPort 2.0 (Revision E) clone | Primary vehicle interface (J2534 Pass-Thru) |
 | ELM327 v1.5 (FTDI/CH340), USB or USB-OTG | Constrained fallback only; not the design target |
 | Multimeter and hand tools | Assumed shop inventory for playbook pin tests |
-| Mechazone client (Tauri/TS UI + Python J2534 worker) | The product: scan, history, playbook, closeout |
-| Local encrypted shop ledger | Customer names, phones, plates — never uploaded |
+| Mechazone client (browser UI + Python J2534 worker) | The product: scan, history, playbook, closeout. As built: React in the browser, not Tauri yet ([D6](decisions.md#d6--one-postgres-on-the-bay-laptop-for-now)) |
+| Customer identity on the bay | Names, phones, plates stay in the browser (`localCustomer`). No SQLCipher shop DB yet. |
 
 Do not design ESP32/CAN boards or a field-kit BOM. Rollout is `install.sh` / `install.ps1` (see `docs/install.md`) plus an OpenPort-class J2534 clone (the same class already in hand). Android USB-OTG is a later host option, not the reference.
 
@@ -153,6 +155,8 @@ Reputation is a data-quality signal, not a social feed. Verified successful clos
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
+**As built (D6):** the UI is a browser tab; the Go process is the API and optionally serves `client/dist`; Postgres is local on the laptop; JSON REST, not gRPC. Customer name is `localCustomer` in the bay, not SQLCipher. Target sketch above is still the long-term split.
+
 UI never talks to the Pass-Thru library. The Python worker never stores customer PII in payloads destined for the cloud.
 
 ---
@@ -164,7 +168,7 @@ UI never talks to the Pass-Thru library. The Python worker never stores customer
 - **UI:** Existing laptop. This shop's jobs on the VIN, module live data, playbook steps, two-click closeout, clear online/offline state.
 - **Diagnostic worker (Python 3.11+):** Primary path is J2534 (`openport.dll` / `libopenport.so`) on the OpenPort 2.0 Rev E clone. Wrap maintained OSS for ISO-TP/UDS/CAN (e.g. `udsoncan`, `can-isotp`, `python-can`); own adapter quirks, timeouts, hex validation, and session capture. ELM327 serial is fallback only.
 - **IPC:** Local WebSocket or stdin/stdout JSON. Typed contracts only.
-- **Local shop partition:** Existing embedded/encrypted SQLite (SQLCipher or equivalent OSS). Mechanical session rows are copied into the sync queue without customer fields.
+- **Local shop partition:** As built: customer name stays in the browser; mechanical rows go to local Postgres (or the JSON offline queue). Spec sketch still allows a later SQLCipher customer DB.
 
 ### 6.2 Cloud
 

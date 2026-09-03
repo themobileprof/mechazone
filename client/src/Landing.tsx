@@ -1,3 +1,4 @@
+/** Public conversion page: request a login. Nobody self-registers. */
 import { useState, type FormEvent } from 'react'
 import { requestAccess } from './api'
 import { Login } from './Login'

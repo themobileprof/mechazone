@@ -15,6 +15,7 @@ import (
 	"mechazone/cloud-backend/internal/ledger"
 )
 
+// Sidecar is JSON next to a PDF or HTML tree. Ingest uses it for make/model/year — not as a generated diagram.
 type Sidecar struct {
 	Title    string `json:"title"`
 	Kind     string `json:"kind"`

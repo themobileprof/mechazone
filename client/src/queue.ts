@@ -1,3 +1,4 @@
+/** Offline JSON queue for session/closeout posts. Imported reports are not queued. */
 import type { QueuedJob } from './types'
 
 const KEY = 'mechazone.sync_queue'
