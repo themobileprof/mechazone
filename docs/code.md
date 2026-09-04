@@ -39,7 +39,7 @@ Module path: `mechazone/cloud-backend`. Migrations are embedded (`migrations/*.s
 | `internal/ai` | Playbook fusion, circuit classes, PDF/HTML ingest helpers |
 | `internal/importreport` | File sniff, DTC parse, source allowlist, path jail |
 | `internal/auth` | Password hash, principals |
-| `internal/pii` | Reject customer-identity JSON keys on cloud bodies |
+| `internal/pii` | Reject customer-identity JSON keys on session/closeout/import (not the customer PUT) |
 
 ### HTTP (`internal/httpapi`)
 
@@ -53,7 +53,8 @@ Technician cookie required except login, access-request, health, and some decode
 | GET | `/api/v1/auth/me` | |
 | POST | `/api/v1/access-requests` | Landing ticket |
 | GET/POST | `/api/v1/admin/…` | Super admin shops, techs, tickets |
-| GET | `/api/v1/vehicles/{vin}` | This shop’s jobs |
+| GET | `/api/v1/vehicles/{vin}` | This shop’s jobs + customer |
+| PUT | `/api/v1/vehicles/{vin}/customer` | This shop’s name/phone/plate on the VIN |
 | POST | `/api/v1/vehicles/{vin}/decode` | vPIC/cache |
 | GET | `/api/v1/dtcs/{code}` | Seeded title + circuit class |
 | POST | `/api/v1/sessions` | Live scan ingest (JSON) |
@@ -61,9 +62,10 @@ Technician cookie required except login, access-request, health, and some decode
 | GET | `/api/v1/sessions/{id}/import` | Shop-scoped file |
 | POST | `/api/v1/sessions/{id}/closeout` | Success/fail + parts |
 | POST | `/api/v1/playbooks` | LLM fuse |
+| GET | `/api/v1/manuals` | Ingested workshop books |
 | GET | `/api/v1/manuals/figures/{id}/image` | Retrieved figure bytes |
 
-Shop/tech IDs are overwritten from `principalFrom` in ingest, import, closeout, and playbook.
+Shop/tech IDs are overwritten from `principalFrom` in ingest, import, closeout, playbook, and customer PUT.
 
 Handler files (same package):
 
@@ -71,20 +73,21 @@ Handler files (same package):
 | --- | --- |
 | `server.go` | mux + CORS/logging |
 | `auth.go` | login cookie, `requireAuth` / `requireAdmin` / `requireTechnician` |
-| `handlers.go` | VIN history, decode, DTC, live session ingest, closeout |
+| `handlers.go` | VIN history, customer PUT, decode, DTC, live session ingest, closeout |
 | `import.go` | attach / download scanner files |
 | `playbook.go` | LLM fuse |
 | `admin.go` / `access.go` | shops, techs, landing tickets |
 | `ui.go` | `client/dist` SPA when `UI_DIR` is set |
 | `figures.go` | retrieved manual images |
 
-### Postgres (migrations `001`–`007`)
+### Postgres (migrations `001`–`009`)
 
 | Table | Role |
 | --- | --- |
 | `shops`, `technicians`, `users`, `auth_sessions` | Provisioned identity |
 | `access_requests` | Landing tickets (no self-signup) |
 | `vehicles`, `diagnostic_sessions`, `confirmed_resolutions` | This shop’s job file |
+| `shop_customers` | This shop’s name/phone/plate on a VIN (`009`) |
 | `session_imports` | Attached scanner files (`007`) |
 | `vin_decode_cache` | Forever cache of vPIC/paid decode |
 | `dtc_codes` | Seeded SAE P0xxx |

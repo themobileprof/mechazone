@@ -19,6 +19,10 @@ func testStore(t *testing.T) *Store {
 	if err != nil {
 		t.Skip(err)
 	}
+	if err := s.Migrate(ctx); err != nil {
+		s.Close()
+		t.Fatal(err)
+	}
 	t.Cleanup(s.Close)
 	return s
 }

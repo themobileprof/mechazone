@@ -136,7 +136,7 @@ export function Landing({ onAuthed }: { onAuthed: (p: Principal) => void }) {
                 {busy ? 'Sending…' : 'Send my request'}
               </button>
               <p className="text-xs text-steel">
-                Your customers’ names and plate numbers stay on your laptop. We only keep the car’s mechanical record.
+                Names and plates follow this shop’s login, so a new laptop still has them. Other shops cannot read that file.
               </p>
             </form>
           )}

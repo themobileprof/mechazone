@@ -39,6 +39,7 @@ func New(cfg config.Config, store *ledger.Store, vins *vin.Resolver, fuser *ai.F
 	mux.HandleFunc("GET /api/v1/admin/technicians", s.requireAdmin(s.listTechnicians))
 	mux.HandleFunc("POST /api/v1/admin/technicians", s.requireAdmin(s.createTechnician))
 	mux.HandleFunc("GET /api/v1/vehicles/{vin}", s.requireTechnician(s.vehicleHistory))
+	mux.HandleFunc("PUT /api/v1/vehicles/{vin}/customer", s.requireTechnician(s.upsertCustomer))
 	mux.HandleFunc("POST /api/v1/vehicles/{vin}/decode", s.requireAuth(s.decodeVIN))
 	mux.HandleFunc("GET /api/v1/dtcs/{code}", s.requireAuth(s.lookupDTC))
 	mux.HandleFunc("POST /api/v1/sessions", s.requireTechnician(s.ingestSession))
@@ -75,7 +76,7 @@ func withCORS(next http.Handler) http.Handler {
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 		}
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return

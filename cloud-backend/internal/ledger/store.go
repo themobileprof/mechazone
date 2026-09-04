@@ -308,6 +308,13 @@ func (s *Store) History(ctx context.Context, vin, shopID, technicianID string) (
 		return History{}, err
 	}
 	h.FirstSeen = len(h.Jobs) == 0
+	cust, err := s.ShopCustomer(ctx, vin, shopID, technicianID)
+	if err != nil {
+		return History{}, err
+	}
+	if cust.DisplayName != "" || cust.Phone != "" || cust.Plate != "" {
+		h.Customer = &cust
+	}
 	return h, nil
 }
 

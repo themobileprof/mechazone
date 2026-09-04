@@ -1,6 +1,6 @@
 /** Shop floor: this shop's jobs, OpenPort or attached report, playbook, closeout. */
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { attachImportedReport, buildPlaybook, closeoutSession, decodeVin, fetchHistory, importedReportURL, ingestSession, ledgerOnline, listManuals, lookupDtc, logout } from './api'
+import { attachImportedReport, buildPlaybook, closeoutSession, decodeVin, fetchHistory, importedReportURL, ingestSession, ledgerOnline, listManuals, lookupDtc, logout, saveCustomer } from './api'
 import { enqueue, flushQueue, pendingCount } from './queue'
 import { ToastStack, useAutoDismiss, type Notice } from './toast'
 import type { DetectedAdapter, DidStream, HistoryResponse, Playbook, Principal, ScanCoverage, ScanResult, Session, WorkshopBook } from './types'
@@ -60,7 +60,9 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
   const [session, setSession] = useState<Session | null>(null)
   const [dtcTitles, setDtcTitles] = useState<Record<string, string>>({})
   const [mileage, setMileage] = useState('')
-  const [localCustomer, setLocalCustomer] = useState('')
+  const [customerName, setCustomerName] = useState('')
+  const [customerPhone, setCustomerPhone] = useState('')
+  const [customerPlate, setCustomerPlate] = useState('')
   const [outcome, setOutcome] = useState<'success' | 'failed'>('success')
   const [rootCause, setRootCause] = useState('')
   const [parts, setParts] = useState('')
@@ -155,6 +157,15 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
     if (id) setManualId(id)
   }, [manuals, history?.vehicle, scan, manualLocked])
 
+  useEffect(() => {
+    const loaded = history?.vehicle?.vin
+    if (loaded && vin !== loaded) {
+      setCustomerName('')
+      setCustomerPhone('')
+      setCustomerPlate('')
+    }
+  }, [vin, history?.vehicle?.vin])
+
   const selectedKit = kits.find((k) => k.id === adapter)
   const coverage = scan?.coverage ?? preCoverage
   const selectedBook = manuals.find((m) => m.id === manualId) ?? null
@@ -228,11 +239,55 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
     setPlaybook(book)
   }
 
+  function applyHistory(h: HistoryResponse) {
+    setHistory(h)
+    setCustomerName(h.customer?.display_name ?? '')
+    setCustomerPhone(h.customer?.phone ?? '')
+    setCustomerPlate(h.customer?.plate ?? '')
+  }
+
+  async function persistCustomer() {
+    const v = vin.trim().toUpperCase()
+    if (v.length !== 17) return
+    const body = {
+      display_name: customerName.trim(),
+      phone: customerPhone.trim(),
+      plate: customerPlate.trim(),
+    }
+    const empty = !body.display_name && !body.phone && !body.plate
+    const editingThisVin = history?.vehicle?.vin === v && Boolean(history.customer)
+    if (empty && !editingThisVin) return
+    try {
+      if (!online) {
+        enqueue({ kind: 'customer', method: 'PUT', path: `/api/v1/vehicles/${v}/customer`, body })
+        setQueued(pendingCount())
+        return
+      }
+      if (history?.vehicle?.vin !== v) {
+        await decodeVin(v).catch(() => undefined)
+      }
+      const saved = await saveCustomer(v, body)
+      setCustomerName(saved.display_name)
+      setCustomerPhone(saved.phone)
+      setCustomerPlate(saved.plate)
+      if (history?.vehicle?.vin === v) {
+        setHistory({
+          ...history,
+          customer: empty ? undefined : saved,
+        })
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setError(msg)
+      throw err
+    }
+  }
+
   async function loadTypedVin() {
     const v = vin.trim().toUpperCase()
     if (v.length !== 17) throw new Error('VIN must be 17 characters')
     await decodeVin(v).catch(() => undefined)
-    setHistory(await fetchHistory(v))
+    applyHistory(await fetchHistory(v))
   }
 
   async function readVinFromKit() {
@@ -259,9 +314,9 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
     setPreCoverage(cov ?? null)
     if (online) {
       await decodeVin(r.vin).catch(() => undefined)
-      setHistory(await fetchHistory(r.vin))
+      applyHistory(await fetchHistory(r.vin))
     } else {
-      setHistory({ vehicle: null, first_seen: true, jobs: [], sessions: [], resolutions: [] })
+      applyHistory({ vehicle: null, first_seen: true, jobs: [], sessions: [], resolutions: [] })
     }
   }
 
@@ -370,7 +425,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
             setVin(result.vin)
           }
           if (online && v.length === 17) {
-            setHistory(await fetchHistory(v))
+            applyHistory(await fetchHistory(v))
             await adviseFromScan(result, v)
           }
         }, 'Deep scan complete', online ? 'Playbook fused this scan with this shop and the selected book.' : 'Ledger offline — rebuild the playbook when you reconnect.')}>
@@ -408,6 +463,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
           {history && (
             <span className={history.first_seen ? 'text-brass' : 'text-ok'}>
               {history.first_seen ? 'FIRST VISIT TO THIS SHOP' : `${history.jobs?.length ?? history.sessions.length} JOB(S) HERE`}
+            {customerPlate ? ` · ${customerPlate}` : ''}
             </span>
           )}
           {coverage && (
@@ -454,10 +510,57 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
               : 'Avensis T27 RM is ingested. If vPIC only said Toyota, pick that book here so AI is not flying blind.'}
           </p>
         </div>
-        <label className="mt-4 block max-w-md">
-          <span className="font-mono text-[11px] text-steel">CUSTOMER (LOCAL ONLY — NEVER SYNCED)</span>
-          <input className="mt-1 w-full border border-steel/30 bg-oil px-3 py-2" value={localCustomer} onChange={(e) => setLocalCustomer(e.target.value)} placeholder="Name / plate stay on this laptop" />
-        </label>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <label className="block">
+            <span className="font-mono text-[11px] text-steel">CUSTOMER NAME</span>
+            <input
+              className="mt-1 w-full border border-steel/30 bg-oil px-3 py-2"
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+              onBlur={() => void persistCustomer().catch((err) => {
+                const msg = err instanceof Error ? err.message : String(err)
+                pushNotice('fault', 'customer', msg)
+              })}
+              placeholder="This shop’s file — follows the login"
+            />
+          </label>
+          <label className="block">
+            <span className="font-mono text-[11px] text-steel">PHONE</span>
+            <input
+              className="mt-1 w-full border border-steel/30 bg-oil px-3 py-2"
+              value={customerPhone}
+              onChange={(e) => setCustomerPhone(e.target.value)}
+              onBlur={() => void persistCustomer().catch((err) => {
+                const msg = err instanceof Error ? err.message : String(err)
+                pushNotice('fault', 'customer', msg)
+              })}
+              placeholder="0803…"
+            />
+          </label>
+          <label className="block">
+            <span className="font-mono text-[11px] text-steel">PLATE</span>
+            <input
+              className="mt-1 w-full border border-steel/30 bg-oil px-3 py-2 font-mono uppercase"
+              value={customerPlate}
+              onChange={(e) => setCustomerPlate(e.target.value.toUpperCase())}
+              onBlur={() => void persistCustomer().catch((err) => {
+                const msg = err instanceof Error ? err.message : String(err)
+                pushNotice('fault', 'customer', msg)
+              })}
+              placeholder="ABC-123"
+            />
+          </label>
+        </div>
+        <p className="mt-2 max-w-2xl text-sm text-steel">
+          Name, phone, and plate live on this shop’s ledger so a new laptop still has them. Other shops cannot read them. They never go to the playbook or the OpenPort worker.
+        </p>
+        <button
+          className="mt-3 min-h-11 border border-paper/40 px-4 font-mono text-xs tracking-widest"
+          disabled={vin.length !== 17}
+          onClick={() => run('customer', persistCustomer, 'Customer saved', 'Follows this shop’s login, not this laptop.')}
+        >
+          SAVE TO THIS SHOP
+        </button>
       </section>
 
       <section id="step-scan" className="mb-6 border border-dashed border-brass/50 bg-oil/70 p-5">
@@ -470,7 +573,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
         </div>
         <p className="max-w-3xl text-sm text-steel">
           PDF, photo, or CSV from X431 / Autel / Techstream. Type the codes you see. We do not OCR the file and we do not log into the vendor cloud.
-          Strip customer name and plate before you attach.
+          Strip customer name and plate from the file before you attach — those belong in the fields above, not in the scan JSON.
         </p>
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <label className="block">
@@ -525,7 +628,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
               if (history?.vehicle?.model) form.append('model_hint', history.vehicle.model)
               const saved = await attachImportedReport(vin, form)
               setSession(saved.session)
-              setHistory(await fetchHistory(vin))
+              applyHistory(await fetchHistory(vin))
               setImportFile(null)
               const typed = saved.session.active_codes ?? []
               if (online && (typed.length > 0 || saved.session.id)) {
@@ -784,12 +887,14 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
             }
             if (!online) {
               enqueue({ kind: 'session', path: '/api/v1/sessions', body })
+              await persistCustomer()
               setQueued(pendingCount())
               return
             }
             const saved = await ingestSession(body)
             setSession(saved)
-            setHistory(await fetchHistory(saved.vin))
+            await persistCustomer()
+            applyHistory(await fetchHistory(saved.vin))
           }, 'Session logged', 'Close the job when you know what fixed it.')}>
             LOG SESSION TO LEDGER
           </button>
@@ -810,11 +915,13 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
             }
             if (!online) {
               enqueue({ kind: 'closeout', path: `/api/v1/sessions/${session.id}/closeout`, body })
+              await persistCustomer()
               setQueued(pendingCount())
               return
             }
             await closeoutSession(session.id, body)
-            setHistory(await fetchHistory(session.vin))
+            await persistCustomer()
+            applyHistory(await fetchHistory(session.vin))
           }, 'Job closed', 'This shop’s file on this VIN now includes the work done.')}>
             CLOSE JOB
           </button>

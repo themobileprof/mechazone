@@ -42,9 +42,9 @@ Decisions are numbered. Do not reverse one without updating this list.
 
 ## D5 — Privacy split
 
-**Choice:** Customer name / phone / plate stay in the browser (`localCustomer`). Cloud payloads reject JSON keys like `customer_name`, `phone`, `plate`. Imported scanner files are not OCR’d (reports often contain identity).
+**Choice (reversed):** Customer name / phone / plate live on this shop’s ledger (`shop_customers`, keyed by `shop_id`+VIN, or freelancer `technician_id`+VIN). `GET /api/v1/vehicles/{vin}` returns them; `PUT /api/v1/vehicles/{vin}/customer` writes them. Other shops cannot read the row. Playbook fusion sets `shop_work.customer` to nil before the LLM. Session ingest, closeout, and import notes still reject JSON keys like `customer_name`, `phone`, `plate` — identity does not ride on scan payloads. Imported scanner files are not OCR’d.
 
-**Why:** Mechanical facts can live on the ledger; people must not.
+**Why:** A laptop swap must not lose who owns the car. That is still this shop’s file, not a public VIN rap sheet.
 
 ---
 
@@ -52,7 +52,7 @@ Decisions are numbered. Do not reverse one without updating this list.
 
 **Choice:** The Go process is the “cloud” API, but the default deploy is **local** Postgres on the shop PC (`postgres:///mechazone`). Offline queue (`client/src/queue.ts`) holds JSON session/closeout posts when `/healthz` is down.
 
-**Not built yet:** A hosted multi-tenant ledger shops sync to; SQLCipher customer DB; gRPC; Tauri/Electron shell.
+**Not built yet:** A hosted multi-tenant ledger shops sync to; gRPC; Tauri/Electron shell. Customer identity is `shop_customers` on the same Postgres, not a local SQLCipher DB.
 
 **Why:** One laptop can close a job without a public URL. The UI is a browser tab at `127.0.0.1:8080` (installed) or Vite `:5173` (dev).
 

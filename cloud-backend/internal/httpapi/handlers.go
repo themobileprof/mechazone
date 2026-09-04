@@ -228,3 +228,34 @@ func (s *Server) closeout(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, res)
 }
+
+func (s *Server) upsertCustomer(w http.ResponseWriter, r *http.Request) {
+	// Identity belongs here, not on session/closeout JSON (those still run RejectCloudPII).
+	v, err := pathVIN(r)
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	p, ok := principalFrom(r.Context())
+	if !ok || p.TechnicianID == "" {
+		writeError(w, http.StatusForbidden, "technician login required")
+		return
+	}
+	var in ledger.ShopCustomer
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<14)).Decode(&in); err != nil {
+		writeError(w, http.StatusBadRequest, "malformed customer")
+		return
+	}
+	if err := s.store.EnsureVehicle(r.Context(), v, "", "", 0, "customer"); err != nil {
+		s.log.Error("ensure vehicle", "err", err)
+		writeError(w, http.StatusInternalServerError, "vehicle persist failed")
+		return
+	}
+	saved, err := s.store.UpsertShopCustomer(r.Context(), v, p.ShopID, p.TechnicianID, in)
+	if err != nil {
+		s.log.Error("customer", "err", err)
+		writeError(w, http.StatusInternalServerError, "customer persist failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, saved)
+}

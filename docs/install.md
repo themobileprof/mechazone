@@ -114,7 +114,7 @@ The ledger tags every scan with the signed-in technician (and shop, if they have
    - Cable on the OBD port
    - Choose **OpenPort 2.0 Rev E**
    - Connect → Identify (VIN from the module) → read history → Scan → log the job → closeout
-5. Customer name, phone, and plate stay on this laptop. Only VIN and mechanical facts go to the ledger.
+5. Customer name, phone, and plate save to this shop’s ledger (so they survive a laptop swap). Other shops cannot read them.
 
 To stop the app on Linux:
 

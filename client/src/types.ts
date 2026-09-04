@@ -1,4 +1,4 @@
-/** Shared DTOs with the Go ledger and Python worker. Customer name/phone/plate stay in the bay, not here. */
+/** Shared DTOs with the Go ledger and Python worker. Customer name/phone/plate are this shop's file on the VIN. */
 export type Principal = {
   user_id: string
   email: string
@@ -55,6 +55,7 @@ export type HistoryResponse = {
     first_seen_at: string
   } | null
   first_seen: boolean
+  customer?: { display_name: string; phone: string; plate: string }
   jobs: Job[]
   sessions: Session[]
   resolutions: Resolution[]
@@ -211,8 +212,9 @@ export type DidStream = {
 
 export type QueuedJob = {
   id: string
-  kind: 'session' | 'closeout'
+  kind: 'session' | 'closeout' | 'customer'
   path: string
+  method?: 'POST' | 'PUT'
   body: unknown
   created_at: string
 }

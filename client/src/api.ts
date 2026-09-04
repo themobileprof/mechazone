@@ -89,6 +89,13 @@ export function fetchHistory(vin: string) {
   return api<HistoryResponse>(`/api/v1/vehicles/${vin}`)
 }
 
+export function saveCustomer(vin: string, body: { display_name: string; phone: string; plate: string }) {
+  return api<{ display_name: string; phone: string; plate: string }>(`/api/v1/vehicles/${vin}/customer`, {
+    method: 'PUT',
+    body: JSON.stringify(body),
+  })
+}
+
 export function decodeVin(vin: string) {
   return api<unknown>(`/api/v1/vehicles/${vin}/decode`, { method: 'POST' })
 }

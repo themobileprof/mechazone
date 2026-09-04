@@ -1,0 +1,51 @@
+package ledger
+
+import (
+	"context"
+	"testing"
+	"time"
+)
+
+func TestClipRunes(t *testing.T) {
+	if clipRunes("abc", 5) != "abc" {
+		t.Fatal("short")
+	}
+	if got := clipRunes("abcdefghij", 4); got != "abcd" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestShopCustomerRoundTrip(t *testing.T) {
+	s := testStore(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	vin := "ZZZZCUSTDEV000001"
+	if err := s.EnsureVehicle(ctx, vin, "Toyota", "Unknown", 2010, "test"); err != nil {
+		t.Fatal(err)
+	}
+	shop := "00000000-0000-4000-8000-000000000001"
+	tech := "00000000-0000-4000-8000-000000000002"
+	saved, err := s.UpsertShopCustomer(ctx, vin, shop, tech, ShopCustomer{
+		DisplayName: "Ada Okonkwo", Phone: "0803", Plate: "abc-123",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.Plate != "ABC-123" {
+		t.Fatalf("plate %q", saved.Plate)
+	}
+	got, err := s.ShopCustomer(ctx, vin, shop, tech)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.DisplayName != "Ada Okonkwo" || got.Plate != "ABC-123" {
+		t.Fatalf("%+v", got)
+	}
+	other, err := s.ShopCustomer(ctx, vin, "00000000-0000-4000-8000-000000000099", tech)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if other.DisplayName != "" {
+		t.Fatal("another shop must not see this name")
+	}
+}

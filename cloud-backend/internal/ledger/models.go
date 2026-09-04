@@ -80,11 +80,12 @@ type Job struct {
 
 // History is this shop's (or freelancer's) jobs on a VIN — never another shop's file.
 type History struct {
-	Vehicle     *Vehicle     `json:"vehicle"`
-	FirstSeen   bool         `json:"first_seen"`
-	Jobs        []Job        `json:"jobs"`
-	Sessions    []Session    `json:"sessions"`
-	Resolutions []Resolution `json:"resolutions"`
+	Vehicle     *Vehicle      `json:"vehicle"`
+	Customer    *ShopCustomer `json:"customer,omitempty"`
+	FirstSeen   bool          `json:"first_seen"`
+	Jobs        []Job         `json:"jobs"`
+	Sessions    []Session     `json:"sessions"`
+	Resolutions []Resolution  `json:"resolutions"`
 }
 
 // SessionIngest is the scan body. ShopID and TechnicianID in JSON are ignored; handlers copy them from the cookie.

@@ -228,6 +228,7 @@ func buildUserPrompt(req Request, hist ledger.History, matches []ledger.NetworkM
 		ShopWork:         hist,
 		ShopPlatformJobs: matches,
 	}
+	p.ShopWork.Customer = nil
 	if hist.Vehicle != nil {
 		p.Vehicle = hist.Vehicle
 	}

@@ -78,7 +78,7 @@ Before ranking causes, walk **this shop's** jobs on this VIN:
 - Prior connector / water ingress / loom repair **at this shop** → lookout on that area.
 - Parts this shop already replaced → do not lead with that part unless live data contradicts.
 
-Then this shop's similar jobs on the same platform (other vehicles, no VIN in the prompt). Unverified narrative never outranks a confirmed closeout. Do not load another shop's file on this VIN.
+Then this shop's similar jobs on the same platform (other vehicles, no VIN in the prompt). Unverified narrative never outranks a confirmed closeout. Do not load another shop's file on this VIN. Do not send customer name, phone, or plate to the model (`shop_work.customer` is stripped in `fuse.go`).
 
 ## Wiring and dark nodes
 

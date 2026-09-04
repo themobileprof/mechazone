@@ -1,4 +1,4 @@
-/** Offline JSON queue for session/closeout posts. Imported reports are not queued. */
+/** Offline JSON queue for session/closeout/customer writes. Imported reports are not queued. */
 import type { QueuedJob } from './types'
 
 const KEY = 'mechazone.sync_queue'
@@ -16,7 +16,7 @@ function write(jobs: QueuedJob[]) {
 }
 
 export function enqueue(job: Omit<QueuedJob, 'id' | 'created_at'>) {
-  const jobs = read()
+  const jobs = read().filter((j) => !(job.kind === 'customer' && j.kind === 'customer' && j.path === job.path))
   jobs.push({
     ...job,
     id: crypto.randomUUID(),
@@ -36,7 +36,7 @@ export async function flushQueue(): Promise<number> {
   for (const job of jobs) {
     try {
       const res = await fetch(job.path, {
-        method: 'POST',
+        method: job.method || 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(job.body),

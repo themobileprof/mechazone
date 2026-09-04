@@ -64,7 +64,7 @@ Development and the capability bar are the hardware already on the bench. There 
 | ELM327 v1.5 (FTDI/CH340), USB or USB-OTG | Constrained fallback only; not the design target |
 | Multimeter and hand tools | Assumed shop inventory for playbook pin tests |
 | Mechazone client (browser UI + Python J2534 worker) | The product: scan, history, playbook, closeout. As built: React in the browser, not Tauri yet ([D6](decisions.md#d6--one-postgres-on-the-bay-laptop-for-now)) |
-| Customer identity on the bay | Names, phones, plates stay in the browser (`localCustomer`). No SQLCipher shop DB yet. |
+| Customer identity | Names, phones, plates on this shop’s ledger (`shop_customers`). Follow the login, not the laptop. Other shops and the playbook do not see them. |
 
 Do not design ESP32/CAN boards or a field-kit BOM. Rollout is `install.sh` / `install.ps1` (see `docs/install.md`) plus an OpenPort-class J2534 clone (the same class already in hand). Android USB-OTG is a later host option, not the reference.
 
@@ -83,7 +83,7 @@ Do not design ESP32/CAN boards or a field-kit BOM. Rollout is `install.sh` / `in
 - Designing as if an ELM327 were enough for modern modules or a later EV BMS.
 - A second dongle or custom board because the OpenPort worker was not finished.
 - Constant cloud connectivity to complete a scan.
-- Customer PII in the cloud.
+- A public VIN file of customer names, phones, or plates (other shops must not read this shop’s customers).
 - Dealership hardware, Windows-only OEM suites, paid VIN APIs on every lookup, or a custom document/helpdesk/ERP we would have to build.
 
 ---
@@ -155,9 +155,9 @@ Reputation is a data-quality signal, not a social feed. Verified successful clos
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-**As built (D6):** the UI is a browser tab; the Go process is the API and optionally serves `client/dist`; Postgres is local on the laptop; JSON REST, not gRPC. Customer name is `localCustomer` in the bay, not SQLCipher. Target sketch above is still the long-term split.
+**As built (D6):** the UI is a browser tab; the Go process is the API and optionally serves `client/dist`; Postgres is local on the laptop; JSON REST, not gRPC. Customer name/phone/plate are `shop_customers` on that Postgres ([D5](decisions.md#d5--privacy-split)). Target sketch above is still the long-term split.
 
-UI never talks to the Pass-Thru library. The Python worker never stores customer PII in payloads destined for the cloud.
+UI never talks to the Pass-Thru library. The Python worker never sees customer identity. Scan/closeout JSON still rejects those keys; the dedicated customer endpoint is the write path.
 
 ---
 
@@ -168,11 +168,11 @@ UI never talks to the Pass-Thru library. The Python worker never stores customer
 - **UI:** Existing laptop. This shop's jobs on the VIN, module live data, playbook steps, two-click closeout, clear online/offline state.
 - **Diagnostic worker (Python 3.11+):** Primary path is J2534 (`openport.dll` / `libopenport.so`) on the OpenPort 2.0 Rev E clone. Wrap maintained OSS for ISO-TP/UDS/CAN (e.g. `udsoncan`, `can-isotp`, `python-can`); own adapter quirks, timeouts, hex validation, and session capture. ELM327 serial is fallback only.
 - **IPC:** Local WebSocket or stdin/stdout JSON. Typed contracts only.
-- **Local shop partition:** As built: customer name stays in the browser; mechanical rows go to local Postgres (or the JSON offline queue). Spec sketch still allows a later SQLCipher customer DB.
+- **Local shop partition:** As built: customer name/phone/plate and mechanical rows go to the same Postgres (queued when `/healthz` is down). Other shops cannot read the customer row.
 
 ### 6.2 Cloud
 
-- **Gateway (Go):** High-concurrency ingest and VIN-history read APIs. Accepts structured session payloads; rejects PII-looking fields.
+- **Gateway (Go):** High-concurrency ingest and VIN-history read APIs. Accepts structured session payloads; rejects PII-looking fields on scan/closeout/import. Customer identity has its own shop-scoped PUT.
 - **Network ledger (PostgreSQL):** Shops, technicians, vehicles, sessions, confirmed resolutions, reputation events. Source of truth for "has this VIN been here before?"
 - **AI engine:** `pgvector` in the same PostgreSQL + an existing LLM API. Builds playbooks only after ledger + retrieval context is attached. Generic P0xxx definitions come from imported public/OSS seed tables, not from an LLM and not from a live web DTC API.
 
@@ -202,14 +202,14 @@ VIN must be 17 characters. Adapter, host, and protocol are required so another t
 
 ### 7.1 Privacy boundary
 
-| Stays on the shop device | Syncs to the network ledger |
+| This shop only (not other shops, not the LLM, not scan JSON) | Syncs as mechanical telemetry |
 | --- | --- |
-| Customer name, phone, plate | VIN, make/model/year (from decode cache) |
-| Local job/work-order notes tied to a person | Mileage, DTCs, freeze-frame, raw hex |
+| Customer name, phone, plate (`shop_customers`) | VIN, make/model/year (from decode cache) |
+| | Mileage, DTCs, freeze-frame, raw hex |
 | | Confirmed root cause, parts, verification flag |
 | | Shop region (country/city), technician id, reputation |
 
-No names, phones, or plates on the shared server.
+Names follow this shop’s login so a device change does not drop the customer. They are not a public vehicle history.
 
 ### 7.2 Relational ledger (PostgreSQL)
 
@@ -420,4 +420,4 @@ The shop's advantage is accumulated *confirmed* work on the cars it actually saw
 | `.cursorrules` | Binding laws for generated code and architecture choices |
 | `docs/project.md` | Product north star: OpenPort software, shop loop, ledger, community, roadmap |
 
-Out of scope: extra hardware we do not already own, custom boards, designing to ELM327 as if it were enough for modern ICE or later EVs, rebuilding VIN/DTC/ISO-TP/J2534/RAG/ERP/helpdesk when OSS or an API exists, this shop's jobs hidden behind a blank scan form, a public VIN rap sheet, customer PII in the cloud, or defaulting to generic OBD2.
+Out of scope: extra hardware we do not already own, custom boards, designing to ELM327 as if it were enough for modern ICE or later EVs, rebuilding VIN/DTC/ISO-TP/J2534/RAG/ERP/helpdesk when OSS or an API exists, this shop's jobs hidden behind a blank scan form, a public VIN rap sheet (including this shop’s customer names), or defaulting to generic OBD2.
