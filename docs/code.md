@@ -21,7 +21,7 @@ Developer loop: `make backend`, `make worker`, `make client` (Vite proxies `/api
 | --- | --- | --- |
 | Ledger | `cloud-backend/cmd/server` | Auth, VIN, sessions, imports, playbooks, static UI |
 | Worker | `python -m mechazone_worker` | Detect USB, connect kit, identify VIN, deep scan, DID stream |
-| Ingest | `cloud-backend/cmd/ingest` | Chunk manuals into Postgres (`make ingest`) |
+| Ingest | `cloud-backend/cmd/ingest` | Chunk manuals into Postgres (`make ingest`); `-embed-only` backfills vectors |
 | UI | `client/src/main.tsx` | Landing / login / Admin / Bay |
 
 ---
@@ -32,11 +32,11 @@ Module path: `mechazone/cloud-backend`. Migrations are embedded (`migrations/*.s
 
 | Package | Responsibility |
 | --- | --- |
-| `internal/config` | `.env` from cwd walking up; `IMPORT_DIR`, `LLM_*`, VIN keys |
+| `internal/config` | `.env` from cwd walking up; `IMPORT_DIR`, `LLM_*`, `EMBEDDING_*`, VIN keys |
 | `internal/httpapi` | REST + cookie auth + SPA fallback (`ui.go`) |
 | `internal/ledger` | Postgres: shops, techs, vehicles, sessions, imports, manuals |
 | `internal/vin` | Normalize VIN; vPIC then CarAPI/Vincario |
-| `internal/ai` | Playbook fusion, circuit classes, PDF/HTML ingest helpers |
+| `internal/ai` | Playbook fusion, circuit classes, PDF/HTML ingest, hosted embeddings |
 | `internal/importreport` | File sniff, DTC parse, source allowlist, path jail |
 | `internal/auth` | Password hash, principals |
 | `internal/pii` | Reject customer-identity JSON keys on session/closeout/import (not the customer PUT) |
@@ -80,7 +80,7 @@ Handler files (same package):
 | `ui.go` | `client/dist` SPA when `UI_DIR` is set |
 | `figures.go` | retrieved manual images |
 
-### Postgres (migrations `001`–`009`)
+### Postgres (migrations `001`–`012`)
 
 | Table | Role |
 | --- | --- |
@@ -91,7 +91,8 @@ Handler files (same package):
 | `session_imports` | Attached scanner files (`007`) |
 | `vin_decode_cache` | Forever cache of vPIC/paid decode |
 | `dtc_codes` | Seeded SAE P0xxx |
-| `doc_sources`, `doc_chunks`, `doc_figures` | Ingested manuals |
+| `doc_sources`, `doc_chunks`, `doc_figures` | Ingested manuals; `doc_chunks.embedding vector(384)` (`010`/`011`) |
+| `doc_embedding_meta` | Locked to `bge-small-en-v1.5` / 384 (`012`) |
 
 ---
 

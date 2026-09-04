@@ -56,3 +56,48 @@ func TestListAndSearchAvensisManual(t *testing.T) {
 	}
 	_ = figs
 }
+
+func TestVectorLiteral(t *testing.T) {
+	if got := VectorLiteral(nil); got != "[]" {
+		t.Fatalf("nil: %q", got)
+	}
+	got := VectorLiteral([]float32{1, -0.5})
+	if got != "[1.000000,-0.500000]" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestMergeHybridChunksPrefersCodeAndEWD(t *testing.T) {
+	fts := []RetrievedChunk{
+		{ID: "a", RelPath: "diag.htm"},
+		{ID: "b", RelPath: "foo.htm"},
+		{ID: "c", RelPath: "html/ewd/connector.htm", Codes: []string{"P1047"}},
+	}
+	vec := []RetrievedChunk{
+		{ID: "c", RelPath: "html/ewd/connector.htm", Codes: []string{"P1047"}},
+		{ID: "d", RelPath: "other.htm"},
+		{ID: "a", RelPath: "diag.htm"},
+	}
+	got := mergeHybridChunks(fts, vec, []string{"P1047"}, true)
+	if len(got) == 0 || got[0].ID != "c" {
+		t.Fatalf("expected P1047 EWD chunk first, got %+v", got)
+	}
+}
+
+func TestLockEmbeddingModelIsBGE(t *testing.T) {
+	s := testStore(t)
+	ctx := context.Background()
+	if err := s.LockEmbeddingModel(ctx); err != nil {
+		t.Fatal(err)
+	}
+	meta, err := s.EmbeddingMeta(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !meta.MatchesIndex() {
+		t.Fatalf("got %+v", meta)
+	}
+	if err := s.LockEmbeddingModel(ctx); err != nil {
+		t.Fatal(err)
+	}
+}

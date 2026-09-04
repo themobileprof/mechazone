@@ -1,4 +1,4 @@
-.PHONY: backend worker client seed deps install start stop ingest ingest-translate pack
+.PHONY: backend worker client seed deps install start stop ingest ingest-translate embed embed-model pack
 
 install:
 	./install.sh
@@ -37,3 +37,9 @@ ingest:
 
 ingest-translate:
 	cd cloud-backend && GOTOOLCHAIN=local go run ./cmd/ingest -dir ../data/manuals -translate
+
+embed-model:
+	./scripts/install-bge-small-embed.sh
+
+embed: embed-model
+	cd cloud-backend && GOTOOLCHAIN=local go run ./cmd/ingest -embed-only

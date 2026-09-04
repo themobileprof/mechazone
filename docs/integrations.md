@@ -13,8 +13,8 @@ Mechazone integrates existing APIs and libraries. Do not rebuild these. Keys sta
 | udsoncan + python-can + can-isotp | UDS / ISO-TP | OSS | udsoncan is the scan client; python-can / can-isotp reserved for a later ELM ISO-TP shim |
 | NikolaKozina/j2534 | Linux OpenPort 2.0 Pass-Thru | OSS (libusb) | Cloned to `third_party/j2534` — needs one `sudo apt` to compile |
 | Tactrix official J2534 | Windows Pass-Thru DLL | Free from Tactrix | Use on Windows only |
-| PostgreSQL + pgvector | Ledger + later RAG | OSS | Ledger uses local Postgres; `postgresql-18-pgvector` is the apt package |
-| Hosted LLM | Phase 2 playbooks | Paid API | Not called yet |
+| PostgreSQL + pgvector | Ledger + hybrid RAG | OSS | Ledger uses local Postgres; `postgresql-18-pgvector` is the apt package |
+| Hosted LLM | Playbooks | Paid API | Wired when `LLM_*` set |
 
 ---
 
@@ -162,20 +162,25 @@ We wrap `udsoncan.Client` for UDS services and `udsoncan.j2534` for Pass-Thru. L
 
 ## 7. PostgreSQL + pgvector
 
-Ledger already uses the Postgres on this machine (`postgres:///mechazone`).
-
-For Phase 2 embeddings:
+Ledger already uses the Postgres on this machine (`postgres:///mechazone`). Playbook retrieval is hybrid: FTS + DTC GIN stay; cosine uses `doc_chunks.embedding vector(384)` (`010`/`011`) from **local** Ollama `bge-small-en-v1.5` (~37MB). pgvector stores vectors; it does not generate them.
 
 ```bash
 sudo apt install postgresql-18-pgvector
-psql -d mechazone -c 'CREATE EXTENSION IF NOT EXISTS vector;'
+sudo -u postgres psql -d mechazone -c 'CREATE EXTENSION IF NOT EXISTS vector;'
+make embed
 ```
 
-Do not add a separate vector-DB product.
+Default `.env` only points at local Ollama. The embedding model is hardcoded `bge-small-en-v1.5` (384-d) in the Go ledger — not `EMBEDDING_MODEL`.
+
+```
+EMBEDDING_BASE_URL=http://127.0.0.1:11434
+```
+
+`doc_embedding_meta` records that name. Cosine is skipped if the index row is anything else. Query-time still needs Ollama on the **ledger** host — see [server.md](server.md). Do not add a separate vector-DB product.
 
 ---
 
-## 8. Hosted LLM (Phase 2 — do not train a model)
+## 8. Hosted LLM (do not train a model)
 
 Playbooks call an OpenAI-compatible chat API (DeepSeek is the default). Gemini can be swapped later with a different client. The model sequences tests and lookouts from ledger + network + ingested manuals (any language). It does not draw diagrams. Drop PDFs in `data/manuals/` and run `make ingest` — `docs/manuals.md`. Contract: `docs/playbook.md`. Env:
 
@@ -183,9 +188,8 @@ Playbooks call an OpenAI-compatible chat API (DeepSeek is the default). Gemini c
 LLM_BASE_URL=
 LLM_API_KEY=
 LLM_MODEL=
+EMBEDDING_BASE_URL=http://127.0.0.1:11434
 ```
-
-Not invoked today.
 
 ---
 
@@ -200,7 +204,8 @@ Copy `.env.example`. Only fill keys you actually have.
 | `CARAPI_TOKEN` / `CARAPI_SECRET` | CarAPI |
 | `VINCARIO_API_KEY` / `VINCARIO_SECRET_KEY` | Vincario |
 | `J2534_LIB` | Path to `j2534.so` or frozen clone DLL (never from tactrix.com) |
-| `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` | Hosted playbook model (Phase 2) |
+| `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` | Hosted playbook chat model |
+| `EMBEDDING_BASE_URL` | Local Ollama host; model is always `bge-small-en-v1.5` |
 | `IMPORT_DIR` | Attached scanner PDFs/photos (default `data/imported-reports`) |
 | `MECHAZONE_ADAPTER` | `mock` or `openport2_rev_e` |
 | `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD` | First admin (not a third party) |

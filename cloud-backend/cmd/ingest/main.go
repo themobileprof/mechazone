@@ -19,6 +19,7 @@ func main() {
 	dir := flag.String("dir", "data/manuals", "folder of PDFs and HTML-tree sidecar JSON files")
 	htmlRoot := flag.String("html", "", "ingest this HTML manual tree (needs a sidecar JSON next to it or make/model flags)")
 	translate := flag.Bool("translate", false, "also store an English gloss via the LLM (original language is always kept)")
+	embedOnly := flag.Bool("embed-only", false, "backfill NULL doc_chunks.embedding without re-ingesting HTML")
 	flag.Parse()
 
 	log := slog.New(slog.NewTextHandler(os.Stdout, nil))
@@ -45,6 +46,19 @@ func main() {
 	} else if *translate {
 		log.Error("LLM_API_KEY required for -translate")
 		os.Exit(1)
+	}
+	if cfg.EmbeddingReady() {
+		fuser.Embed = ai.NewEmbedder(cfg.EmbeddingBaseURL, cfg.EmbeddingAPIKey)
+	}
+
+	if *embedOnly {
+		n, err := fuser.EmbedPending(ctx)
+		if err != nil {
+			log.Error("embed", "err", err)
+			os.Exit(1)
+		}
+		fmt.Printf("embedded %d chunks\n", n)
+		return
 	}
 
 	var results []ai.IngestResult
@@ -90,5 +104,13 @@ func main() {
 			continue
 		}
 		fmt.Printf("%s  lang=%s  chunks=%d  figures=%d  id=%s\n", filepath.Base(r.Path), r.Language, r.Chunks, r.Figures, r.SourceID)
+	}
+	if fuser.Embed != nil && fuser.Embed.Ready() {
+		n, err := fuser.EmbedPending(ctx)
+		if err != nil {
+			log.Error("embed", "err", err)
+			os.Exit(1)
+		}
+		fmt.Printf("embedded %d chunks\n", n)
 	}
 }

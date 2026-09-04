@@ -26,6 +26,8 @@ type Config struct {
 	LLMBaseURL         string
 	LLMAPIKey          string
 	LLMModel           string
+	EmbeddingBaseURL   string
+	EmbeddingAPIKey    string
 }
 
 func Load() (Config, error) {
@@ -47,6 +49,8 @@ func Load() (Config, error) {
 		LLMBaseURL:         strings.TrimRight(env("LLM_BASE_URL", "https://api.deepseek.com"), "/"),
 		LLMAPIKey:          env("LLM_API_KEY", ""),
 		LLMModel:           env("LLM_MODEL", "deepseek-chat"),
+		EmbeddingBaseURL:   strings.TrimRight(env("EMBEDDING_BASE_URL", "http://127.0.0.1:11434"), "/"),
+		EmbeddingAPIKey:    env("EMBEDDING_API_KEY", ""),
 	}
 	if cfg.DatabaseURL == "" {
 		return Config{}, fmt.Errorf("DATABASE_URL is required")
@@ -56,6 +60,21 @@ func Load() (Config, error) {
 
 func (c Config) LLMReady() bool {
 	return c.LLMEnabled && c.LLMAPIKey != "" && c.LLMBaseURL != "" && c.LLMModel != ""
+}
+
+func (c Config) EmbeddingReady() bool {
+	if c.EmbeddingBaseURL == "" {
+		return false
+	}
+	if localEmbedHost(c.EmbeddingBaseURL) {
+		return true
+	}
+	return c.EmbeddingAPIKey != ""
+}
+
+func localEmbedHost(u string) bool {
+	u = strings.ToLower(u)
+	return strings.Contains(u, "127.0.0.1") || strings.Contains(u, "localhost") || strings.Contains(u, "[::1]")
 }
 
 func env(key, fallback string) string {

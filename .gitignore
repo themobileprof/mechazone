@@ -30,3 +30,4 @@ data/manuals/*.PDF
 data/manuals/avensis-zrt27/
 data/imported-reports/*
 !data/imported-reports/.gitkeep
+data/models/*.gguf

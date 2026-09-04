@@ -15,6 +15,7 @@ import (
 
 type Fuser struct {
 	LLM   *Client
+	Embed *Embedder
 	Store *ledger.Store
 	Log   *slog.Logger
 }
@@ -110,11 +111,36 @@ func (f *Fuser) Build(ctx context.Context, req Request) (Playbook, error) {
 			req.EngineHint = src.Engine
 		}
 	}
-	q := strings.TrimSpace(strings.Join(append(req.ActiveCodes, req.EngineHint, req.Make, req.Model), " "))
-	docs, figs, err := f.Store.SearchManuals(ctx, ledger.ManualQuery{
+	q := retrievalQuery(req)
+	mq := ledger.ManualQuery{
 		Make: req.Make, Model: req.Model, Year: req.Year,
 		Codes: req.ActiveCodes, Query: q, Wiring: wiring, SourceID: req.SourceID,
-	})
+	}
+	if f.Embed != nil && f.Embed.Ready() && q != "" && f.Store.HasChunkEmbeddings() {
+		meta, err := f.Store.EmbeddingMeta(ctx)
+		if err != nil {
+			return Playbook{}, fmt.Errorf("embed meta: %w", err)
+		}
+		if meta.Model == "" {
+			if f.Log != nil {
+				f.Log.Warn("chunk vectors have no recorded model; FTS only")
+			}
+		} else if !meta.MatchesIndex() {
+			if f.Log != nil {
+				f.Log.Error("cosine skipped", "err", ledger.EmbedModelMismatch(meta))
+			}
+		} else {
+			vecs, err := f.Embed.Embed(ctx, []string{f.Embed.QueryText(q)})
+			if err != nil {
+				if f.Log != nil {
+					f.Log.Warn("embed query failed; FTS only", "err", err)
+				}
+			} else if len(vecs) == 1 {
+				mq.Embedding = vecs[0]
+			}
+		}
+	}
+	docs, figs, err := f.Store.SearchManuals(ctx, mq)
 	if err != nil {
 		return Playbook{}, fmt.Errorf("manuals: %w", err)
 	}
@@ -171,6 +197,17 @@ func (f *Fuser) Build(ctx context.Context, req Request) (Playbook, error) {
 		})
 	}
 	return book, nil
+}
+
+func retrievalQuery(req Request) string {
+	parts := append([]string{}, req.ActiveCodes...)
+	parts = append(parts, req.EngineHint, req.Make, req.Model)
+	for _, live := range req.Live {
+		if n := strings.TrimSpace(live.Name); n != "" {
+			parts = append(parts, n)
+		}
+	}
+	return strings.TrimSpace(strings.Join(parts, " "))
 }
 
 const systemPrompt = `You are a senior diagnostic engineer writing a shop-floor playbook for ONE vehicle.

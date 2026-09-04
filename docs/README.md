@@ -3,6 +3,7 @@
 | Doc | What it is |
 | --- | --- |
 | [install.md](install.md) | Shop laptop install (Release zip or source) |
+| [server.md](server.md) | Ledger/VPS: Ollama for cosine queries, Postgres, `.env` |
 | [project.md](project.md) | Original product spec (mission, privacy, data model, playbook contract) |
 | [decisions.md](decisions.md) | Decisions we actually shipped — including where they differ from the spec |
 | [code.md](code.md) | Repository map: packages, processes, APIs |

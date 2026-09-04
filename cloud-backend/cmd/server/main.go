@@ -68,7 +68,22 @@ func main() {
 			Store: store,
 			Log:   log,
 		}
-		log.Info("playbook llm ready", "model", cfg.LLMModel)
+		if cfg.EmbeddingReady() {
+			meta, err := store.EmbeddingMeta(ctx)
+			switch {
+			case err != nil:
+				log.Error("embed meta", "err", err)
+				log.Info("playbook llm ready", "model", cfg.LLMModel, "embed", "fts-only")
+			case meta.Model != "" && !meta.MatchesIndex():
+				log.Error("cosine disabled", "err", ledger.EmbedModelMismatch(meta))
+				log.Info("playbook llm ready", "model", cfg.LLMModel, "embed", "fts-only")
+			default:
+				fuser.Embed = ai.NewEmbedder(cfg.EmbeddingBaseURL, cfg.EmbeddingAPIKey)
+				log.Info("playbook llm ready", "model", cfg.LLMModel, "embed", ledger.ChunkEmbedModel, "index", meta.Model)
+			}
+		} else {
+			log.Info("playbook llm ready", "model", cfg.LLMModel, "embed", "fts-only")
+		}
 	} else {
 		log.Info("playbook llm off")
 	}

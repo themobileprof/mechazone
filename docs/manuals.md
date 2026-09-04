@@ -65,7 +65,18 @@ Re-running the same PDF replaces its chunks (hash of the file).
 - Figure captions (Fig. / Abbildung / 図) as page citations — not generated drawings
 - Optional `body_en` if you used `-translate`
 
-Playbook retrieval: same make + model + year band, then DTC overlap, then full-text (`simple`, language-agnostic). Cited figures are `figure:<id>` (manual title + page). No LLM sketches.
+Playbook retrieval: same make + model + year band (or a pinned `source_id`), then a hybrid of DTC GIN overlap, full-text (`simple`, language-agnostic), and cosine on `doc_chunks.embedding` when the ledger can embed the query (local Ollama). Cited figures are `figure:<id>` (manual title + page). No LLM sketches.
+
+## 4. Embeddings (do not re-ingest)
+
+HTML/PDF ingest does not write vectors. After `010`/`011` add `vector(384)` for **bge-small-en-v1.5**, backfill NULLs locally:
+
+```bash
+# Ollama on this machine (no cloud key). ~37MB Q8, 384-dim, fits a 2GB box.
+make embed
+```
+
+`make embed` installs the GGUF into Ollama if needed (`scripts/install-bge-small-embed.sh`), then fills `doc_chunks.embedding`. The model is always **bge-small-en-v1.5** (384-d) — not an env var — so laptop and server cannot drift. Query-time embed failure falls back to FTS. Customer names/phones/plates are never embedded. Playbook chat (`LLM_*`) stays a separate hosted API.
 
 ## Copyright
 

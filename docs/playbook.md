@@ -12,7 +12,7 @@ It is not a chat box on a fault code. It does not invent pins, voltages, or draw
 | Imported report (optional) | File attached on the bay (`adapter_type=imported_report`). Typed codes + note only — the PDF is not sent to the model. | Not a live capture. Gap: confirm with this OpenPort. |
 | This shop's jobs on this VIN | PostgreSQL sessions + closeouts scoped to the login shop (or freelancer) | Still retrieve manuals; say first visit to this shop |
 | This shop's similar platform jobs | Same make/model/year-band + codes, **this shop only**, no other VIN | Omit that section |
-| Retrieved docs | Manual corpus (`data/manuals` ingest) + later `pgvector`. Licensed ODX/PDX (odxtools) if you have it. | No pin numbers that were not retrieved. Chunks may be in any language. |
+| Retrieved docs | Manual corpus (`data/manuals` ingest). Hybrid FTS + `pgvector` cosine on the same Postgres, still scoped to this platform or a pinned book. Licensed ODX/PDX (odxtools) if you have it. | No pin numbers that were not retrieved. Chunks may be in any language. |
 | Retrieved figures | Figures indexed to those chunks / platform key | Show “no diagram on file” — do not generate one |
 
 Do not call the LLM until the shop-job lookup and retrieval queries have run. A scan with no DTCs still gets a playbook from live data, the module map, and this shop's jobs. Generic P0xxx seed text may attach; it must not replace this shop's work log. A vehicle's jobs do not follow it to another shop.
@@ -88,4 +88,4 @@ A DID wiggle log streams ECM identifiers while the technician moves the loom. Th
 
 ## Implementation home
 
-`cloud-backend/internal/ai/` — retrieve, cite, call an existing LLM API (`LLM_*` in `.env`). Do not train or host a model. Do not rebuild a PDF product; wrap an OSS parser.
+`cloud-backend/internal/ai/` — retrieve (FTS + optional cosine), cite, call an existing LLM API (`LLM_*` in `.env`). Chunk embeddings are always local Ollama `bge-small-en-v1.5`. Do not train or host a playbook model. Do not rebuild a PDF product; wrap an OSS parser.

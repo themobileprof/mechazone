@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"mechazone/cloud-backend/internal/vin"
@@ -21,7 +22,8 @@ import (
 )
 
 type Store struct {
-	pool *pgxpool.Pool
+	pool               *pgxpool.Pool
+	hasChunkEmbeddings bool
 }
 
 // Open is the ledger database pool. Call Migrate before serving HTTP.
@@ -85,6 +87,12 @@ func (s *Store) Migrate(ctx context.Context) error {
 		}
 		if _, err := tx.Exec(ctx, string(sql)); err != nil {
 			_ = tx.Rollback(ctx)
+			if (name == "010_chunk_embeddings.sql" || name == "011_bge_small_dim.sql") && vectorExtensionUnavailable(err) {
+				continue
+			}
+			if name == "010_chunk_embeddings.sql" || name == "011_bge_small_dim.sql" {
+				return fmt.Errorf("apply %s: %w (install pgvector, then: sudo -u postgres psql -d mechazone -c 'CREATE EXTENSION vector')", name, err)
+			}
 			return fmt.Errorf("apply %s: %w", name, err)
 		}
 		if _, err := tx.Exec(ctx, `INSERT INTO schema_migrations (filename) VALUES ($1)`, name); err != nil {
@@ -95,7 +103,33 @@ func (s *Store) Migrate(ctx context.Context) error {
 			return err
 		}
 	}
+	s.probeChunkEmbeddings(ctx)
 	return nil
+}
+
+func vectorExtensionUnavailable(err error) bool {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "0A000" || pgErr.Code == "42501"
+	}
+	msg := err.Error()
+	return strings.Contains(msg, `extension "vector"`) || strings.Contains(msg, "pgvector")
+}
+
+func (s *Store) probeChunkEmbeddings(ctx context.Context) {
+	var ok bool
+	if err := s.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM information_schema.columns
+			WHERE table_schema = 'public' AND table_name = 'doc_chunks' AND column_name = 'embedding'
+		)
+	`).Scan(&ok); err == nil {
+		s.hasChunkEmbeddings = ok
+	}
+}
+
+func (s *Store) HasChunkEmbeddings() bool {
+	return s != nil && s.hasChunkEmbeddings
 }
 
 func (s *Store) SeedDTCs(ctx context.Context, path string) error {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -14,19 +15,25 @@ import (
 )
 
 type DocSource struct {
-	ID       string
-	SHA256   string
-	Path     string
-	Title    string
-	Kind     string
-	Make     string
-	Model    string
-	YearFrom int
-	YearTo   int
+	ID        string
+	SHA256    string
+	Path      string
+	Title     string
+	Kind      string
+	Make      string
+	Model     string
+	YearFrom  int
+	YearTo    int
 	Engine    string
 	Language  string
 	ImageRoot string
 }
+
+// Chunk embeddings are always BAAI/bge-small-en-v1.5 (384-d). Not configurable.
+const (
+	ChunkEmbedModel = "bge-small-en-v1.5"
+	ChunkEmbedDim   = 384
+)
 
 type DocChunkIn struct {
 	Page     int
@@ -38,22 +45,23 @@ type DocChunkIn struct {
 }
 
 type DocFigureIn struct {
-	Page     int
-	Caption  string
+	Page      int
+	Caption   string
 	Language  string
 	ImagePath string
 	OCRText   string
 }
 
 type RetrievedChunk struct {
-	ID       string `json:"id"`
-	SourceID string `json:"source_id"`
-	Title    string `json:"title"`
-	Page     int    `json:"page"`
-	Language string `json:"language"`
-	Body     string `json:"body"`
-	BodyEN   string `json:"body_en,omitempty"`
+	ID       string   `json:"id"`
+	SourceID string   `json:"source_id"`
+	Title    string   `json:"title"`
+	Page     int      `json:"page"`
+	Language string   `json:"language"`
+	Body     string   `json:"body"`
+	BodyEN   string   `json:"body_en,omitempty"`
 	Codes    []string `json:"codes"`
+	RelPath  string   `json:"-"`
 }
 
 type RetrievedFigure struct {
@@ -62,11 +70,11 @@ type RetrievedFigure struct {
 	Title    string `json:"title"`
 	Page     int    `json:"page"`
 	Caption  string `json:"caption"`
-	Language  string `json:"language"`
-	HasImage  bool   `json:"has_image"`
-	ImageURL  string `json:"image_url,omitempty"`
-	OCRText   string `json:"ocr_text,omitempty"`
-	Kind      string `json:"kind,omitempty"`
+	Language string `json:"language"`
+	HasImage bool   `json:"has_image"`
+	ImageURL string `json:"image_url,omitempty"`
+	OCRText  string `json:"ocr_text,omitempty"`
+	Kind     string `json:"kind,omitempty"`
 }
 
 // ManualCatalog is one ingested workshop book the bay can pin for retrieval.
@@ -86,13 +94,14 @@ type ManualCatalog struct {
 
 // ManualQuery is playbook retrieval. SourceID pins one book when decode did not name the body.
 type ManualQuery struct {
-	Make     string
-	Model    string
-	Year     int
-	Codes    []string
-	Query    string
-	Wiring   bool
-	SourceID string
+	Make      string
+	Model     string
+	Year      int
+	Codes     []string
+	Query     string
+	Wiring    bool
+	SourceID  string
+	Embedding []float32
 }
 
 func (s *Store) ReplaceDoc(ctx context.Context, src DocSource, chunks []DocChunkIn, figures []DocFigureIn) (string, error) {
@@ -217,8 +226,37 @@ func (s *Store) SearchManuals(ctx context.Context, q ManualQuery) ([]RetrievedCh
 		makeName = ""
 		model = ""
 	}
-	rows, err := s.pool.Query(ctx, `
-		SELECT c.id, c.source_id, s.title, c.page, c.language, c.body, c.body_en, c.codes
+	if !s.hasChunkEmbeddings {
+		q.Embedding = nil
+	} else if len(q.Embedding) > 0 {
+		meta, err := s.EmbeddingMeta(ctx)
+		if err != nil {
+			return nil, nil, err
+		}
+		if meta.Model == "" || !meta.MatchesIndex() || len(q.Embedding) != ChunkEmbedDim {
+			q.Embedding = nil
+		}
+	}
+	fts, err := s.searchManualsRanked(ctx, source, makeName, model, year, q.Codes, query, ewdBoost, "", 30)
+	if err != nil {
+		return nil, nil, err
+	}
+	chunks := fts
+	if len(q.Embedding) > 0 {
+		vec, err := s.searchManualsRanked(ctx, source, makeName, model, year, q.Codes, query, ewdBoost, VectorLiteral(q.Embedding), 30)
+		if err != nil {
+			return nil, nil, err
+		}
+		chunks = mergeHybridChunks(fts, vec, q.Codes, q.Wiring)
+	} else if len(chunks) > 10 {
+		chunks = chunks[:10]
+	}
+	return s.figuresForChunks(ctx, chunks, q, source, makeName, model, year)
+}
+
+func (s *Store) searchManualsRanked(ctx context.Context, source any, makeName, model string, year int, codes []string, query string, ewdBoost int, qvec string, limit int) ([]RetrievedChunk, error) {
+	filter := `
+		SELECT c.id, c.source_id, s.title, c.page, c.language, c.body, c.body_en, c.codes, c.rel_path
 		FROM doc_chunks c
 		JOIN doc_sources s ON s.id = c.source_id
 		WHERE ($1::uuid IS NULL OR s.id = $1::uuid)
@@ -230,22 +268,41 @@ func (s *Store) SearchManuals(ctx context.Context, q ManualQuery) ([]RetrievedCh
 		        OR c.codes && $5
 		        OR ($6 <> '' AND c.tsv @@ plainto_tsquery('simple', $6))
 		        OR $6 = ''
-		      )
-		ORDER BY ($7::int * CASE WHEN c.rel_path ILIKE '%ewd%' OR c.rel_path ILIKE '%connector%' THEN 1 ELSE 0 END) DESC,
-		         (c.codes && $5) DESC,
-		         CASE WHEN $6 <> '' THEN ts_rank(c.tsv, plainto_tsquery('simple', $6)) ELSE 0 END DESC
-		LIMIT 10
-	`, source, makeName, model, year, q.Codes, query, ewdBoost)
+		      )`
+	var rows pgx.Rows
+	var err error
+	if qvec == "" {
+		rows, err = s.pool.Query(ctx, filter+`
+			ORDER BY ($7::int * CASE WHEN c.rel_path ILIKE '%ewd%' OR c.rel_path ILIKE '%connector%' THEN 1 ELSE 0 END) DESC,
+			         (c.codes && $5) DESC,
+			         CASE WHEN $6 <> '' THEN ts_rank(c.tsv, plainto_tsquery('simple', $6)) ELSE 0 END DESC
+			LIMIT $8
+		`, source, makeName, model, year, codes, query, ewdBoost, limit)
+	} else {
+		rows, err = s.pool.Query(ctx, `
+		SELECT c.id, c.source_id, s.title, c.page, c.language, c.body, c.body_en, c.codes, c.rel_path
+		FROM doc_chunks c
+		JOIN doc_sources s ON s.id = c.source_id
+		WHERE ($1::uuid IS NULL OR s.id = $1::uuid)
+		  AND ($2 = '' OR lower(s.make) = lower($2))
+		  AND ($3 = '' OR lower(s.model) = lower($3))
+		  AND ($4 = 2000 OR (s.year_from <= $4 AND s.year_to >= $4))
+		  AND c.embedding IS NOT NULL
+		ORDER BY ($5::int * CASE WHEN c.rel_path ILIKE '%ewd%' OR c.rel_path ILIKE '%connector%' THEN 1 ELSE 0 END) DESC,
+		         (c.codes && $6) DESC,
+		         c.embedding <=> $7::vector
+		LIMIT $8
+		`, source, makeName, model, year, ewdBoost, codes, qvec, limit)
+	}
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	defer rows.Close()
 	chunks := []RetrievedChunk{}
-	pages := map[string][]int{}
 	for rows.Next() {
 		var c RetrievedChunk
-		if err := rows.Scan(&c.ID, &c.SourceID, &c.Title, &c.Page, &c.Language, &c.Body, &c.BodyEN, &c.Codes); err != nil {
-			return nil, nil, err
+		if err := rows.Scan(&c.ID, &c.SourceID, &c.Title, &c.Page, &c.Language, &c.Body, &c.BodyEN, &c.Codes, &c.RelPath); err != nil {
+			return nil, err
 		}
 		if len(c.Body) > 2500 {
 			c.Body = c.Body[:2500]
@@ -254,12 +311,15 @@ func (s *Store) SearchManuals(ctx context.Context, q ManualQuery) ([]RetrievedCh
 			c.BodyEN = c.BodyEN[:2500]
 		}
 		chunks = append(chunks, c)
+	}
+	return chunks, rows.Err()
+}
+
+func (s *Store) figuresForChunks(ctx context.Context, chunks []RetrievedChunk, q ManualQuery, source any, makeName, model string, year int) ([]RetrievedChunk, []RetrievedFigure, error) {
+	pages := map[string][]int{}
+	for _, c := range chunks {
 		pages[c.SourceID] = append(pages[c.SourceID], c.Page)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, nil, err
-	}
-
 	figs := []RetrievedFigure{}
 	for sourceID, pg := range pages {
 		frows, err := s.pool.Query(ctx, `
@@ -300,6 +360,190 @@ func (s *Store) SearchManuals(ctx context.Context, q ManualQuery) ([]RetrievedCh
 		figs = mergeFigures(figs, extra)
 	}
 	return chunks, figs, nil
+}
+
+type ChunkEmbedRow struct {
+	ID     string
+	Body   string
+	BodyEN string
+	Codes  []string
+}
+
+func (s *Store) ChunksWithoutEmbedding(ctx context.Context, limit int) ([]ChunkEmbedRow, error) {
+	if !s.hasChunkEmbeddings {
+		return nil, fmt.Errorf("doc_chunks.embedding is missing; install postgresql-18-pgvector, then: sudo -u postgres psql -d mechazone -c 'CREATE EXTENSION vector'")
+	}
+	if limit <= 0 {
+		limit = 32
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT id::text, body, body_en, codes
+		FROM doc_chunks
+		WHERE embedding IS NULL
+		ORDER BY id
+		LIMIT $1
+	`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []ChunkEmbedRow{}
+	for rows.Next() {
+		var r ChunkEmbedRow
+		if err := rows.Scan(&r.ID, &r.Body, &r.BodyEN, &r.Codes); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) SetChunkEmbeddings(ctx context.Context, ids []string, vecs [][]float32) error {
+	if len(ids) != len(vecs) {
+		return fmt.Errorf("embed batch size mismatch")
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	for i, id := range ids {
+		if _, err := tx.Exec(ctx, `UPDATE doc_chunks SET embedding = $2::vector WHERE id = $1::uuid`, id, VectorLiteral(vecs[i])); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
+}
+
+// EmbeddingMeta is the model that wrote doc_chunks.embedding. Empty Model means none yet.
+type EmbeddingMeta struct {
+	Model string
+	Dim   int
+}
+
+func CanonicalEmbedModel(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	return strings.TrimSuffix(s, ":latest")
+}
+
+func (m EmbeddingMeta) MatchesIndex() bool {
+	return CanonicalEmbedModel(m.Model) == ChunkEmbedModel && m.Dim == ChunkEmbedDim
+}
+
+func (s *Store) EmbeddingMeta(ctx context.Context) (EmbeddingMeta, error) {
+	var m EmbeddingMeta
+	err := s.pool.QueryRow(ctx, `SELECT model, dim FROM doc_embedding_meta WHERE singleton`).Scan(&m.Model, &m.Dim)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return EmbeddingMeta{}, nil
+	}
+	return m, err
+}
+
+func EmbedModelMismatch(index EmbeddingMeta) error {
+	return fmt.Errorf("embedding index is %s (%d-dim); Mechazone only uses %s (%d-dim)", CanonicalEmbedModel(index.Model), index.Dim, ChunkEmbedModel, ChunkEmbedDim)
+}
+
+// LockEmbeddingModel records bge-small-en-v1.5 as the index model. Refuses any other row.
+func (s *Store) LockEmbeddingModel(ctx context.Context) error {
+	meta, err := s.EmbeddingMeta(ctx)
+	if err != nil {
+		return err
+	}
+	if meta.Model == "" {
+		_, err := s.pool.Exec(ctx, `
+			INSERT INTO doc_embedding_meta (singleton, model, dim)
+			VALUES (TRUE, $1, $2)
+			ON CONFLICT (singleton) DO NOTHING
+		`, ChunkEmbedModel, ChunkEmbedDim)
+		if err != nil {
+			return err
+		}
+		meta, err = s.EmbeddingMeta(ctx)
+		if err != nil {
+			return err
+		}
+	}
+	if !meta.MatchesIndex() {
+		return EmbedModelMismatch(meta)
+	}
+	return nil
+}
+
+func VectorLiteral(v []float32) string {
+	var b strings.Builder
+	b.WriteByte('[')
+	for i, x := range v {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		b.WriteString(strconv.FormatFloat(float64(x), 'f', 6, 32))
+	}
+	b.WriteByte(']')
+	return b.String()
+}
+
+func mergeHybridChunks(fts, vec []RetrievedChunk, codes []string, wiring bool) []RetrievedChunk {
+	const k = 60
+	type scored struct {
+		chunk RetrievedChunk
+		score float64
+	}
+	byID := map[string]*scored{}
+	add := func(list []RetrievedChunk, weight float64) {
+		for i, c := range list {
+			if c.ID == "" {
+				continue
+			}
+			row, ok := byID[c.ID]
+			if !ok {
+				cp := c
+				row = &scored{chunk: cp}
+				byID[c.ID] = row
+			}
+			row.score += weight / float64(k+i+1)
+		}
+	}
+	add(fts, 1)
+	add(vec, 1)
+	want := map[string]struct{}{}
+	for _, c := range codes {
+		c = strings.ToUpper(strings.TrimSpace(c))
+		if c != "" {
+			want[c] = struct{}{}
+		}
+	}
+	out := make([]scored, 0, len(byID))
+	for _, row := range byID {
+		for _, code := range row.chunk.Codes {
+			if _, ok := want[strings.ToUpper(strings.TrimSpace(code))]; ok {
+				row.score += 1
+				break
+			}
+		}
+		if wiring {
+			p := strings.ToLower(row.chunk.RelPath)
+			if strings.Contains(p, "ewd") || strings.Contains(p, "connector") {
+				row.score += 0.5
+			}
+		}
+		out = append(out, *row)
+	}
+	for i := 0; i < len(out); i++ {
+		for j := i + 1; j < len(out); j++ {
+			if out[j].score > out[i].score {
+				out[i], out[j] = out[j], out[i]
+			}
+		}
+	}
+	n := 10
+	if n > len(out) {
+		n = len(out)
+	}
+	chunks := make([]RetrievedChunk, 0, n)
+	for i := 0; i < n; i++ {
+		chunks = append(chunks, out[i].chunk)
+	}
+	return chunks
 }
 
 func (s *Store) searchWiringFigures(ctx context.Context, source any, makeName, model string, year int) ([]RetrievedFigure, error) {
