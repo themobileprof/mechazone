@@ -306,3 +306,42 @@ func (s *Server) upsertBusCapture(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, saved)
 }
+
+func (s *Server) upsertPlaybookCheck(w http.ResponseWriter, r *http.Request) {
+	v, err := pathVIN(r)
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	p, ok := principalFrom(r.Context())
+	if !ok || p.TechnicianID == "" {
+		writeError(w, http.StatusForbidden, "technician login required")
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<16))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "unreadable body")
+		return
+	}
+	if err := pii.RejectCloudPII(body); err != nil {
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	var in ledger.PlaybookCheckIn
+	if err := json.Unmarshal(body, &in); err != nil {
+		writeError(w, http.StatusBadRequest, "malformed check")
+		return
+	}
+	if err := s.store.EnsureVehicle(r.Context(), v, "", "", 0, "check"); err != nil {
+		s.log.Error("ensure vehicle", "err", err)
+		writeError(w, http.StatusInternalServerError, "vehicle persist failed")
+		return
+	}
+	saved, err := s.store.UpsertPlaybookCheck(r.Context(), v, p.ShopID, p.TechnicianID, in)
+	if err != nil {
+		s.log.Error("check", "err", err)
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, saved)
+}

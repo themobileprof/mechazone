@@ -153,7 +153,7 @@ func (f *Fuser) Build(ctx context.Context, req Request) (Playbook, error) {
 		req.Language = "en"
 	}
 
-	user, err := buildUserPrompt(req, hist, matches, titles, docs, figs, classes, net, wiring)
+	user, err := buildUserPrompt(req, hist, matches, titles, docs, figs, classes, net, wiring, settledChecks(hist.Checks))
 	if err != nil {
 		return Playbook{}, err
 	}
@@ -196,6 +196,18 @@ func (f *Fuser) Build(ctx context.Context, req Request) (Playbook, error) {
 			ImageURL: fig.ImageURL, OCRText: fig.OCRText, Kind: fig.Kind,
 		})
 	}
+	if err := f.Store.EnsureVehicle(ctx, req.VIN, req.Make, req.Model, req.Year, "playbook"); err != nil {
+		return Playbook{}, fmt.Errorf("vehicle: %w", err)
+	}
+	seeds := make([]ledger.PlaybookStepSeed, 0, len(book.Steps))
+	for _, st := range book.Steps {
+		seeds = append(seeds, ledger.PlaybookStepSeed{Kind: st.Kind, Title: st.Title, Detail: st.Detail})
+	}
+	checks, err := f.Store.SyncPlaybookSteps(ctx, req.VIN, req.ShopID, req.TechnicianID, seeds)
+	if err != nil {
+		return Playbook{}, fmt.Errorf("checks: %w", err)
+	}
+	book.Checks = checks
 	return book, nil
 }
 
@@ -223,7 +235,7 @@ evidence MUST be a JSON array of strings, never a single string. Example: "evide
 Rules:
 - Use this shop's jobs on THIS vehicle first (what was done, parts, closeouts). That record stays in this shop — it is not a public VIN history.
 - Then this shop's similar jobs on other vehicles of the same platform. Never treat another shop's work, or another VIN, as this car's history.
-- Every lookout and cause MUST cite evidence using only these prefixes: ledger:, resolution:<id>, network:<id>, session:<id>, dtc:<code>, live:<name>, vehicle:decode, doc:<id>, figure:<id>, module:<name>.
+- Every lookout and cause MUST cite evidence using only these prefixes: ledger:, resolution:<id>, network:<id>, session:<id>, dtc:<code>, live:<name>, vehicle:decode, doc:<id>, figure:<id>, module:<name>, check:.
 - Manual chunks may be in another language. Use them. Do not discard a procedure because it is not English.
 - Write lookouts, steps, and validation in the requested playbook language.
 - Do not invent pin numbers, voltages, or access steps that are not in the provided context. Put missing facts in gaps.
@@ -233,22 +245,34 @@ Rules:
 - If network.reading is backbone, check DLC power/ground/CAN before a single module. If branch, stay on the silent confirmed node.
 - There are no captured UDS $2F IO-control IDs on this profile. Do not invent actuator commands. Put that in gaps if an output test would help.
 - If this shop already closed the same code on this vehicle, say so in lookouts and do not lead with that same part swap.
+- bay_checks are tests this shop already ran or ruled out on this VIN. status done = they performed it (use note as the finding). status ruled_out = they are sure this is not the fault. Do not lead with a ruled_out step unless live data contradicts it. After a done check, pick the next test from the finding — do not repeat the same step.
 - If there are no DTCs, still advise from live DIDs, the module map, and this shop's jobs. Lookouts are suspected challenges (repeats, wiring, missing nodes), not a code dump.
 - If live_scan.adapter_type is imported_report, the codes were typed from another scanner's file. Do not invent live DIDs, module tx/rx, or freeze-frame. Cite session:<id>. Put the missing live OpenPort scan in gaps.
 - No customer names, phones, or plates.`
 
-func buildUserPrompt(req Request, hist ledger.History, matches []ledger.NetworkMatch, titles map[string]ledger.DTC, docs []ledger.RetrievedChunk, figs []ledger.RetrievedFigure, classes []CircuitClass, net NetworkHint, wiring bool) (string, error) {
+func settledChecks(in []ledger.PlaybookCheck) []ledger.PlaybookCheck {
+	out := make([]ledger.PlaybookCheck, 0, len(in))
+	for _, c := range in {
+		if c.Status == ledger.CheckDone || c.Status == ledger.CheckRuledOut {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+func buildUserPrompt(req Request, hist ledger.History, matches []ledger.NetworkMatch, titles map[string]ledger.DTC, docs []ledger.RetrievedChunk, figs []ledger.RetrievedFigure, classes []CircuitClass, net NetworkHint, wiring bool, checks []ledger.PlaybookCheck) (string, error) {
 	type payload struct {
-		PlaybookLanguage string                `json:"playbook_language"`
-		Vehicle          any                   `json:"vehicle"`
-		FirstSeen        bool                  `json:"first_seen"`
-		WiringShaped     bool                  `json:"wiring_shaped"`
-		CircuitClasses   []CircuitClass        `json:"circuit_classes"`
-		Network          NetworkHint           `json:"network"`
-		LiveScan         Request               `json:"live_scan"`
-		DTCTitles        map[string]ledger.DTC `json:"dtc_titles"`
-		ShopWork         ledger.History        `json:"shop_work"`
-		ShopPlatformJobs []ledger.NetworkMatch `json:"shop_platform_jobs"`
+		PlaybookLanguage string                 `json:"playbook_language"`
+		Vehicle          any                    `json:"vehicle"`
+		FirstSeen        bool                   `json:"first_seen"`
+		WiringShaped     bool                   `json:"wiring_shaped"`
+		CircuitClasses   []CircuitClass         `json:"circuit_classes"`
+		Network          NetworkHint            `json:"network"`
+		LiveScan         Request                `json:"live_scan"`
+		DTCTitles        map[string]ledger.DTC  `json:"dtc_titles"`
+		ShopWork         ledger.History         `json:"shop_work"`
+		BayChecks        []ledger.PlaybookCheck `json:"bay_checks"`
+		ShopPlatformJobs []ledger.NetworkMatch  `json:"shop_platform_jobs"`
 		Retrieved        struct {
 			Docs    []ledger.RetrievedChunk  `json:"docs"`
 			Figures []ledger.RetrievedFigure `json:"figures"`
@@ -263,10 +287,12 @@ func buildUserPrompt(req Request, hist ledger.History, matches []ledger.NetworkM
 		LiveScan:         req,
 		DTCTitles:        titles,
 		ShopWork:         hist,
+		BayChecks:        checks,
 		ShopPlatformJobs: matches,
 	}
 	p.ShopWork.Customer = nil
 	p.ShopWork.Capture = nil
+	p.ShopWork.Checks = nil
 	if hist.Vehicle != nil {
 		p.Vehicle = hist.Vehicle
 	}
@@ -277,7 +303,7 @@ func buildUserPrompt(req Request, hist ledger.History, matches []ledger.NetworkM
 		return "", err
 	}
 	var sb strings.Builder
-	sb.WriteString("Build the playbook from this gathered context. Always produce lookouts and next tests. shop_work is this shop's jobs on this vehicle only. shop_platform_jobs are this shop's similar repairs on other cars (no VIN). Cite retrieved docs as doc:<id> and figures as figure:<id>. If retrieved.docs is empty, do not invent manual text. Lookouts are suspected challenges from the live scan (codes, dark modules, odd DIDs) plus this shop's jobs (repeats, parts already replaced). If live_scan.active_codes is empty, still advise from live DIDs, the module map, and shop_work — do not return an empty playbook. If live_scan.adapter_type is imported_report, do not treat it as an OpenPort capture.\n\n")
+	sb.WriteString("Build the playbook from this gathered context. Always produce lookouts and next tests. shop_work is this shop's jobs on this vehicle only. bay_checks are tests this shop already performed or ruled out on this VIN — iterate from those findings, do not restart the same dead end. shop_platform_jobs are this shop's similar repairs on other cars (no VIN). Cite retrieved docs as doc:<id> and figures as figure:<id>. If retrieved.docs is empty, do not invent manual text. Lookouts are suspected challenges from the live scan (codes, dark modules, odd DIDs) plus this shop's jobs (repeats, parts already replaced) and bay_checks. If live_scan.active_codes is empty, still advise from live DIDs, the module map, and shop_work — do not return an empty playbook. If live_scan.adapter_type is imported_report, do not treat it as an OpenPort capture.\n\n")
 	sb.Write(b)
 	return sb.String(), nil
 }

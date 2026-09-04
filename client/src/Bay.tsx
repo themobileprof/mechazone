@@ -1,6 +1,6 @@
 /** Shop floor: this shop's jobs, OpenPort or attached report, playbook, closeout. */
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { attachImportedReport, buildPlaybook, closeoutSession, decodeVin, fetchHistory, importedReportURL, ingestSession, ledgerOnline, listManuals, lookupDtc, logout, saveCustomer, upsertBusCapture } from './api'
+import { attachImportedReport, buildPlaybook, closeoutSession, decodeVin, fetchHistory, importedReportURL, ingestSession, ledgerOnline, listManuals, lookupDtc, logout, saveCustomer, upsertBusCapture, upsertPlaybookCheck } from './api'
 import { Logo } from './Brand'
 import {
   AttachIcon, BookIcon, ChassisIcon, CheckIcon, ChevronLeftIcon, ChevronRightIcon,
@@ -9,7 +9,7 @@ import {
 } from './chrome'
 import { enqueue, flushQueue, pendingCount } from './queue'
 import { ToastStack, useAutoDismiss, type Notice } from './toast'
-import type { DetectedAdapter, DidStream, HistoryResponse, Playbook, Principal, ScanCoverage, ScanResult, Session, WorkshopBook } from './types'
+import type { DetectedAdapter, DidStream, HistoryResponse, Playbook, PlaybookCheck, Principal, ScanCoverage, ScanResult, Session, WorkshopBook } from './types'
 import { worker } from './worker'
 import { kitVinGap, probePreview } from './vinProbe'
 
@@ -30,7 +30,7 @@ const JOB_TABS = [
   { id: 'kit', n: '01', label: 'KIT', hint: 'Plug the OpenPort, connect' },
   { id: 'vehicle', n: '02', label: 'VEHICLE', hint: 'Type the VIN — the kit rarely fills it' },
   { id: 'capture', n: '03', label: 'CAPTURE', hint: 'Deep scan or attach a report' },
-  { id: 'playbook', n: '04', label: 'PLAYBOOK', hint: 'What to test on this car' },
+  { id: 'playbook', n: '04', label: 'PLAYBOOK', hint: 'Tick tests, then rebuild from findings' },
   { id: 'close', n: '05', label: 'CLOSE', hint: 'Log the visit, write what fixed it' },
 ] as const
 
@@ -93,6 +93,11 @@ function captureBody(result: ScanResult) {
   }
 }
 
+function checkFingerprint(kind: string, title: string) {
+  const k = (kind || 'test').trim().toLowerCase() || 'test'
+  return `${k}|${title.trim().toLowerCase()}`
+}
+
 function matchManualId(books: WorkshopBook[], vehicle: HistoryResponse['vehicle'], scan: ScanResult | null) {
   if (scan?.profile === 'avensis_3zr_fae') {
     return books.find((b) => b.model.toLowerCase() === 'avensis')?.id ?? ''
@@ -130,6 +135,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
   const [rootCause, setRootCause] = useState('')
   const [parts, setParts] = useState('')
   const [playbook, setPlaybook] = useState<Playbook | null>(null)
+  const [checks, setChecks] = useState<PlaybookCheck[]>([])
   const [wiggle, setWiggle] = useState<DidStream | null>(null)
   const [dtcClass, setDtcClass] = useState<Record<string, string>>({})
   const [preCoverage, setPreCoverage] = useState<ScanCoverage | null>(null)
@@ -382,6 +388,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
       source_id: manualId || undefined,
     })
     setPlaybook(book)
+    if (book.checks) setChecks(book.checks)
   }
 
   function applyHistory(h: HistoryResponse) {
@@ -391,7 +398,9 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
     setHistory((prev) => ({
       ...h,
       capture: h.capture ?? (prev?.capture && (!h.vehicle || prev.capture.vin === h.vehicle.vin) ? prev.capture : undefined),
+      checks: h.checks ?? (prev && (!h.vehicle || prev.vehicle?.vin === h.vehicle.vin) ? prev.checks : undefined),
     }))
+    if (h.checks) setChecks(h.checks)
   }
 
   async function persistCustomer() {
@@ -459,6 +468,46 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
       .catch(() => {
         queue()
       })
+  }
+
+  function persistCheck(step: Playbook['steps'][number], status: PlaybookCheck['status'], note: string) {
+    const v = (scan?.vin || vin).trim().toUpperCase()
+    if (v.length !== 17) return
+    const body = {
+      fingerprint: checkFingerprint(step.kind, step.title),
+      kind: step.kind,
+      title: step.title,
+      detail: step.detail,
+      status,
+      note,
+    }
+    const path = `/api/v1/vehicles/${v}/checks`
+    const apply = (saved: PlaybookCheck) => {
+      setChecks((rows) => {
+        const rest = rows.filter((c) => c.fingerprint !== saved.fingerprint)
+        return [saved, ...rest]
+      })
+    }
+    const queue = () => {
+      enqueue({ kind: 'check', method: 'PUT', path, body })
+      setQueued(pendingCount())
+      apply({
+        id: body.fingerprint,
+        vin: v,
+        fingerprint: body.fingerprint,
+        kind: body.kind,
+        title: body.title,
+        detail: body.detail,
+        status,
+        note,
+        updated_at: new Date().toISOString(),
+      })
+    }
+    if (!online) {
+      queue()
+      return
+    }
+    void upsertPlaybookCheck(v, body).then(apply).catch(queue)
   }
 
   async function loadTypedVin() {
@@ -530,6 +579,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
       source_id: manualId || undefined,
     })
     setPlaybook(book)
+    if (book.checks) setChecks(book.checks)
   }
 
   const affiliation = user.freelancer ? 'Freelancer' : (user.shop_name || 'Shop')
@@ -1142,10 +1192,10 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
           <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
             <div>
               <h2 className="font-mono text-sm tracking-[0.25em] text-brass">AI PLAYBOOK</h2>
-              <p className="mt-1 text-sm text-steel">Fuses the live scan (or attached report), this shop’s jobs on this VIN, and the workshop book you pinned. It does not invent pins.</p>
+              <p className="mt-1 text-sm text-steel">Tick what you ran or ruled out. Rebuild fuses those findings with the live scan so the next tests can move.</p>
             </div>
             <IconBtn
-              tip={!online ? 'Ledger offline — reconnect to rebuild' : (!scan && !session) ? 'Capture a scan or report first' : 'Fuse this scan with this shop and the pinned book'}
+              tip={!online ? 'Ledger offline — reconnect to rebuild' : (!scan && !session) ? 'Capture a scan or report first' : 'Fuse this scan with this shop, the pinned book, and the checks you ticked'}
               label="REBUILD"
               tone="brass"
               disabled={!vin || !online || (!scan && !session)}
@@ -1155,7 +1205,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
                   return
                 }
                 if (session) await adviseFromImport(session, session.active_codes ?? [])
-              }, 'Playbook ready', selectedBook ? `Cited ${selectedBook.title}` : 'No workshop book pinned — adapter tests only.')}
+              }, 'Playbook ready', selectedBook ? `Cited ${selectedBook.title}` : 'Next tests use the checks you ticked.')}
             >
               <BookIcon />
             </IconBtn>
@@ -1186,6 +1236,12 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
                   {playbook.circuit_classes.map((c) => `${c.code} ${c.class}`).join(' · ')}
                 </p>
               )}
+              {checks.some((c) => c.status !== 'open') && (
+                <p className="border border-brass/40 bg-brass/10 px-3 py-2 text-sm">
+                  <span className="font-mono text-[11px] tracking-widest text-brass">CHECKS </span>
+                  {checks.filter((c) => c.status !== 'open').length} settled on this VIN. Rebuild to iterate from those findings.
+                </p>
+              )}
               {playbook.lookouts.length > 0 && (
                 <div>
                   <p className="font-mono text-[11px] tracking-[0.2em] text-brass">LOOK OUT ON THIS CAR</p>
@@ -1211,20 +1267,86 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
               )}
               {playbook.steps.length > 0 && (
                 <ol className="space-y-3">
-                  {playbook.steps.map((st) => (
-                    <li key={st.order} className="border-l-2 border-brass pl-3">
-                      <p className="font-mono text-[11px] text-brass">{st.order} · {st.kind.toUpperCase()}{st.adapter ? ' · ADAPTER' : ''}</p>
-                      <p className="font-semibold">{st.title}</p>
-                      <p className="text-sm text-steel">{st.detail}</p>
-                      {(st.pass || st.fail) && (
-                        <p className="mt-1 text-sm">
-                          {st.pass && <span className="text-ok">Pass: {st.pass} </span>}
-                          {st.fail && <span className="text-fault">Fail: {st.fail}</span>}
+                  {playbook.steps.map((st) => {
+                    const fp = checkFingerprint(st.kind, st.title)
+                    const row = checks.find((c) => c.fingerprint === fp)
+                    const status = row?.status ?? 'open'
+                    const note = row?.note ?? ''
+                    return (
+                      <li key={st.order} className={`border-l-2 pl-3 ${status === 'done' ? 'border-ok' : status === 'ruled_out' ? 'border-fault' : 'border-brass'}`}>
+                        <p className="font-mono text-[11px] text-brass">
+                          {st.order} · {st.kind.toUpperCase()}{st.adapter ? ' · ADAPTER' : ''}
+                          {status === 'done' ? ' · DID THIS' : status === 'ruled_out' ? ' · NOT THIS' : ''}
                         </p>
-                      )}
-                    </li>
-                  ))}
+                        <p className="font-semibold">{st.title}</p>
+                        <p className="text-sm text-steel">{st.detail}</p>
+                        {(st.pass || st.fail) && (
+                          <p className="mt-1 text-sm">
+                            {st.pass && <span className="text-ok">Pass: {st.pass} </span>}
+                            {st.fail && <span className="text-fault">Fail: {st.fail}</span>}
+                          </p>
+                        )}
+                        <label className="mt-2 block">
+                          <span className="font-mono text-[11px] tracking-widest text-steel">FINDING</span>
+                          <input
+                            className="mt-1 w-full border border-steel/30 bg-oil px-3 py-2 text-sm"
+                            value={note}
+                            placeholder="What you saw — no name / phone / plate"
+                            onChange={(e) => {
+                              const next = e.target.value
+                              setChecks((rows) => {
+                                const rest = rows.filter((c) => c.fingerprint !== fp)
+                                return [...rest, {
+                                  id: row?.id ?? fp,
+                                  vin: (scan?.vin || vin).toUpperCase(),
+                                  fingerprint: fp,
+                                  kind: st.kind,
+                                  title: st.title,
+                                  detail: st.detail,
+                                  status,
+                                  note: next,
+                                  updated_at: row?.updated_at ?? new Date().toISOString(),
+                                }]
+                              })
+                            }}
+                          />
+                        </label>
+                        <div className="mt-2 grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            className={`min-h-11 border font-mono text-[11px] tracking-widest ${status === 'done' ? 'border-ok bg-ok/20 text-ok' : 'border-steel/30'}`}
+                            onClick={() => persistCheck(st, 'done', note)}
+                          >
+                            DID THIS
+                          </button>
+                          <button
+                            type="button"
+                            className={`min-h-11 border font-mono text-[11px] tracking-widest ${status === 'ruled_out' ? 'border-fault bg-fault/20 text-fault' : 'border-steel/30'}`}
+                            onClick={() => persistCheck(st, 'ruled_out', note)}
+                          >
+                            NOT THIS
+                          </button>
+                        </div>
+                      </li>
+                    )
+                  })}
                 </ol>
+              )}
+              {checks.filter((c) => {
+                if (c.status === 'open') return false
+                return !playbook.steps.some((st) => checkFingerprint(st.kind, st.title) === c.fingerprint)
+              }).length > 0 && (
+                <div>
+                  <p className="font-mono text-[11px] tracking-[0.2em] text-brass">ALREADY ON THIS CAR</p>
+                  <ul className="mt-2 space-y-1 text-sm text-steel">
+                    {checks.filter((c) => c.status !== 'open' && !playbook.steps.some((st) => checkFingerprint(st.kind, st.title) === c.fingerprint)).map((c) => (
+                      <li key={c.fingerprint} className="border border-steel/20 px-3 py-2">
+                        <span className="font-mono text-[11px] text-brass">{c.status === 'done' ? 'DID THIS' : 'NOT THIS'} </span>
+                        {c.title}{c.note ? ` — ${c.note}` : ''}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
               {playbook.validation && (
                 <p className="text-sm"><span className="font-mono text-[11px] text-brass">VALIDATE </span>{playbook.validation}</p>

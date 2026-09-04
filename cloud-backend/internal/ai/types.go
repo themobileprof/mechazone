@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"strings"
+
+	"mechazone/cloud-backend/internal/ledger"
 )
 
 type LiveRow struct {
@@ -88,20 +90,21 @@ type Step struct {
 
 // Playbook is what to test on this VIN. Uncited pins belong in Gaps; figures are retrieved IDs only.
 type Playbook struct {
-	VIN            string         `json:"vin"`
-	Platform       string         `json:"platform"`
-	Lookouts       []Lookout      `json:"lookouts"`
-	LikelyCauses   []Cause        `json:"likely_causes"`
-	Steps          []Step         `json:"steps"`
-	Validation     string         `json:"validation"`
-	Gaps           StringList     `json:"gaps"`
-	Model          string         `json:"model,omitempty"`
-	FirstSeen      bool           `json:"first_seen"`
-	CircuitClasses []CircuitClass `json:"circuit_classes,omitempty"`
-	Network        NetworkHint    `json:"network,omitempty"`
-	ManualFigures  []ManualFigure `json:"manual_figures,omitempty"`
-	Manual         *PinnedManual  `json:"manual,omitempty"`
-	RetrievedChunks int           `json:"retrieved_chunks,omitempty"`
+	VIN             string                 `json:"vin"`
+	Platform        string                 `json:"platform"`
+	Lookouts        []Lookout              `json:"lookouts"`
+	LikelyCauses    []Cause                `json:"likely_causes"`
+	Steps           []Step                 `json:"steps"`
+	Validation      string                 `json:"validation"`
+	Gaps            StringList             `json:"gaps"`
+	Model           string                 `json:"model,omitempty"`
+	FirstSeen       bool                   `json:"first_seen"`
+	Checks          []ledger.PlaybookCheck `json:"checks,omitempty"`
+	CircuitClasses  []CircuitClass         `json:"circuit_classes,omitempty"`
+	Network         NetworkHint            `json:"network,omitempty"`
+	ManualFigures   []ManualFigure         `json:"manual_figures,omitempty"`
+	Manual          *PinnedManual          `json:"manual,omitempty"`
+	RetrievedChunks int                    `json:"retrieved_chunks,omitempty"`
 }
 
 type PinnedManual struct {

@@ -1,4 +1,4 @@
-/** Offline JSON queue for session/closeout/customer/capture writes. Imported reports are not queued. */
+/** Offline JSON queue for session/closeout/customer/capture/check writes. Imported reports are not queued. */
 import type { QueuedJob } from './types'
 
 const KEY = 'mechazone.sync_queue'
@@ -17,6 +17,11 @@ function write(jobs: QueuedJob[]) {
 
 export function enqueue(job: Omit<QueuedJob, 'id' | 'created_at'>) {
   const jobs = read().filter((j) => {
+    if (job.kind === 'check' && j.kind === 'check' && j.path === job.path) {
+      const a = (j.body as { fingerprint?: string } | undefined)?.fingerprint
+      const b = (job.body as { fingerprint?: string } | undefined)?.fingerprint
+      return a !== b
+    }
     if (j.path !== job.path) return true
     if (job.kind === 'customer' && j.kind === 'customer') return false
     if (job.kind === 'capture' && j.kind === 'capture') return false

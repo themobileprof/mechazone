@@ -53,9 +53,10 @@ Technician cookie required except login, access-request, health, and some decode
 | GET | `/api/v1/auth/me` | |
 | POST | `/api/v1/access-requests` | Landing ticket |
 | GET/POST | `/api/v1/admin/…` | Super admin shops, techs, tickets |
-| GET | `/api/v1/vehicles/{vin}` | This shop’s jobs + customer + bus capture |
+| GET | `/api/v1/vehicles/{vin}` | This shop’s jobs + customer + bus capture + checks |
 | PUT | `/api/v1/vehicles/{vin}/customer` | This shop’s name/phone/plate on the VIN |
 | PUT | `/api/v1/vehicles/{vin}/capture` | Observed bus map on this VIN (upsert, not a job) |
+| PUT | `/api/v1/vehicles/{vin}/checks` | Tick a playbook step (done / ruled out) |
 | POST | `/api/v1/vehicles/{vin}/decode` | vPIC/cache |
 | GET | `/api/v1/dtcs/{code}` | Seeded title + circuit class |
 | POST | `/api/v1/sessions` | Live scan ingest (JSON) |
@@ -66,7 +67,7 @@ Technician cookie required except login, access-request, health, and some decode
 | GET | `/api/v1/manuals` | Ingested workshop books |
 | GET | `/api/v1/manuals/figures/{id}/image` | Retrieved figure bytes |
 
-Shop/tech IDs are overwritten from `principalFrom` in ingest, import, closeout, playbook, customer PUT, and capture PUT.
+Shop/tech IDs are overwritten from `principalFrom` in ingest, import, closeout, playbook, customer PUT, capture PUT, and check PUT.
 
 Handler files (same package):
 
@@ -74,14 +75,14 @@ Handler files (same package):
 | --- | --- |
 | `server.go` | mux + CORS/logging |
 | `auth.go` | login cookie, `requireAuth` / `requireAdmin` / `requireTechnician` |
-| `handlers.go` | VIN history, customer PUT, bus capture PUT, decode, DTC, live session ingest, closeout |
+| `handlers.go` | VIN history, customer PUT, bus capture PUT, playbook check PUT, decode, DTC, live session ingest, closeout |
 | `import.go` | attach / download scanner files |
 | `playbook.go` | LLM fuse |
 | `admin.go` / `access.go` | shops, techs, landing tickets |
 | `ui.go` | `client/dist` SPA when `UI_DIR` is set |
 | `figures.go` | retrieved manual images |
 
-### Postgres (migrations `001`–`013`)
+### Postgres (migrations `001`–`014`)
 
 | Table | Role |
 | --- | --- |
@@ -90,6 +91,7 @@ Handler files (same package):
 | `vehicles`, `diagnostic_sessions`, `confirmed_resolutions` | This shop’s job file |
 | `shop_customers` | This shop’s name/phone/plate on a VIN (`009`) |
 | `bus_captures` | This shop’s observed UDS/bus map on a VIN (`013`); not a closeout |
+| `playbook_checks` | Playbook steps this shop ticked on a VIN (`014`); not a closeout |
 | `session_imports` | Attached scanner files (`007`) |
 | `vin_decode_cache` | Forever cache of vPIC/paid decode |
 | `dtc_codes` | Seeded SAE P0xxx |
@@ -129,7 +131,7 @@ No J2534 imports. Hardware only through `worker.ts`.
 | `Admin.tsx` | Issue shops and technicians |
 | `Bay.tsx` | Kit, VIN, attach report, playbook, jobs, closeout |
 | `api.ts` | `fetch` with credentials; FormData must not set `Content-Type` |
-| `queue.ts` | `localStorage` JSON queue for session/closeout/customer/capture when offline |
+| `queue.ts` | `localStorage` JSON queue for session/closeout/customer/capture/check when offline |
 | `types.ts` | Shared DTOs |
 
 ---

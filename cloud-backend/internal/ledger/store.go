@@ -368,6 +368,11 @@ func (s *Store) History(ctx context.Context, vin, shopID, technicianID string) (
 		return History{}, err
 	}
 	h.Capture = cap
+	checks, err := s.PlaybookChecks(ctx, vin, shopID, technicianID)
+	if err != nil {
+		return History{}, err
+	}
+	h.Checks = checks
 	return h, nil
 }
 

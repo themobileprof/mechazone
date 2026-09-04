@@ -19,7 +19,7 @@ func TestBuildUserPromptStripsCustomer(t *testing.T) {
 			Modules: []ledger.BusModule{{Name: "ECM", TxID: "7E0", EverReachable: true}},
 		},
 	}
-	s, err := buildUserPrompt(Request{VIN: "ZZZZCUSTDEV000001", Language: "en"}, hist, nil, nil, nil, nil, nil, NetworkHint{}, false)
+	s, err := buildUserPrompt(Request{VIN: "ZZZZCUSTDEV000001", Language: "en"}, hist, nil, nil, nil, nil, nil, NetworkHint{}, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,5 +30,24 @@ func TestBuildUserPromptStripsCustomer(t *testing.T) {
 	}
 	if strings.Contains(s, `"capture"`) && strings.Contains(s, "toyota_common") {
 		t.Fatal("playbook shop_work must not include the bus capture")
+	}
+}
+
+func TestBuildUserPromptIncludesSettledChecks(t *testing.T) {
+	s, err := buildUserPrompt(
+		Request{VIN: "ZZZZCUSTDEV000001", Language: "en"},
+		ledger.History{},
+		nil, nil, nil, nil, nil, NetworkHint{}, false,
+		[]ledger.PlaybookCheck{{
+			Kind: "test", Title: "Compare target vs actual", Status: ledger.CheckRuledOut, Note: "angle in spec",
+		}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"bay_checks", "Compare target vs actual", "ruled_out", "angle in spec"} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("missing %q", want)
+		}
 	}
 }

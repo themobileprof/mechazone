@@ -74,6 +74,18 @@ export type BusCapture = {
   last_seen_at: string
 }
 
+export type PlaybookCheck = {
+  id: string
+  vin: string
+  fingerprint: string
+  kind: string
+  title: string
+  detail: string
+  status: 'open' | 'done' | 'ruled_out'
+  note?: string
+  updated_at: string
+}
+
 export type HistoryResponse = {
   vehicle: {
     vin: string
@@ -86,6 +98,7 @@ export type HistoryResponse = {
   first_seen: boolean
   customer?: { display_name: string; phone: string; plate: string }
   capture?: BusCapture
+  checks?: PlaybookCheck[]
   jobs: Job[]
   sessions: Session[]
   resolutions: Resolution[]
@@ -167,6 +180,7 @@ export type Playbook = {
   manual_figures?: { id: string; title: string; page: number; caption: string; language: string; image_url?: string; ocr_text?: string; kind?: string }[]
   manual?: WorkshopBook
   retrieved_chunks?: number
+  checks?: PlaybookCheck[]
 }
 
 export type WorkshopBook = {
@@ -242,7 +256,7 @@ export type DidStream = {
 
 export type QueuedJob = {
   id: string
-  kind: 'session' | 'closeout' | 'customer' | 'capture'
+  kind: 'session' | 'closeout' | 'customer' | 'capture' | 'check'
   path: string
   method?: 'POST' | 'PUT'
   body: unknown

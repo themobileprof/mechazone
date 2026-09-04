@@ -63,6 +63,14 @@ Example for a vehicle that matched a captured platform map (here, Avensis). The 
 
 Every lookout, pin, voltage, and figure must cite `evidence` or `figures`. If the model cannot cite it, it goes in `gaps`, not in `steps`.
 
+## Bay checks (iterate the playbook)
+
+Playbook steps become shop-scoped checks on this VIN (`playbook_checks`). They are not a job closeout.
+
+On the bay, stamp **DID THIS** (you ran the test / did the correction) or **NOT THIS** (you are sure it is not the fault). Optional finding note — no name, phone, or plate. Rebuild sends settled checks as `bay_checks` so the next playbook can move to the next test instead of repeating a dead end.
+
+A ruled-out step stays ruled out across rebuilds. New steps from the next playbook open as new checks. Other shops cannot read this row.
+
 ## Diagrams
 
 - Source: OSS-parsed TSB/manual PDFs (figure objects) or a photo a technician attached to a **verified** closeout.

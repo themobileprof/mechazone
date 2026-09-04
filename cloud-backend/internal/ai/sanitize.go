@@ -6,7 +6,7 @@ import (
 )
 
 var allowedEvidence = []string{
-	"ledger:", "network:", "resolution:", "session:", "dtc:", "live:", "vehicle:", "gap:", "doc:", "figure:", "module:",
+	"ledger:", "network:", "resolution:", "session:", "dtc:", "live:", "vehicle:", "gap:", "doc:", "figure:", "module:", "check:",
 }
 
 // Sanitize drops uncited pins, invented figure IDs, and evidence prefixes the model is not allowed to use.
