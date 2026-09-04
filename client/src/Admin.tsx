@@ -1,6 +1,7 @@
 /** Super admin: issue shops and technicians from landing tickets. */
 import { useEffect, useMemo, useState } from 'react'
 import { createShop, createTechnician, listAccessRequests, listShops, listTechnicians, logout, setAccessRequestStatus } from './api'
+import { Logo } from './Brand'
 import type { AccessRequest, Principal, Shop, Technician } from './types'
 
 export function Admin({ user, onLogout }: { user: Principal; onLogout: () => void }) {
@@ -48,10 +49,10 @@ export function Admin({ user, onLogout }: { user: Principal; onLogout: () => voi
   return (
     <div className="relative flex min-h-svh flex-col px-5 py-4 md:h-svh md:overflow-hidden md:px-8">
       <div className="grain" />
-      <header className="mb-4 flex shrink-0 flex-wrap items-end justify-between gap-4 border-b border-brass/30 pb-4">
-        <div>
+      <header className="mb-4 flex shrink-0 flex-wrap items-center justify-between gap-4 border-b border-brass/30 pb-4">
+        <div className="flex items-center gap-4">
+          <Logo className="h-14 w-auto md:h-16" />
           <p className="font-mono text-[11px] tracking-[0.35em] text-brass">SUPER ADMIN</p>
-          <h1 className="text-4xl font-bold">MECHAZONE</h1>
         </div>
         <div className="flex items-center gap-4 font-mono text-xs">
           <span>{user.email}</span>

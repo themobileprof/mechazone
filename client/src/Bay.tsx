@@ -1,6 +1,7 @@
 /** Shop floor: this shop's jobs, OpenPort or attached report, playbook, closeout. */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { attachImportedReport, buildPlaybook, closeoutSession, decodeVin, fetchHistory, importedReportURL, ingestSession, ledgerOnline, listManuals, lookupDtc, logout, saveCustomer } from './api'
+import { Logo } from './Brand'
 import { enqueue, flushQueue, pendingCount } from './queue'
 import { ToastStack, useAutoDismiss, type Notice } from './toast'
 import type { DetectedAdapter, DidStream, HistoryResponse, Playbook, Principal, ScanCoverage, ScanResult, Session, WorkshopBook } from './types'
@@ -342,10 +343,10 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
   return (
     <div className="relative min-h-svh px-5 py-4 md:px-8">
       <div className="grain" />
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4 border-b border-brass/30 pb-4">
-        <div>
+      <header className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-brass/30 pb-4">
+        <div className="flex items-center gap-4">
+          <Logo className="h-14 w-auto md:h-16" />
           <p className="font-mono text-[11px] tracking-[0.35em] text-brass">BAY LEDGER</p>
-          <h1 className="text-4xl font-bold tracking-wide text-paper md:text-5xl">MECHAZONE</h1>
         </div>
         <div className="flex flex-wrap items-center gap-3 font-mono text-xs">
           <span className={`h-2.5 w-2.5 rounded-full ${online ? 'bg-ok' : 'bg-fault'}`} />

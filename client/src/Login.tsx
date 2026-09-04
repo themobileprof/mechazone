@@ -1,6 +1,7 @@
 /** Cookie login against the ledger. */
 import { useState } from 'react'
 import { login } from './api'
+import { Logo } from './Brand'
 import type { Principal } from './types'
 
 export function Login({
@@ -28,6 +29,7 @@ export function Login({
           .finally(() => setBusy(false))
       }}
     >
+      <Logo className="mb-5 h-12 w-auto" />
       <h1 className="text-3xl font-bold">Sign in</h1>
       <p className="mt-2 text-sm text-steel">Use the email and password we sent you after your request.</p>
       <label className="mt-6 block">

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { Admin } from './Admin'
 import { me } from './api'
 import { Bay } from './Bay'
+import { Logo } from './Brand'
 import { Landing } from './Landing'
 import type { Principal } from './types'
 
@@ -19,8 +20,9 @@ export default function App() {
 
   if (!ready) {
     return (
-      <div className="flex min-h-svh items-center justify-center font-mono text-steel">
-        LOADING…
+      <div className="flex min-h-svh flex-col items-center justify-center gap-4">
+        <Logo className="h-16 w-auto" />
+        <p className="font-mono text-xs tracking-[0.28em] text-steel">LOADING</p>
       </div>
     )
   }

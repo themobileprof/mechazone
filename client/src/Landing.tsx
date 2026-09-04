@@ -1,6 +1,7 @@
 /** Public conversion page: request a login. Nobody self-registers. */
 import { useState, type FormEvent } from 'react'
 import { requestAccess } from './api'
+import { Logo } from './Brand'
 import { Login } from './Login'
 import type { Principal } from './types'
 
@@ -51,7 +52,7 @@ export function Landing({ onAuthed }: { onAuthed: (p: Principal) => void }) {
       <div className="bay-wash" />
 
       <header className="relative z-10 mx-auto flex max-w-5xl items-center justify-between gap-4 px-5 py-5">
-        <p className="text-lg font-bold tracking-wide text-brass">Mechazone</p>
+        <Logo className="h-12 w-auto md:h-16" />
         <button className="text-sm text-steel underline-offset-4 hover:text-paper hover:underline" type="button" onClick={() => setSignIn(true)}>
           I already have an account
         </button>
