@@ -219,6 +219,13 @@ func (s *Store) CreateTechnician(ctx context.Context, in CreateTechnicianInput) 
 		}
 		return Technician{}, err
 	}
+	if _, err := tx.Exec(ctx, `
+		UPDATE access_requests
+		SET status = 'provisioned', reviewed_at = NOW()
+		WHERE contact_email = $1 AND status = 'pending'
+	`, email); err != nil {
+		return Technician{}, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return Technician{}, err
 	}

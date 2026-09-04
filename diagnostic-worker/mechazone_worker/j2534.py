@@ -6,8 +6,10 @@ Linux: package __init__ maps WINFUNCTYPE → CFUNCTYPE so udsoncan.j2534 imports
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
+import time
 from pathlib import Path
 
 from udsoncan.j2534 import (
@@ -17,6 +19,29 @@ from udsoncan.j2534 import (
     Protocol_ID,
     SCONFIG_LIST,
 )
+
+log = logging.getLogger("mechazone.passthru")
+
+# SAE J2534-1 RxStatus bits that are not a completed ISO 15765 PDU.
+# udsoncan.j2534.PassThruReadMsgs only returns RxStatus in {0, 0x100, 0x110}.
+_RX_TX_MSG_TYPE = 0x00000001
+_RX_START_OF_MESSAGE = 0x00000002
+_RX_TX_INDICATION = 0x00000008
+_RX_SKIP = _RX_TX_MSG_TYPE | _RX_START_OF_MESSAGE | _RX_TX_INDICATION
+
+
+def completed_uds_payload(rx_status: int, data_size: int, data: bytes) -> bytes | None:
+    """Strip the 4-byte CAN ID from a PassThru ISO15765 message.
+
+    START_OF_MESSAGE / TX indications often have DataSize 4 (ID only). Treating
+    that as a UDS reply makes udsoncan raise 'Payload is empty'.
+    """
+    if rx_status & _RX_SKIP:
+        return None
+    if data_size <= 4:
+        return None
+    payload = data[4:data_size]
+    return payload or None
 
 
 def default_lib_candidates() -> list[str]:
@@ -114,25 +139,38 @@ class PassThru:
             raise RuntimeError(f"PassThruWriteMsgs failed: {result}")
 
     def read_uds(self, timeout_ms: int = 500) -> bytes | None:
-        # udsoncan.PassThruReadMsgs busy-loops on ERR_TIMEOUT. Use the same binding, one shot.
+        # Do not use udsoncan.PassThruReadMsgs — it busy-loops on ERR_TIMEOUT.
+        # Still skip ISO15765 indications the same way that helper does.
         import ctypes
 
         import udsoncan.j2534 as j2534_mod
 
-        msg = j2534_mod.PASSTHRU_MSG()
-        msg.ProtocolID = Protocol_ID.ISO15765.value
-        n = ctypes.c_ulong(1)
-        result = j2534_mod.dllPassThruReadMsgs(
-            self.channel_id, ctypes.byref(msg), ctypes.byref(n), ctypes.c_ulong(timeout_ms)
-        )
-        err = Error_ID(hex(result))
-        if err in (Error_ID.ERR_TIMEOUT, Error_ID.ERR_BUFFER_EMPTY) or n.value == 0:
-            return None
-        if not _ok(err):
-            raise RuntimeError(f"PassThruReadMsgs failed: {err}")
-        if msg.DataSize < 4:
-            return None
-        return bytes(msg.Data[4 : msg.DataSize])
+        deadline = time.monotonic() + max(timeout_ms, 1) / 1000.0
+        while True:
+            remaining_ms = int((deadline - time.monotonic()) * 1000)
+            if remaining_ms <= 0:
+                return None
+            msg = j2534_mod.PASSTHRU_MSG()
+            msg.ProtocolID = Protocol_ID.ISO15765.value
+            n = ctypes.c_ulong(1)
+            result = j2534_mod.dllPassThruReadMsgs(
+                self.channel_id, ctypes.byref(msg), ctypes.byref(n), ctypes.c_ulong(remaining_ms)
+            )
+            err = Error_ID(hex(result))
+            if err in (Error_ID.ERR_TIMEOUT, Error_ID.ERR_BUFFER_EMPTY) or n.value == 0:
+                return None
+            if not _ok(err):
+                raise RuntimeError(f"PassThruReadMsgs failed: {err}")
+            raw = bytes(msg.Data[: msg.DataSize])
+            payload = completed_uds_payload(int(msg.RxStatus), int(msg.DataSize), raw)
+            if payload is None:
+                log.debug(
+                    "skip ISO15765 RxStatus=0x%X DataSize=%s",
+                    int(msg.RxStatus),
+                    int(msg.DataSize),
+                )
+                continue
+            return payload
 
     def close(self) -> None:
         try:

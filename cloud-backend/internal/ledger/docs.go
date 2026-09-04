@@ -3,11 +3,14 @@ package ledger
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/jackc/pgx/v5"
 )
 
 type DocSource struct {
@@ -66,6 +69,32 @@ type RetrievedFigure struct {
 	Kind      string `json:"kind,omitempty"`
 }
 
+// ManualCatalog is one ingested workshop book the bay can pin for retrieval.
+type ManualCatalog struct {
+	ID       string `json:"id"`
+	Title    string `json:"title"`
+	Kind     string `json:"kind"`
+	Make     string `json:"make"`
+	Model    string `json:"model"`
+	YearFrom int    `json:"year_from"`
+	YearTo   int    `json:"year_to"`
+	Engine   string `json:"engine"`
+	Language string `json:"language"`
+	Chunks   int    `json:"chunks"`
+	Figures  int    `json:"figures"`
+}
+
+// ManualQuery is playbook retrieval. SourceID pins one book when decode did not name the body.
+type ManualQuery struct {
+	Make     string
+	Model    string
+	Year     int
+	Codes    []string
+	Query    string
+	Wiring   bool
+	SourceID string
+}
+
 func (s *Store) ReplaceDoc(ctx context.Context, src DocSource, chunks []DocChunkIn, figures []DocFigureIn) (string, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -114,20 +143,60 @@ func (s *Store) ReplaceDoc(ctx context.Context, src DocSource, chunks []DocChunk
 	return id, tx.Commit(ctx)
 }
 
-func (s *Store) SearchManuals(ctx context.Context, makeName, model string, year int, codes []string, query string, wiring bool) ([]RetrievedChunk, []RetrievedFigure, error) {
-	makeName = strings.TrimSpace(makeName)
-	model = strings.TrimSpace(model)
-	if makeName == "" || model == "" {
+func (s *Store) ListManuals(ctx context.Context) ([]ManualCatalog, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT s.id::text, s.title, s.kind, s.make, s.model, s.year_from, s.year_to, s.engine, s.language,
+		       (SELECT count(*) FROM doc_chunks c WHERE c.source_id = s.id),
+		       (SELECT count(*) FROM doc_figures f WHERE f.source_id = s.id)
+		FROM doc_sources s
+		ORDER BY s.make, s.model, s.year_from, s.title
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []ManualCatalog{}
+	for rows.Next() {
+		var m ManualCatalog
+		if err := rows.Scan(&m.ID, &m.Title, &m.Kind, &m.Make, &m.Model, &m.YearFrom, &m.YearTo, &m.Engine, &m.Language, &m.Chunks, &m.Figures); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) GetManual(ctx context.Context, id string) (ManualCatalog, error) {
+	var m ManualCatalog
+	err := s.pool.QueryRow(ctx, `
+		SELECT s.id::text, s.title, s.kind, s.make, s.model, s.year_from, s.year_to, s.engine, s.language,
+		       (SELECT count(*) FROM doc_chunks c WHERE c.source_id = s.id),
+		       (SELECT count(*) FROM doc_figures f WHERE f.source_id = s.id)
+		FROM doc_sources s
+		WHERE s.id = $1::uuid
+	`, strings.TrimSpace(id)).Scan(&m.ID, &m.Title, &m.Kind, &m.Make, &m.Model, &m.YearFrom, &m.YearTo, &m.Engine, &m.Language, &m.Chunks, &m.Figures)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ManualCatalog{}, fmt.Errorf("workshop book not on file")
+	}
+	return m, err
+}
+
+func (s *Store) SearchManuals(ctx context.Context, q ManualQuery) ([]RetrievedChunk, []RetrievedFigure, error) {
+	q.Make = strings.TrimSpace(q.Make)
+	q.Model = strings.TrimSpace(q.Model)
+	q.SourceID = strings.TrimSpace(q.SourceID)
+	if q.SourceID == "" && (q.Make == "" || q.Model == "") {
 		return []RetrievedChunk{}, []RetrievedFigure{}, nil
 	}
-	if codes == nil {
-		codes = []string{}
+	if q.Codes == nil {
+		q.Codes = []string{}
 	}
-	query = strings.TrimSpace(query)
-	if year <= 0 {
+	query := strings.TrimSpace(q.Query)
+	year := q.Year
+	if year <= 0 || q.SourceID != "" {
 		year = 2000
 	}
-	if wiring {
+	if q.Wiring {
 		if query == "" {
 			query = "wiring connector EWD circuit"
 		} else {
@@ -135,27 +204,38 @@ func (s *Store) SearchManuals(ctx context.Context, makeName, model string, year 
 		}
 	}
 	ewdBoost := 0
-	if wiring {
+	if q.Wiring {
 		ewdBoost = 1
+	}
+	var source any
+	if q.SourceID != "" {
+		source = q.SourceID
+	}
+	makeName := q.Make
+	model := q.Model
+	if q.SourceID != "" {
+		makeName = ""
+		model = ""
 	}
 	rows, err := s.pool.Query(ctx, `
 		SELECT c.id, c.source_id, s.title, c.page, c.language, c.body, c.body_en, c.codes
 		FROM doc_chunks c
 		JOIN doc_sources s ON s.id = c.source_id
-		WHERE lower(s.make) = lower($1)
-		  AND lower(s.model) = lower($2)
-		  AND ($3 = 2000 OR (s.year_from <= $3 AND s.year_to >= $3))
+		WHERE ($1::uuid IS NULL OR s.id = $1::uuid)
+		  AND ($2 = '' OR lower(s.make) = lower($2))
+		  AND ($3 = '' OR lower(s.model) = lower($3))
+		  AND ($4 = 2000 OR (s.year_from <= $4 AND s.year_to >= $4))
 		  AND (
-		        cardinality($4::text[]) = 0
-		        OR c.codes && $4
-		        OR ($5 <> '' AND c.tsv @@ plainto_tsquery('simple', $5))
-		        OR $5 = ''
+		        cardinality($5::text[]) = 0
+		        OR c.codes && $5
+		        OR ($6 <> '' AND c.tsv @@ plainto_tsquery('simple', $6))
+		        OR $6 = ''
 		      )
-		ORDER BY ($6::int * CASE WHEN c.rel_path ILIKE '%ewd%' OR c.rel_path ILIKE '%connector%' THEN 1 ELSE 0 END) DESC,
-		         (c.codes && $4) DESC,
-		         CASE WHEN $5 <> '' THEN ts_rank(c.tsv, plainto_tsquery('simple', $5)) ELSE 0 END DESC
+		ORDER BY ($7::int * CASE WHEN c.rel_path ILIKE '%ewd%' OR c.rel_path ILIKE '%connector%' THEN 1 ELSE 0 END) DESC,
+		         (c.codes && $5) DESC,
+		         CASE WHEN $6 <> '' THEN ts_rank(c.tsv, plainto_tsquery('simple', $6)) ELSE 0 END DESC
 		LIMIT 10
-	`, makeName, model, year, codes, query, ewdBoost)
+	`, source, makeName, model, year, q.Codes, query, ewdBoost)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -212,8 +292,8 @@ func (s *Store) SearchManuals(ctx context.Context, makeName, model string, year 
 			return nil, nil, err
 		}
 	}
-	if wiring {
-		extra, err := s.searchWiringFigures(ctx, makeName, model, year)
+	if q.Wiring {
+		extra, err := s.searchWiringFigures(ctx, source, makeName, model, year)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -222,18 +302,19 @@ func (s *Store) SearchManuals(ctx context.Context, makeName, model string, year 
 	return chunks, figs, nil
 }
 
-func (s *Store) searchWiringFigures(ctx context.Context, makeName, model string, year int) ([]RetrievedFigure, error) {
+func (s *Store) searchWiringFigures(ctx context.Context, source any, makeName, model string, year int) ([]RetrievedFigure, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT f.id, f.source_id, s.title, f.page, f.caption, f.language, f.image_path, f.ocr_text
 		FROM doc_figures f
 		JOIN doc_sources s ON s.id = f.source_id
-		WHERE lower(s.make) = lower($1)
-		  AND lower(s.model) = lower($2)
-		  AND ($3 = 2000 OR (s.year_from <= $3 AND s.year_to >= $3))
+		WHERE ($1::uuid IS NULL OR s.id = $1::uuid)
+		  AND ($2 = '' OR lower(s.make) = lower($2))
+		  AND ($3 = '' OR lower(s.model) = lower($3))
+		  AND ($4 = 2000 OR (s.year_from <= $4 AND s.year_to >= $4))
 		  AND (f.image_path ILIKE '%/ewd/%' OR f.image_path ILIKE '%connector%' OR f.caption ILIKE '%connector%')
 		ORDER BY (f.image_path ILIKE '%/ewd/%') DESC, f.page
 		LIMIT 8
-	`, makeName, model, year)
+	`, source, makeName, model, year)
 	if err != nil {
 		return nil, err
 	}

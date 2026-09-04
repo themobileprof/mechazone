@@ -1,5 +1,6 @@
 from mechazone_worker.circuit import classify_code, network_hint
 from mechazone_worker.session import DiagnosticSession, mock_factory
+from mechazone_worker.transport import MemoryHexLog, ScriptedEcu
 
 
 def test_mock_identify_and_scan() -> None:
@@ -52,6 +53,40 @@ def test_wiggle_stream_mock() -> None:
     assert len(stream["samples"]) >= 4
     actuals = [s["values"]["valvematic_actual_angle"] for s in stream["samples"]]
     assert 0.0 in actuals and max(actuals) >= 12.0
+
+
+def test_scan_dark_bus_with_typed_vin() -> None:
+    def factory(tx_id: int, rx_id: int, hexlog: MemoryHexLog) -> ScriptedEcu:
+        del tx_id, rx_id
+        return ScriptedEcu({}, hexlog, name="silent", silent=True)
+
+    session = DiagnosticSession(factory, "mock")
+    ident = session.identify()
+    assert ident["vin"] == ""
+    assert any("F190" in g for g in ident["coverage"]["gaps"])
+    result = session.scan(vin="JTDKB20E503123456")
+    assert result.profile == "toyota_common"
+    assert result.vin == "JTDKB20E503123456"
+    assert result.modules
+    assert all(not m["reachable"] for m in result.modules)
+
+
+def test_identify_empty_isotp_payload_is_dark_not_crash() -> None:
+    """J2534 START_OF_MESSAGE looks like an empty UDS frame to udsoncan."""
+
+    class EmptyPdu(ScriptedEcu):
+        def specific_send(self, payload: bytes, timeout: float | None = None) -> None:
+            self._hexlog.record("TX", payload)
+            self.rxqueue.put(b"")
+
+    def factory(tx_id: int, rx_id: int, hexlog: MemoryHexLog) -> EmptyPdu:
+        del tx_id, rx_id
+        return EmptyPdu({}, hexlog, name="empty")
+
+    session = DiagnosticSession(factory, "openport2_rev_e")
+    ident = session.identify()
+    assert ident["vin"] == ""
+    assert any("F190" in g for g in ident["coverage"]["gaps"])
 
 
 def test_classify_and_network() -> None:

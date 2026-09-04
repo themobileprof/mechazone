@@ -12,6 +12,8 @@ from mechazone_worker.detect import detect_adapters
 from mechazone_worker.j2534 import PassThru
 from mechazone_worker.session import DiagnosticSession, mock_factory, openport_factory
 
+from websockets.exceptions import ConnectionClosed
+
 log = logging.getLogger("mechazone.worker")
 
 
@@ -54,20 +56,23 @@ class WorkerState:
 
 
 async def handle(ws, state: WorkerState) -> None:
-    async for raw in ws:
-        try:
-            msg = json.loads(raw)
-        except json.JSONDecodeError:
-            await ws.send(json.dumps({"ok": False, "error": "invalid json"}))
-            continue
-        req_id = msg.get("id")
-        cmd = msg.get("cmd")
-        try:
-            result = await asyncio.to_thread(_dispatch, state, cmd, msg)
-            await ws.send(json.dumps({"id": req_id, "ok": True, "result": result}))
-        except Exception as exc:  # noqa: BLE001
-            log.exception("cmd %s", cmd)
-            await ws.send(json.dumps({"id": req_id, "ok": False, "error": str(exc)}))
+    try:
+        async for raw in ws:
+            try:
+                msg = json.loads(raw)
+            except json.JSONDecodeError:
+                await ws.send(json.dumps({"ok": False, "error": "invalid json"}))
+                continue
+            req_id = msg.get("id")
+            cmd = msg.get("cmd")
+            try:
+                result = await asyncio.to_thread(_dispatch, state, cmd, msg)
+                await ws.send(json.dumps({"id": req_id, "ok": True, "result": result}))
+            except Exception as exc:  # noqa: BLE001
+                log.exception("cmd %s", cmd)
+                await ws.send(json.dumps({"id": req_id, "ok": False, "error": str(exc)}))
+    except ConnectionClosed:
+        log.info("bay disconnected")
 
 
 def _dispatch(state: WorkerState, cmd: str, msg: dict[str, Any]) -> Any:
@@ -93,6 +98,7 @@ def _dispatch(state: WorkerState, cmd: str, msg: dict[str, Any]) -> Any:
             make=str(msg.get("make") or ""),
             model=str(msg.get("model") or ""),
             year=int(msg.get("year") or 0),
+            vin=str(msg.get("vin") or ""),
         )
         return {
             "vin": result.vin,

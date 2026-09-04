@@ -52,7 +52,7 @@ class J2534IsoTpConnection(BaseConnection):
     def specific_wait_frame(self, timeout: float | None = None) -> bytes | None:
         timeout_ms = int((timeout or 0.5) * 1000)
         data = self._pt.read_uds(timeout_ms)
-        if data is None:
+        if not data:
             return None
         self._hexlog.record("RX", data)
         return data

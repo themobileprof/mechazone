@@ -86,8 +86,35 @@ func (f *Fuser) Build(ctx context.Context, req Request) (Playbook, error) {
 	net := InferNetwork(req.Modules)
 	wiring := WiringShaped(classes)
 
+	var pinned *PinnedManual
+	if strings.TrimSpace(req.SourceID) != "" {
+		src, err := f.Store.GetManual(ctx, req.SourceID)
+		if err != nil {
+			return Playbook{}, fmt.Errorf("manual: %w", err)
+		}
+		pinned = &PinnedManual{
+			ID: src.ID, Title: src.Title, Make: src.Make, Model: src.Model,
+			YearFrom: src.YearFrom, YearTo: src.YearTo, Engine: src.Engine, Language: src.Language,
+			Chunks: src.Chunks, Figures: src.Figures,
+		}
+		if req.Make == "" {
+			req.Make = src.Make
+		}
+		if req.Model == "" {
+			req.Model = src.Model
+		}
+		if req.Year == 0 {
+			req.Year = src.YearFrom
+		}
+		if req.EngineHint == "" {
+			req.EngineHint = src.Engine
+		}
+	}
 	q := strings.TrimSpace(strings.Join(append(req.ActiveCodes, req.EngineHint, req.Make, req.Model), " "))
-	docs, figs, err := f.Store.SearchManuals(ctx, req.Make, req.Model, req.Year, req.ActiveCodes, q, wiring)
+	docs, figs, err := f.Store.SearchManuals(ctx, ledger.ManualQuery{
+		Make: req.Make, Model: req.Model, Year: req.Year,
+		Codes: req.ActiveCodes, Query: q, Wiring: wiring, SourceID: req.SourceID,
+	})
 	if err != nil {
 		return Playbook{}, fmt.Errorf("manuals: %w", err)
 	}
@@ -127,11 +154,16 @@ func (f *Fuser) Build(ctx context.Context, req Request) (Playbook, error) {
 			}
 		}
 		if !already {
-			book.Gaps = append([]string{gap}, book.Gaps...)
+			book.Gaps = append(StringList{gap}, book.Gaps...)
 		}
 	}
 	book.CircuitClasses = classes
 	book.Network = net
+	book.Manual = pinned
+	book.RetrievedChunks = len(docs)
+	if pinned != nil && len(docs) == 0 {
+		book.Gaps = appendUnique(book.Gaps, "This workshop book is on file but no page matched this scan. Adapter tests still apply.")
+	}
 	for _, fig := range figs {
 		book.ManualFigures = append(book.ManualFigures, ManualFigure{
 			ID: fig.ID, Title: fig.Title, Page: fig.Page, Caption: fig.Caption, Language: fig.Language,
@@ -143,11 +175,13 @@ func (f *Fuser) Build(ctx context.Context, req Request) (Playbook, error) {
 
 const systemPrompt = `You are a senior diagnostic engineer writing a shop-floor playbook for ONE vehicle.
 Return ONLY a JSON object with keys:
-lookouts (array of {text, evidence}),
-likely_causes (array of {title, probability 0-1, evidence}),
-steps (array of {order, kind: test|access|inspect, title, detail, pass, fail, adapter, figures}),
+lookouts (array of {text: string, evidence: array of strings}),
+likely_causes (array of {title: string, probability: 0-1, evidence: array of strings}),
+steps (array of {order: number, kind: test|access|inspect, title: string, detail: string, pass: string, fail: string, adapter: boolean, figures: array of strings}),
 validation (string),
 gaps (array of strings).
+
+evidence MUST be a JSON array of strings, never a single string. Example: "evidence": ["dtc:P0171", "module:ECM"].
 
 Rules:
 - Use this shop's jobs on THIS vehicle first (what was done, parts, closeouts). That record stays in this shop — it is not a public VIN history.

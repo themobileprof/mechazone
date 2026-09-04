@@ -12,7 +12,20 @@ from typing import Any, Callable
 from udsoncan.client import Client
 from udsoncan.common.DidCodec import DidCodec
 from udsoncan.configs import default_client_config
-from udsoncan.exceptions import NegativeResponseException, TimeoutException
+from udsoncan.exceptions import (
+    InvalidResponseException,
+    NegativeResponseException,
+    TimeoutException,
+    UnexpectedResponseException,
+)
+
+_UDS_MISS = (
+    TimeoutException,
+    TimeoutError,
+    NegativeResponseException,
+    InvalidResponseException,
+    UnexpectedResponseException,
+)
 
 from mechazone_worker.circuit import classify_codes, network_hint
 from mechazone_worker.profiles import (
@@ -80,26 +93,40 @@ class DiagnosticSession:
 
     def identify(self) -> dict[str, Any]:
         vin = ""
-        for module in ISO15765_4_MODULES:
-            try:
-                vin = self._vin_on(module.tx_id, module.rx_id)
-            except (TimeoutException, TimeoutError, NegativeResponseException):
-                continue
+        for i, module in enumerate(ISO15765_4_MODULES):
+            attempts = 3 if i == 0 and self.adapter_type != "mock" else 1
+            for _ in range(attempts):
+                try:
+                    vin = self._vin_on(module.tx_id, module.rx_id)
+                except _UDS_MISS:
+                    continue
+                if vin:
+                    break
             if vin:
                 break
         if vin:
             self.vin = vin
             self.profile = select_profile(vin)
+        coverage = self.profile.coverage()
+        if not vin:
+            coverage = dict(coverage)
+            coverage["gaps"] = [
+                "VIN DID F190 did not answer. Type the VIN or deep-scan anyway — a timeout is a dark node.",
+                *list(coverage.get("gaps") or []),
+            ]
         return {
             "vin": vin,
             "profile": self.profile.id,
             "make": self.profile.make,
             "model": self.profile.model,
             "year": self.profile.year,
-            "coverage": self.profile.coverage(),
+            "coverage": coverage,
         }
 
-    def scan(self, make: str = "", model: str = "", year: int = 0) -> ScanResult:
+    def scan(self, make: str = "", model: str = "", year: int = 0, vin: str = "") -> ScanResult:
+        typed = (vin or "").strip().upper()
+        if typed:
+            self.vin = typed
         self.hexlog = MemoryHexLog()
         # Lock the map from VIN + decode hints before probing. Captured platforms
         # apply when we know the car — they are not the session default.
@@ -175,7 +202,7 @@ class DiagnosticSession:
                         raw = resp.service_data.values[item.did]
                         if isinstance(raw, (bytes, bytearray)):
                             row["values"][item.name] = _decode_scaled(bytes(raw), item.size, item.scale, item.offset)
-                    except (NegativeResponseException, TimeoutException, TimeoutError):
+                    except _UDS_MISS:
                         row["values"][item.name] = None
                 samples.append(row)
                 time.sleep(0.35)
@@ -228,13 +255,20 @@ class DiagnosticSession:
                 info["dtcs"] = node_codes
                 info["reachable"] = True
                 if module.name == "ECM":
-                    info["vin"] = _read_vin(client, self.profile.vin_did)
+                    try:
+                        info["vin"] = _read_vin(client, self.profile.vin_did)
+                    except _UDS_MISS:
+                        info["vin"] = ""
                     info["live"] = _read_live(client, self.profile)
                     info["identity"] = _read_identity(client)
         except TimeoutException:
             info["error"] = "timeout"
         except TimeoutError:
             info["error"] = "timeout"
+        except InvalidResponseException:
+            info["error"] = "empty_pdu"
+        except UnexpectedResponseException:
+            info["error"] = "unexpected"
         except NegativeResponseException:
             info["reachable"] = True
             info["error"] = "nrc"
@@ -286,7 +320,7 @@ def _read_live(client: Client, profile: VehicleProfile) -> list[dict[str, Any]]:
                     "did": f"0x{item.did:04X}",
                 }
             )
-        except (NegativeResponseException, TimeoutException, TimeoutError):
+        except _UDS_MISS:
             continue
     return live
 
@@ -305,7 +339,7 @@ def _read_identity(client: Client) -> list[dict[str, str]]:
                 text = str(raw)
             if text:
                 rows.append({"name": name, "did": f"0x{did:04X}", "text": text})
-        except (NegativeResponseException, TimeoutException, TimeoutError):
+        except _UDS_MISS:
             continue
     return rows
 

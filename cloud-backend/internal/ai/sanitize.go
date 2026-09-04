@@ -21,7 +21,7 @@ func Sanitize(p Playbook, allowedFigures map[string]struct{}) Playbook {
 		p.Steps = []Step{}
 	}
 	if p.Gaps == nil {
-		p.Gaps = []string{}
+		p.Gaps = StringList{}
 	}
 
 	outLooks := make([]Lookout, 0, len(p.Lookouts))
@@ -79,7 +79,7 @@ func Sanitize(p Playbook, allowedFigures map[string]struct{}) Playbook {
 				p.Gaps = append(p.Gaps, "No diagram on file (removed uncited figure).")
 			}
 		}
-		st.Figures = kept
+		st.Figures = StringList(kept)
 		if st.Title == "" {
 			continue
 		}
@@ -94,8 +94,8 @@ func Sanitize(p Playbook, allowedFigures map[string]struct{}) Playbook {
 	return p
 }
 
-func filterEvidence(in []string) []string {
-	out := make([]string, 0, len(in))
+func filterEvidence(in StringList) StringList {
+	out := make(StringList, 0, len(in))
 	for _, e := range in {
 		e = strings.TrimSpace(e)
 		ok := false
@@ -120,7 +120,7 @@ func clip(s string, n int) string {
 	return s[:n]
 }
 
-func appendUnique(in []string, msg string) []string {
+func appendUnique(in StringList, msg string) StringList {
 	for _, g := range in {
 		if g == msg {
 			return in

@@ -173,20 +173,29 @@ func (s *Store) SetAccessRequestStatus(ctx context.Context, id, status string) (
 	if status != "provisioned" && status != "dismissed" && status != "pending" {
 		return AccessRequest{}, fmt.Errorf("status must be pending, provisioned, or dismissed")
 	}
+	// Do not CASE on $2 in SQL: pgx prepared statements then fail with
+	// "inconsistent types deduced for parameter $2" (42P08).
+	var reviewed any
+	if status != "pending" {
+		reviewed = time.Now()
+	}
 	var row AccessRequest
 	err := s.pool.QueryRow(ctx, `
 		UPDATE access_requests
-		SET status = $2, reviewed_at = CASE WHEN $2 = 'pending' THEN NULL ELSE NOW() END
-		WHERE id = $1
+		SET status = $2, reviewed_at = $3
+		WHERE id = $1::uuid
 		RETURNING id, applicant_name, contact_email, contact_phone, shop_name, city, country,
 		          kind, note, status, created_at, reviewed_at
-	`, id, status).Scan(
+	`, id, status, reviewed).Scan(
 		&row.ID, &row.ApplicantName, &row.ContactEmail, &row.ContactPhone,
 		&row.ShopName, &row.City, &row.Country, &row.Kind, &row.Note,
 		&row.Status, &row.CreatedAt, &row.ReviewedAt,
 	)
-	if err != nil {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return AccessRequest{}, fmt.Errorf("access request not found")
+	}
+	if err != nil {
+		return AccessRequest{}, err
 	}
 	return row, nil
 }

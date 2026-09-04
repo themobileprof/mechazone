@@ -21,6 +21,7 @@ ELM_IDS = {
     ("0403", "6001"),  # FTDI — many devices; labeled maybe-ELM
     ("10c4", "ea60"),  # CP210x
     ("067b", "2303"),  # Prolific
+    ("0918", "7104"),  # QBD / cheap ELM "Virtual COM Port"
 }
 
 # Host internals — never offer these as dongles.

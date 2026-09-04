@@ -1,5 +1,5 @@
 /** Ledger REST client. Cookies carry identity; do not set Content-Type on FormData uploads. */
-import type { AccessRequest, HistoryResponse, JobImport, Playbook, Principal, Resolution, Session, Shop, Technician } from './types'
+import type { AccessRequest, HistoryResponse, JobImport, Playbook, Principal, Resolution, Session, Shop, Technician, WorkshopBook } from './types'
 
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(path, {
@@ -81,6 +81,10 @@ export function createTechnician(body: { full_name: string; email: string; passw
   return api<Technician>('/api/v1/admin/technicians', { method: 'POST', body: JSON.stringify(body) })
 }
 
+export function listManuals() {
+  return api<WorkshopBook[]>('/api/v1/manuals')
+}
+
 export function fetchHistory(vin: string) {
   return api<HistoryResponse>(`/api/v1/vehicles/${vin}`)
 }
@@ -133,6 +137,7 @@ export function buildPlaybook(body: {
   adapter_type?: string
   protocol?: string
   language?: string
+  source_id?: string
 }) {
   return api<Playbook>('/api/v1/playbooks', { method: 'POST', body: JSON.stringify(body) })
 }

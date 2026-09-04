@@ -134,6 +134,22 @@ export type Playbook = {
   circuit_classes?: { code: string; class: string; reason: string }[]
   network?: { reading: string; summary: string; live: number; dark: number }
   manual_figures?: { id: string; title: string; page: number; caption: string; language: string; image_url?: string; ocr_text?: string; kind?: string }[]
+  manual?: WorkshopBook
+  retrieved_chunks?: number
+}
+
+export type WorkshopBook = {
+  id: string
+  title: string
+  kind?: string
+  make: string
+  model: string
+  year_from: number
+  year_to: number
+  engine: string
+  language: string
+  chunks: number
+  figures: number
 }
 
 export type ScanModule = {

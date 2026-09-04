@@ -9,16 +9,26 @@ export class WorkerClient {
   private ws: WebSocket | null = null
   private pending = new Map<string, (reply: WorkerReply<unknown>) => void>()
   private seq = 0
+  private opening: Promise<void> | null = null
 
   async connectSocket(): Promise<void> {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) return
-    await new Promise<void>((resolve, reject) => {
+    if (this.opening) return this.opening
+    this.ws = null
+    this.opening = new Promise<void>((resolve, reject) => {
       const ws = new WebSocket(wsUrl)
+      const fail = () => {
+        if (this.ws === ws) this.ws = null
+        reject(new Error(`Diagnostic worker is not running at ${wsUrl}. Start it with make worker.`))
+      }
       ws.onopen = () => {
         this.ws = ws
         resolve()
       }
-      ws.onerror = () => reject(new Error('worker websocket failed'))
+      ws.onerror = fail
+      ws.onclose = () => {
+        if (this.ws === ws) this.ws = null
+      }
       ws.onmessage = (ev) => {
         const reply = JSON.parse(String(ev.data)) as WorkerReply<unknown>
         const wait = this.pending.get(String(reply.id))
@@ -27,7 +37,10 @@ export class WorkerClient {
           wait(reply)
         }
       }
+    }).finally(() => {
+      this.opening = null
     })
+    return this.opening
   }
 
   private async request<T>(cmd: string, extra: Record<string, unknown> = {}, timeoutMs = 15000): Promise<T> {
@@ -58,10 +71,10 @@ export class WorkerClient {
   }
 
   identify() {
-    return this.request<{ vin: string; profile: string; make: string; model: string; year: number; coverage?: { id: string; depth: string; gaps: string[] } }>('identify')
+    return this.request<{ vin: string; profile: string; make: string; model: string; year: number; coverage?: { id: string; depth: string; gaps: string[] } }>('identify', {}, 25000)
   }
 
-  scan(hints?: { make?: string; model?: string; year?: number }) {
+  scan(hints?: { vin?: string; make?: string; model?: string; year?: number }) {
     return this.request<ScanResult>('scan', { ...hints }, 45000)
   }
 

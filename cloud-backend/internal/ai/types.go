@@ -1,6 +1,10 @@
 package ai
 
-import "encoding/json"
+import (
+	"bytes"
+	"encoding/json"
+	"strings"
+)
 
 type LiveRow struct {
 	Name  string  `json:"name"`
@@ -23,32 +27,63 @@ type Request struct {
 	FreezeFrame  json.RawMessage `json:"freeze_frame"`
 	AdapterType  string          `json:"adapter_type"`
 	Protocol     string          `json:"protocol"`
+	SourceID     string          `json:"source_id,omitempty"`
 	ShopID       string          `json:"-"`
 	TechnicianID string          `json:"-"`
 	Language     string          `json:"language"`
 }
 
+// StringList accepts a JSON array or a single string. Hosted models often emit evidence as a string.
+type StringList []string
+
+func (s *StringList) UnmarshalJSON(b []byte) error {
+	b = bytes.TrimSpace(b)
+	if len(b) == 0 || bytes.Equal(b, []byte("null")) {
+		*s = StringList{}
+		return nil
+	}
+	if b[0] == '"' {
+		var one string
+		if err := json.Unmarshal(b, &one); err != nil {
+			return err
+		}
+		one = strings.TrimSpace(one)
+		if one == "" {
+			*s = StringList{}
+			return nil
+		}
+		*s = StringList{one}
+		return nil
+	}
+	var many []string
+	if err := json.Unmarshal(b, &many); err != nil {
+		return err
+	}
+	*s = StringList(many)
+	return nil
+}
+
 // Lookout is a risk from this shop's jobs or this scan. Evidence prefixes must pass Sanitize.
 type Lookout struct {
-	Text     string   `json:"text"`
-	Evidence []string `json:"evidence"`
+	Text     string     `json:"text"`
+	Evidence StringList `json:"evidence"`
 }
 
 type Cause struct {
-	Title       string   `json:"title"`
-	Probability float64  `json:"probability"`
-	Evidence    []string `json:"evidence"`
+	Title       string     `json:"title"`
+	Probability float64    `json:"probability"`
+	Evidence    StringList `json:"evidence"`
 }
 
 type Step struct {
-	Order   int      `json:"order"`
-	Kind    string   `json:"kind"`
-	Title   string   `json:"title"`
-	Detail  string   `json:"detail"`
-	Pass    string   `json:"pass,omitempty"`
-	Fail    string   `json:"fail,omitempty"`
-	Adapter bool     `json:"adapter"`
-	Figures []string `json:"figures,omitempty"`
+	Order   int        `json:"order"`
+	Kind    string     `json:"kind"`
+	Title   string     `json:"title"`
+	Detail  string     `json:"detail"`
+	Pass    string     `json:"pass,omitempty"`
+	Fail    string     `json:"fail,omitempty"`
+	Adapter bool       `json:"adapter"`
+	Figures StringList `json:"figures,omitempty"`
 }
 
 // Playbook is what to test on this VIN. Uncited pins belong in Gaps; figures are retrieved IDs only.
@@ -59,12 +94,27 @@ type Playbook struct {
 	LikelyCauses   []Cause        `json:"likely_causes"`
 	Steps          []Step         `json:"steps"`
 	Validation     string         `json:"validation"`
-	Gaps           []string       `json:"gaps"`
+	Gaps           StringList     `json:"gaps"`
 	Model          string         `json:"model,omitempty"`
 	FirstSeen      bool           `json:"first_seen"`
 	CircuitClasses []CircuitClass `json:"circuit_classes,omitempty"`
 	Network        NetworkHint    `json:"network,omitempty"`
 	ManualFigures  []ManualFigure `json:"manual_figures,omitempty"`
+	Manual         *PinnedManual  `json:"manual,omitempty"`
+	RetrievedChunks int           `json:"retrieved_chunks,omitempty"`
+}
+
+type PinnedManual struct {
+	ID       string `json:"id"`
+	Title    string `json:"title"`
+	Make     string `json:"make"`
+	Model    string `json:"model"`
+	YearFrom int    `json:"year_from"`
+	YearTo   int    `json:"year_to"`
+	Engine   string `json:"engine"`
+	Language string `json:"language"`
+	Chunks   int    `json:"chunks"`
+	Figures  int    `json:"figures"`
 }
 
 type ManualFigure struct {

@@ -1,8 +1,9 @@
 /** Shop floor: this shop's jobs, OpenPort or attached report, playbook, closeout. */
-import { useEffect, useMemo, useState } from 'react'
-import { attachImportedReport, buildPlaybook, closeoutSession, decodeVin, fetchHistory, importedReportURL, ingestSession, ledgerOnline, lookupDtc, logout } from './api'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { attachImportedReport, buildPlaybook, closeoutSession, decodeVin, fetchHistory, importedReportURL, ingestSession, ledgerOnline, listManuals, lookupDtc, logout } from './api'
 import { enqueue, flushQueue, pendingCount } from './queue'
-import type { DetectedAdapter, DidStream, HistoryResponse, Playbook, Principal, ScanCoverage, ScanResult, Session } from './types'
+import { ToastStack, useAutoDismiss, type Notice } from './toast'
+import type { DetectedAdapter, DidStream, HistoryResponse, Playbook, Principal, ScanCoverage, ScanResult, Session, WorkshopBook } from './types'
 import { worker } from './worker'
 
 const IMPORT_SOURCES = [
@@ -14,6 +15,36 @@ const IMPORT_SOURCES = [
   { id: 'snap_on', label: 'Snap-on' },
   { id: 'other', label: 'Other scanner' },
 ] as const
+
+const JOB_STEPS = [
+  { id: 'kit', n: '01', label: 'KIT', hint: 'Plug the OpenPort, connect' },
+  { id: 'vehicle', n: '02', label: 'VEHICLE', hint: 'VIN from the kit or type it' },
+  { id: 'book', n: '03', label: 'BOOK', hint: 'Workshop manual if decode missed the body' },
+  { id: 'scan', n: '04', label: 'SCAN', hint: 'Deep scan or attach a vendor report' },
+  { id: 'playbook', n: '05', label: 'PLAYBOOK', hint: 'AI + this shop + that book' },
+  { id: 'close', n: '06', label: 'CLOSE', hint: 'Log the visit, write what fixed it' },
+] as const
+
+function namedModel(name: string | undefined) {
+  const m = (name || '').trim()
+  return m !== '' && m.toLowerCase() !== 'unknown'
+}
+
+function matchManualId(books: WorkshopBook[], vehicle: HistoryResponse['vehicle'], scan: ScanResult | null) {
+  if (scan?.profile === 'avensis_3zr_fae') {
+    return books.find((b) => b.model.toLowerCase() === 'avensis')?.id ?? ''
+  }
+  const make = (vehicle?.make || scan?.make || '').toLowerCase()
+  const model = (vehicle?.model || scan?.model || '').toLowerCase()
+  const year = vehicle?.manufacture_year || scan?.year || 0
+  if (!make || !namedModel(model)) return ''
+  const hits = books.filter((b) => b.make.toLowerCase() === make && b.model.toLowerCase() === model)
+  if (year) {
+    const inYear = hits.find((b) => b.year_from <= year && b.year_to >= year)
+    if (inYear) return inYear.id
+  }
+  return hits[0]?.id ?? ''
+}
 
 export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void }) {
   const [online, setOnline] = useState(false)
@@ -41,6 +72,23 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
   const [importCodes, setImportCodes] = useState('')
   const [importNote, setImportNote] = useState('')
   const [importFile, setImportFile] = useState<File | null>(null)
+  const [manuals, setManuals] = useState<WorkshopBook[]>([])
+  const [manualId, setManualId] = useState('')
+  const [manualLocked, setManualLocked] = useState(false)
+  const [notices, setNotices] = useState<Notice[]>([])
+
+  const dismissNotice = useCallback((id: number) => {
+    setNotices((rows) => rows.filter((n) => n.id !== id))
+  }, [])
+  useAutoDismiss(notices, dismissNotice)
+
+  function pushNotice(kind: Notice['kind'], title: string, detail?: string) {
+    const id = Date.now()
+    setNotices((rows) => {
+      const cleared = kind === 'busy' ? rows.filter((r) => r.kind !== 'busy') : rows.filter((r) => r.kind !== 'busy')
+      return [...cleared, { id, kind, title, detail }]
+    })
+  }
 
   useEffect(() => {
     const tick = async () => {
@@ -55,6 +103,13 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
     const id = window.setInterval(() => void tick(), 8000)
     return () => window.clearInterval(id)
   }, [])
+
+  useEffect(() => {
+    if (!online) return
+    void listManuals()
+      .then(setManuals)
+      .catch(() => setManuals([]))
+  }, [online])
 
   async function refreshKits() {
     try {
@@ -94,8 +149,35 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
     })
   }, [codes.join('|')])
 
+  useEffect(() => {
+    if (manualLocked) return
+    const id = matchManualId(manuals, history?.vehicle ?? null, scan)
+    if (id) setManualId(id)
+  }, [manuals, history?.vehicle, scan, manualLocked])
+
   const selectedKit = kits.find((k) => k.id === adapter)
   const coverage = scan?.coverage ?? preCoverage
+  const selectedBook = manuals.find((m) => m.id === manualId) ?? null
+  const decodeMissedBody = !namedModel(history?.vehicle?.model) && !namedModel(scan?.model)
+
+  const platformHints = () => {
+    const v = history?.vehicle
+    const fromDecode = namedModel(v?.model)
+    return {
+      make: (fromDecode ? v?.make : undefined) || selectedBook?.make || v?.make || scan?.make,
+      model: (fromDecode ? v?.model : undefined) || selectedBook?.model || v?.model || scan?.model,
+      year: v?.manufacture_year || scan?.year || selectedBook?.year_from || 0,
+    }
+  }
+
+  const nextStep = (() => {
+    if (!connected && vin.length !== 17) return 'kit'
+    if (vin.length !== 17 && !history) return 'vehicle'
+    if (decodeMissedBody && manuals.length > 0 && !manualId) return 'book'
+    if (!scan && !session) return 'scan'
+    if (!playbook) return 'playbook'
+    return 'close'
+  })()
 
   const vehicleLabel = useMemo(() => {
     if (history?.vehicle) {
@@ -105,16 +187,21 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
     if (scan?.coverage?.depth === 'captured') return scan.profile.replaceAll('_', ' ')
     if (scan?.profile === 'generic_uds') return 'ISO 15765-4 probe — no captured OEM map'
     if (scan?.profile === 'toyota_common') return 'Toyota 11-bit probe'
-    return 'Awaiting identify'
-  }, [history, scan])
+    if (connected) return 'No VIN from the kit yet — type it, or deep-scan anyway'
+    return 'Connect the kit, or type the VIN'
+  }, [history, scan, connected])
 
-  async function run(label: string, fn: () => Promise<void>) {
+  async function run(label: string, fn: () => Promise<void>, okTitle?: string, okDetail?: string) {
     setBusy(label)
     setError(null)
+    pushNotice('busy', label.toUpperCase())
     try {
       await fn()
+      pushNotice('ok', okTitle || label, okDetail)
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      const msg = err instanceof Error ? err.message : String(err)
+      setError(msg)
+      pushNotice('fault', label, msg)
     } finally {
       setBusy(null)
     }
@@ -122,11 +209,12 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
 
   async function adviseFromScan(result: ScanResult, loggedVin: string) {
     const v = result.vin || loggedVin
+    const hints = platformHints()
     const book = await buildPlaybook({
       vin: v,
-      make: history?.vehicle?.make || result.make,
-      model: history?.vehicle?.model || result.model,
-      year: history?.vehicle?.manufacture_year || result.year,
+      make: hints.make,
+      model: hints.model,
+      year: hints.year,
       engine_hint: result.profile,
       active_codes: result.active_codes ?? [],
       live: result.live,
@@ -135,6 +223,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
       adapter_type: result.adapter_type,
       protocol: result.protocol,
       language: navigator.language.slice(0, 2) || 'en',
+      source_id: manualId || undefined,
     })
     setPlaybook(book)
   }
@@ -146,17 +235,49 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
     setHistory(await fetchHistory(v))
   }
 
+  async function readVinFromKit() {
+    const r = await worker.identify()
+    if (r.vin) {
+      setVin(r.vin)
+    }
+    setScan(null)
+    setSession(null)
+    setPlaybook(null)
+    const cov = r.coverage
+    if (!r.vin) {
+      const gaps = [...(cov?.gaps ?? [])]
+      if (!gaps.some((g) => g.toLowerCase().includes('f190') || g.toLowerCase().includes('did not answer'))) {
+        gaps.unshift('VIN DID F190 did not answer. Type the 17 characters, or deep-scan anyway — a timeout is a dark node.')
+      }
+      setPreCoverage({
+        id: cov?.id || r.profile || 'generic_uds',
+        depth: cov?.depth || 'iso_15765_4',
+        gaps,
+      })
+      return
+    }
+    setPreCoverage(cov ?? null)
+    if (online) {
+      await decodeVin(r.vin).catch(() => undefined)
+      setHistory(await fetchHistory(r.vin))
+    } else {
+      setHistory({ vehicle: null, first_seen: true, jobs: [], sessions: [], resolutions: [] })
+    }
+  }
+
   async function adviseFromImport(sess: Session, typedCodes: string[]) {
+    const hints = platformHints()
     const book = await buildPlaybook({
       vin: sess.vin,
       session_id: sess.id,
-      make: history?.vehicle?.make,
-      model: history?.vehicle?.model,
-      year: history?.vehicle?.manufacture_year,
+      make: hints.make,
+      model: hints.model,
+      year: hints.year,
       active_codes: typedCodes.length ? typedCodes : sess.active_codes,
       adapter_type: 'imported_report',
       protocol: 'file_import',
       language: navigator.language.slice(0, 2) || 'en',
+      source_id: manualId || undefined,
     })
     setPlaybook(book)
   }
@@ -180,7 +301,29 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
         </div>
       </header>
 
-      <section className="mb-6 grid gap-3 rounded-sm border border-brass/25 bg-panel/80 p-4 md:grid-cols-[1fr_auto_auto_auto_auto] md:items-end">
+      <nav className="job-rail" aria-label="Job flow">
+        <ol className="flex flex-wrap items-end gap-x-5 gap-y-2">
+          {JOB_STEPS.map((step) => {
+            const active = nextStep === step.id
+            return (
+              <li key={step.id}>
+                <a
+                  href={`#step-${step.id}`}
+                  className={`block no-underline ${active ? 'text-brass' : 'text-steel'}`}
+                >
+                  <span className="font-mono text-[10px] tracking-[0.28em]">{step.n}</span>
+                  <span className={`ml-2 font-semibold tracking-wide ${active ? 'text-paper' : ''}`}>{step.label}</span>
+                </a>
+                {active && <p className="mt-0.5 max-w-[16rem] text-xs text-steel">{step.hint}</p>}
+              </li>
+            )
+          })}
+        </ol>
+        {busy && <p className="mt-2 font-mono text-xs tracking-widest text-brass">{busy.toUpperCase()}…</p>}
+        {error && <p className="mt-2 font-mono text-xs text-fault">{error}</p>}
+      </nav>
+
+      <section id="step-kit" className="mb-6 grid gap-3 rounded-sm border border-brass/25 bg-panel/80 p-4 md:grid-cols-[1fr_auto_auto_auto_auto] md:items-end">
         <label className="block">
           <span className="font-mono text-[11px] tracking-widest text-steel">ADAPTER</span>
           <select
@@ -201,33 +344,23 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
         <button className="min-h-12 border border-paper/40 px-4" onClick={() => run('detect', refreshKits)}>
           REFRESH KITS
         </button>
-        <button className="min-h-12 border border-brass bg-brass px-5 font-semibold text-oil" disabled={selectedKit?.connectable === false} onClick={() => run('connect', async () => {
+        <button className="min-h-12 border border-brass bg-brass px-5 font-semibold text-oil" disabled={selectedKit?.connectable === false} onClick={() => run('connect + VIN', async () => {
           const r = await worker.connectAdapter(adapter)
           setConnected(r.connected)
-        })}>
+          if (r.connected) await readVinFromKit()
+        }, 'Kit connected', 'VIN fills if DID F190 answered. Otherwise type it and continue.')}>
           {connected ? 'RECONNECT' : 'CONNECT KIT'}
         </button>
-        <button className="min-h-12 border border-paper/40 px-5" disabled={!connected} onClick={() => run('identify', async () => {
-          const r = await worker.identify()
-          setVin(r.vin)
-          setScan(null)
-          setSession(null)
-          setPlaybook(null)
-          setPreCoverage(r.coverage ?? null)
-          if (online) {
-            await decodeVin(r.vin).catch(() => undefined)
-            setHistory(await fetchHistory(r.vin))
-          } else {
-            setHistory({ vehicle: null, first_seen: true, jobs: [], sessions: [], resolutions: [] })
-          }
-        })}>
+        <button className="min-h-12 border border-paper/40 px-5" disabled={!connected} onClick={() => run('read VIN', readVinFromKit, 'VIN read', 'Empty field means the module stayed dark — type the 17 characters.')}>
           READ VIN
         </button>
-        <button className="min-h-12 border border-paper/40 px-5" disabled={!vin} onClick={() => run(online ? 'scan + playbook' : 'scan', async () => {
+        <button className="min-h-12 border border-paper/40 px-5" disabled={!connected} onClick={() => run(online ? 'scan + playbook' : 'scan', async () => {
+          const hints = platformHints()
           const result = await worker.scan({
-            make: history?.vehicle?.make,
-            model: history?.vehicle?.model,
-            year: history?.vehicle?.manufacture_year,
+            vin: vin || undefined,
+            make: hints.make,
+            model: hints.model,
+            year: hints.year,
           })
           setScan(result)
           setPlaybook(null)
@@ -236,19 +369,16 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
           if (result.vin && result.vin !== vin) {
             setVin(result.vin)
           }
-          if (online) {
+          if (online && v.length === 17) {
             setHistory(await fetchHistory(v))
             await adviseFromScan(result, v)
           }
-        })}>
+        }, 'Deep scan complete', online ? 'Playbook fused this scan with this shop and the selected book.' : 'Ledger offline — rebuild the playbook when you reconnect.')}>
           DEEP SCAN
         </button>
       </section>
 
-      {error && <p className="mb-4 border border-fault/50 bg-fault/10 px-4 py-3 font-mono text-sm text-fault">{error}</p>}
-      {busy && <p className="mb-4 font-mono text-sm text-brass">{busy.toUpperCase()}…</p>}
-
-      <section className="mb-6 rounded-sm border border-brass/20 bg-panel p-5">
+      <section id="step-vehicle" className="mb-6 rounded-sm border border-brass/20 bg-panel p-5">
         <p className="font-mono text-[11px] tracking-[0.3em] text-steel">VEHICLE</p>
         <div className="mt-1 flex flex-wrap items-end gap-3">
           <label className="min-w-[16rem] flex-1">
@@ -268,7 +398,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
           <button
             className="min-h-11 border border-paper/40 px-4 font-mono text-xs tracking-widest"
             disabled={vin.length !== 17 || !online}
-            onClick={() => run('vin', loadTypedVin)}
+            onClick={() => run('vin', loadTypedVin, 'VIN loaded', 'This shop’s jobs on this vehicle are on the left.')}
           >
             LOAD THIS VIN
           </button>
@@ -293,13 +423,44 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
             </ul>
           </div>
         )}
+        <div id="step-book" className="mt-4 grid gap-3 border border-brass/20 bg-oil/50 p-3 md:grid-cols-[1fr_auto] md:items-end">
+          <label className="block">
+            <span className="font-mono text-[11px] tracking-widest text-brass">WORKSHOP BOOK</span>
+            <select
+              className="mt-1 w-full border border-steel/40 bg-oil px-3 py-3 text-paper"
+              value={manualId}
+              onChange={(e) => {
+                setManualLocked(true)
+                setManualId(e.target.value)
+              }}
+            >
+              <option value="">
+                {manuals.length === 0
+                  ? 'No ingested manuals on this ledger'
+                  : decodeMissedBody
+                    ? 'Decode did not name the body — pick the book'
+                    : 'Auto from VIN / leave unset'}
+              </option>
+              {manuals.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.make} {m.model} {m.year_from}–{m.year_to} · {m.title} ({m.language})
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="max-w-md text-sm text-steel">
+            {selectedBook
+              ? `${selectedBook.chunks.toLocaleString()} pages · ${selectedBook.figures.toLocaleString()} figures on file. Deep scan uses this map; the playbook cites this book.`
+              : 'Avensis T27 RM is ingested. If vPIC only said Toyota, pick that book here so AI is not flying blind.'}
+          </p>
+        </div>
         <label className="mt-4 block max-w-md">
           <span className="font-mono text-[11px] text-steel">CUSTOMER (LOCAL ONLY — NEVER SYNCED)</span>
           <input className="mt-1 w-full border border-steel/30 bg-oil px-3 py-2" value={localCustomer} onChange={(e) => setLocalCustomer(e.target.value)} placeholder="Name / plate stay on this laptop" />
         </label>
       </section>
 
-      <section className="mb-6 border border-dashed border-brass/50 bg-oil/70 p-5">
+      <section id="step-scan" className="mb-6 border border-dashed border-brass/50 bg-oil/70 p-5">
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-3">
           <div>
             <p className="font-mono text-[11px] tracking-[0.3em] text-brass">ATTACH SCAN REPORT</p>
@@ -374,18 +535,18 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
                   /* playbook optional — file is on the ledger */
                 }
               }
-            })}
+            }, 'Report attached', 'Playbook uses typed codes plus the selected workshop book.')}
           >
             ATTACH TO THIS VIN
           </button>
         </div>
       </section>
 
-      <section className="mb-6 rounded-sm border border-brass/20 bg-panel p-5">
+      <section id="step-playbook" className="mb-6 rounded-sm border border-brass/20 bg-panel p-5">
         <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="font-mono text-sm tracking-[0.25em] text-brass">AI PLAYBOOK</h2>
-            <p className="mt-1 text-sm text-steel">After a deep scan — or an attached report with typed codes — it uses this shop's jobs on this car. Not a code dump. Work stays in this shop.</p>
+            <p className="mt-1 text-sm text-steel">Fuses the live scan (or attached report), this shop’s jobs on this VIN, and the workshop book you pinned. It does not invent pins.</p>
           </div>
           <button
             className="min-h-12 bg-brass px-5 font-semibold text-oil"
@@ -396,7 +557,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
                 return
               }
               if (session) await adviseFromImport(session, session.active_codes ?? [])
-            })}
+            }, 'Playbook ready', selectedBook ? `Cited ${selectedBook.title}` : 'No workshop book pinned — adapter tests only.')}
           >
             REBUILD PLAYBOOK
           </button>
@@ -404,6 +565,13 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
         {!playbook && <p className="text-steel">Deep scan or an attached report writes the playbook when the ledger is online. Offline, scan first and rebuild when you reconnect.</p>}
         {playbook && (
           <div className="space-y-4">
+            {playbook.manual && (
+              <p className="border border-brass/40 bg-brass/10 px-3 py-2 text-sm">
+                <span className="font-mono text-[11px] tracking-widest text-brass">BOOK </span>
+                {playbook.manual.title} · {playbook.manual.make} {playbook.manual.model} {playbook.manual.year_from}–{playbook.manual.year_to}
+                {playbook.retrieved_chunks ? ` · ${playbook.retrieved_chunks} retrieved pages` : ''}
+              </p>
+            )}
             <p className="font-mono text-xs text-steel">
               {playbook.platform || 'platform unknown'}
               {playbook.first_seen ? ' · first visit to this shop' : ''}
@@ -592,7 +760,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
           )}
         </section>
 
-        <section className="rounded-sm border border-brass/20 bg-panel p-5">
+        <section id="step-close" className="rounded-sm border border-brass/20 bg-panel p-5">
           <h2 className="mb-3 font-mono text-sm tracking-[0.25em] text-brass">CLOSEOUT</h2>
           <label className="mb-3 block">
             <span className="font-mono text-[11px] text-steel">MILEAGE KM</span>
@@ -622,7 +790,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
             const saved = await ingestSession(body)
             setSession(saved)
             setHistory(await fetchHistory(saved.vin))
-          })}>
+          }, 'Session logged', 'Close the job when you know what fixed it.')}>
             LOG SESSION TO LEDGER
           </button>
           <div className="mb-3 grid grid-cols-2 gap-2">
@@ -647,12 +815,13 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
             }
             await closeoutSession(session.id, body)
             setHistory(await fetchHistory(session.vin))
-          })}>
+          }, 'Job closed', 'This shop’s file on this VIN now includes the work done.')}>
             CLOSE JOB
           </button>
           <p className="mt-3 font-mono text-[11px] text-steel">Shop and technician are taken from your login, not the form.</p>
         </section>
       </div>
+      <ToastStack notices={notices} onDismiss={dismissNotice} />
     </div>
   )
 }
