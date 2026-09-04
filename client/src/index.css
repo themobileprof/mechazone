@@ -98,7 +98,7 @@ button {
   top: 0;
   z-index: 40;
   margin: 0 -1.25rem 1.5rem;
-  padding: 0.65rem 1.25rem;
+  padding: 0.65rem 1.25rem 0.85rem;
   border-bottom: 1px solid color-mix(in srgb, var(--color-brass) 35%, transparent);
   background: color-mix(in srgb, var(--color-oil) 92%, transparent);
   backdrop-filter: blur(8px);
@@ -111,6 +111,138 @@ button {
     padding-left: 2rem;
     padding-right: 2rem;
   }
+}
+
+.glyph {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex-shrink: 0;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+  gap: 0.5rem;
+  border-width: 1px;
+  padding: 0 0.7rem;
+}
+
+.icon-btn-labeled {
+  padding: 0 1rem;
+}
+
+.tip {
+  position: relative;
+  display: inline-flex;
+}
+
+.tip-bubble {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  z-index: 70;
+  width: max-content;
+  max-width: 16rem;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--color-brass) 45%, transparent);
+  background: var(--color-oil);
+  color: var(--color-paper);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  line-height: 1.35;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%) translateY(4px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.tip:hover .tip-bubble,
+.tip:focus-within .tip-bubble {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.bay-pages {
+  display: inline-flex;
+  border: 1px solid color-mix(in srgb, var(--color-brass) 35%, transparent);
+}
+
+.bay-page {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.5rem;
+  padding: 0 0.85rem;
+  color: var(--color-steel);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+}
+
+.bay-page.is-active {
+  background: var(--color-brass);
+  color: var(--color-oil);
+}
+
+.job-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem;
+}
+
+.job-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.6rem;
+  padding: 0.2rem 0.7rem 0.35rem;
+  border-bottom: 2px solid transparent;
+  color: var(--color-steel);
+  background: transparent;
+}
+
+.job-tab.is-active {
+  color: var(--color-paper);
+  border-bottom-color: var(--color-brass);
+}
+
+.job-tab.is-next:not(.is-active) {
+  color: var(--color-brass);
+}
+
+.job-tab.is-locked {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.desk-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+}
+
+.desk-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.6rem;
+  padding: 0 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--color-steel) 35%, transparent);
+  color: var(--color-steel);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+}
+
+.desk-tab.is-active {
+  border-color: var(--color-brass);
+  background: color-mix(in srgb, var(--color-brass) 12%, transparent);
+  color: var(--color-brass);
 }
 
 .grain {

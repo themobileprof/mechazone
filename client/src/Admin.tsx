@@ -2,9 +2,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createShop, createTechnician, listAccessRequests, listShops, listTechnicians, logout, setAccessRequestStatus } from './api'
 import { Logo } from './Brand'
+import { DismissIcon, IconBtn, LoginIcon, QueueIcon, ShopIcon, SignOutIcon, Tip } from './chrome'
 import type { AccessRequest, Principal, Shop, Technician } from './types'
 
+type Desk = 'queue' | 'shops' | 'logins'
+
+const DESKS: { id: Desk; n: string; label: string; hint: string }[] = [
+  { id: 'queue', n: '01', label: 'QUEUE', hint: 'Pending tickets — fill, then provision' },
+  { id: 'shops', n: '02', label: 'SHOPS', hint: 'Create the workshop if it is new' },
+  { id: 'logins', n: '03', label: 'LOGINS', hint: 'Issue the technician account' },
+]
+
 export function Admin({ user, onLogout }: { user: Principal; onLogout: () => void }) {
+  const [desk, setDesk] = useState<Desk>('queue')
   const [shops, setShops] = useState<Shop[]>([])
   const [techs, setTechs] = useState<Technician[]>([])
   const [requests, setRequests] = useState<AccessRequest[]>([])
@@ -40,10 +50,11 @@ export function Admin({ user, onLogout }: { user: Principal; onLogout: () => voi
       setShopName(req.shop_name)
       setShopCity(req.city)
       setShopCountry(req.country)
+      setDesk('shops')
     } else {
       setShopId('')
+      setDesk('logins')
     }
-    document.getElementById('issue-login')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }
 
   return (
@@ -56,17 +67,40 @@ export function Admin({ user, onLogout }: { user: Principal; onLogout: () => voi
         </div>
         <div className="flex items-center gap-4 font-mono text-xs">
           <span>{user.email}</span>
-          <button className="border border-steel/40 px-3 py-2" onClick={() => void logout().then(onLogout)}>SIGN OUT</button>
+          <IconBtn tip="Sign out" onClick={() => void logout().then(onLogout)}>
+            <SignOutIcon />
+          </IconBtn>
         </div>
       </header>
-      <p className="mb-4 max-w-2xl shrink-0 text-steel">You provision shops and technicians. Nobody self-registers. Pending tickets stay in the queue; issued people are under Logins.</p>
+      <p className="mb-4 max-w-2xl shrink-0 text-steel">You provision shops and technicians. Nobody self-registers. Work the queue, create the shop if it is new, then issue the login.</p>
       {error && <p className="mb-4 shrink-0 border border-fault/40 bg-fault/10 px-3 py-2 text-fault">{error}</p>}
 
-      <div className="grid min-h-0 flex-1 gap-4 md:grid-cols-3 md:overflow-hidden">
-        <section className="flex min-h-0 flex-col border border-brass/20 bg-panel p-4">
+      <nav className="desk-tabs shrink-0" aria-label="Admin desks">
+        {DESKS.map((d) => (
+          <Tip key={d.id} label={d.hint}>
+            <button
+              type="button"
+              className={`desk-tab ${desk === d.id ? 'is-active' : ''}`}
+              aria-current={desk === d.id ? 'page' : undefined}
+              onClick={() => setDesk(d.id)}
+            >
+              {d.id === 'queue' ? <QueueIcon /> : d.id === 'shops' ? <ShopIcon /> : <LoginIcon />}
+              <span>{d.n} {d.label}</span>
+              {d.id === 'queue' && pending.length > 0 && (
+                <span className="font-mono text-[10px] text-brass">{pending.length}</span>
+              )}
+            </button>
+          </Tip>
+        ))}
+      </nav>
+      <p className="mb-3 shrink-0 font-mono text-[11px] tracking-wide text-steel">{DESKS.find((d) => d.id === desk)?.hint}</p>
+
+      <div className="min-h-0 flex-1 md:overflow-hidden">
+        {desk === 'queue' && (
+        <section className="flex h-full min-h-0 flex-col border border-brass/20 bg-panel p-4">
           <h2 className="shrink-0 font-mono text-sm tracking-[0.25em] text-brass">QUEUE</h2>
-          <p className="mt-1 shrink-0 text-sm text-steel">Pending requests only. Fill, then issue the login on the right.</p>
-          <ol className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1 max-h-64 md:max-h-none">
+          <p className="mt-1 shrink-0 text-sm text-steel">Pending requests only. Fill, then create the shop if needed and issue the login.</p>
+          <ol className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1">
             {pending.length === 0 && <li className="font-mono text-xs text-steel">No open tickets.</li>}
             {pending.map((req) => (
               <li key={req.id} className={`border px-3 py-3 ${email === req.contact_email ? 'border-brass/50' : 'border-steel/20'}`}>
@@ -84,20 +118,22 @@ export function Admin({ user, onLogout }: { user: Principal; onLogout: () => voi
                 </p>
                 {req.note && <p className="mt-1 text-sm text-steel">{req.note}</p>}
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    className="border border-brass/40 px-3 py-2 font-mono text-[11px] text-brass"
-                    type="button"
+                  <IconBtn
+                    tip={req.kind === 'shop' ? 'Copy into Shops, then issue the login' : 'Copy into Logins'}
+                    label="FILL"
+                    tone="brass"
                     onClick={() => fillFromTicket(req)}
                   >
-                    FILL FORMS
-                  </button>
-                  <button
-                    className="border border-steel/40 px-3 py-2 font-mono text-[11px] text-steel"
-                    type="button"
+                    <QueueIcon />
+                  </IconBtn>
+                  <IconBtn
+                    tip="Drop this ticket without issuing a login"
+                    label="DISMISS"
+                    tone="fault"
                     onClick={() => void setAccessRequestStatus(req.id, 'dismissed').then(refresh).catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))}
                   >
-                    DISMISS
-                  </button>
+                    <DismissIcon />
+                  </IconBtn>
                 </div>
               </li>
             ))}
@@ -110,21 +146,25 @@ export function Admin({ user, onLogout }: { user: Principal; onLogout: () => voi
             </p>
           )}
         </section>
+        )}
 
-        <section className="flex min-h-0 flex-col border border-brass/20 bg-panel p-4">
+        {desk === 'shops' && (
+        <section className="flex h-full min-h-0 flex-col border border-brass/20 bg-panel p-4">
           <h2 className="shrink-0 font-mono text-sm tracking-[0.25em] text-brass">SHOPS</h2>
           <form className="mt-3 shrink-0 space-y-3" onSubmit={(e) => {
             e.preventDefault()
             void createShop({ name: shopName, location_city: shopCity, location_country: shopCountry })
-              .then((shop) => { setShopName(''); setShopCity(''); setShopId(shop.id); return refresh() })
+              .then((shop) => { setShopName(''); setShopCity(''); setShopId(shop.id); setDesk('logins'); return refresh() })
               .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
           }}>
             <input className="w-full border border-steel/30 bg-oil px-3 py-2" placeholder="Shop name" value={shopName} onChange={(e) => setShopName(e.target.value)} required />
             <input className="w-full border border-steel/30 bg-oil px-3 py-2" placeholder="City" value={shopCity} onChange={(e) => setShopCity(e.target.value)} required />
             <input className="w-full border border-steel/30 bg-oil px-3 py-2" placeholder="Country" value={shopCountry} onChange={(e) => setShopCountry(e.target.value)} />
-            <button className="min-h-11 w-full bg-brass font-semibold text-oil" type="submit">CREATE SHOP</button>
+            <IconBtn tip="Create this workshop, then issue its first login" label="CREATE SHOP" tone="brass" type="submit">
+              <ShopIcon />
+            </IconBtn>
           </form>
-          <ol className="mt-4 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1 max-h-64 md:max-h-none">
+          <ol className="mt-4 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1">
             {shops.map((shop) => (
               <li key={shop.id} className="border border-steel/20 px-3 py-2">
                 <p className="font-semibold">{shop.name}</p>
@@ -133,8 +173,10 @@ export function Admin({ user, onLogout }: { user: Principal; onLogout: () => voi
             ))}
           </ol>
         </section>
+        )}
 
-        <section id="issue-login" className="flex min-h-0 flex-col border border-brass/20 bg-panel p-4">
+        {desk === 'logins' && (
+        <section className="flex h-full min-h-0 flex-col border border-brass/20 bg-panel p-4">
           <h2 className="shrink-0 font-mono text-sm tracking-[0.25em] text-brass">LOGINS</h2>
           <form className="mt-3 shrink-0 space-y-3" onSubmit={(e) => {
             e.preventDefault()
@@ -151,9 +193,11 @@ export function Admin({ user, onLogout }: { user: Principal; onLogout: () => voi
                 <option key={shop.id} value={shop.id}>{shop.name}</option>
               ))}
             </select>
-            <button className="min-h-11 w-full bg-paper font-semibold text-oil" type="submit">ISSUE LOGIN</button>
+            <IconBtn tip="Provision this technician — they cannot self-register" label="ISSUE LOGIN" tone="paper" type="submit">
+              <LoginIcon />
+            </IconBtn>
           </form>
-          <ol className="mt-4 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1 max-h-64 md:max-h-none">
+          <ol className="mt-4 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pr-1">
             {techs.map((tech) => (
               <li key={tech.id} className="border border-steel/20 px-3 py-2">
                 <p className="font-semibold">{tech.full_name}</p>
@@ -162,6 +206,7 @@ export function Admin({ user, onLogout }: { user: Principal; onLogout: () => voi
             ))}
           </ol>
         </section>
+        )}
       </div>
     </div>
   )
