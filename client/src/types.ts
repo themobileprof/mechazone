@@ -45,6 +45,35 @@ export type Technician = {
   created_at: string
 }
 
+export type BusCapture = {
+  vin: string
+  profile: string
+  adapter_type: string
+  host_os: string
+  protocol: string
+  make_hint?: string
+  model_hint?: string
+  year_hint?: number
+  modules: {
+    name: string
+    tx_id: string
+    rx_id: string
+    family?: string
+    confirmed: boolean
+    reachable: boolean
+    ever_reachable: boolean
+    dtcs?: string[]
+  }[]
+  identity: { name: string; did: string; text: string }[]
+  live: { name: string; did: string; unit?: string; value?: unknown }[]
+  active_codes: string[]
+  coverage?: unknown
+  raw_hex_excerpt?: string
+  scan_count: number
+  first_seen_at: string
+  last_seen_at: string
+}
+
 export type HistoryResponse = {
   vehicle: {
     vin: string
@@ -56,6 +85,7 @@ export type HistoryResponse = {
   } | null
   first_seen: boolean
   customer?: { display_name: string; phone: string; plate: string }
+  capture?: BusCapture
   jobs: Job[]
   sessions: Session[]
   resolutions: Resolution[]
@@ -212,7 +242,7 @@ export type DidStream = {
 
 export type QueuedJob = {
   id: string
-  kind: 'session' | 'closeout' | 'customer'
+  kind: 'session' | 'closeout' | 'customer' | 'capture'
   path: string
   method?: 'POST' | 'PUT'
   body: unknown

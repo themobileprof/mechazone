@@ -39,6 +39,8 @@ which tx/rx answered vs timeout vs NRC
 
 Without that file we will not add DIDs, `$2F` IDs, or named modules. A WMI prefix is not a map.
 
+The bay upserts the observation to `bus_captures` on every deep scan at this shop, whether or not the technician logs the session. That row is a mapping seed (nodes that ever answered, identity/live DIDs, last hex excerpt). It is not a job closeout and it is not a new `profiles/` map — do not promote a capture to invented DIDs.
+
 ### 2. Licensed diagnostic description (ODX / PDX / CDX / OEM XML)
 
 If you can legally obtain the platform’s ODX (or equivalent), drop it in. We will parse it with **odxtools** (Mercedes-Benz OSS) instead of hand-writing `profiles/`. Until you have the file, do not ask for a DID encyclopedia.

@@ -91,31 +91,37 @@ class DiagnosticSession:
         self.vin = ""
         self.profile: VehicleProfile = select_profile("")
 
-    def identify(self) -> dict[str, Any]:
-        vin = ""
+    def identify(self, vin: str = "") -> dict[str, Any]:
+        typed = (vin or "").strip().upper()
+        bus_vin = ""
         for i, module in enumerate(ISO15765_4_MODULES):
             attempts = 3 if i == 0 and self.adapter_type != "mock" else 1
             for _ in range(attempts):
                 try:
-                    vin = self._vin_on(module.tx_id, module.rx_id)
+                    bus_vin = self._vin_on(module.tx_id, module.rx_id)
                 except _UDS_MISS:
                     continue
-                if vin:
+                if bus_vin:
                     break
-            if vin:
+            if bus_vin:
                 break
-        if vin:
-            self.vin = vin
-            self.profile = select_profile(vin)
+        if bus_vin:
+            self.vin = bus_vin
+            self.profile = select_profile(bus_vin)
+        elif typed:
+            # Typed VIN is not a bus read — use it only to pick the probe class.
+            self.vin = typed
+            self.profile = select_profile(typed)
         coverage = self.profile.coverage()
-        if not vin:
+        if not bus_vin:
             coverage = dict(coverage)
             coverage["gaps"] = [
-                "VIN DID F190 did not answer. Type the VIN or deep-scan anyway — a timeout is a dark node.",
+                "Kit VIN (DID F190) stayed dark — normal on many cars. "
+                "Type the 17 characters on Vehicle, then deep-scan. Modules still answer.",
                 *list(coverage.get("gaps") or []),
             ]
         return {
-            "vin": vin,
+            "vin": bus_vin,
             "profile": self.profile.id,
             "make": self.profile.make,
             "model": self.profile.model,

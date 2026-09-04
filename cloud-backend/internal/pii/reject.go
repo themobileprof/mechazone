@@ -1,4 +1,4 @@
-// Package pii rejects customer-identity JSON keys on session ingest, closeout, and import notes.
+// Package pii rejects customer-identity JSON keys on session ingest, closeout, import notes, and bus captures.
 // Name/phone/plate for this shop go through PUT /api/v1/vehicles/{vin}/customer, not those bodies.
 package pii
 
@@ -13,7 +13,7 @@ var forbidden = []string{
 	"plate", "license_plate", "number_plate",
 }
 
-// RejectCloudPII returns an error if a scan/closeout/import payload includes customer identity fields.
+// RejectCloudPII returns an error if a scan/closeout/import/capture payload includes customer identity fields.
 func RejectCloudPII(raw json.RawMessage) error {
 	if len(raw) == 0 {
 		return nil

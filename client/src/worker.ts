@@ -70,8 +70,8 @@ export class WorkerClient {
     return this.request<{ adapter: string; connected: boolean; library: string | null }>('connect', { adapter })
   }
 
-  identify() {
-    return this.request<{ vin: string; profile: string; make: string; model: string; year: number; coverage?: { id: string; depth: string; gaps: string[] } }>('identify', {}, 25000)
+  identify(vin?: string) {
+    return this.request<{ vin: string; profile: string; make: string; model: string; year: number; coverage?: { id: string; depth: string; gaps: string[] } }>('identify', vin ? { vin } : {}, 25000)
   }
 
   scan(hints?: { vin?: string; make?: string; model?: string; year?: number }) {

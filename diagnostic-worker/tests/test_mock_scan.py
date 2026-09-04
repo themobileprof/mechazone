@@ -64,6 +64,9 @@ def test_scan_dark_bus_with_typed_vin() -> None:
     ident = session.identify()
     assert ident["vin"] == ""
     assert any("F190" in g for g in ident["coverage"]["gaps"])
+    typed = session.identify(vin="JTDKB20E503123456")
+    assert typed["vin"] == ""
+    assert typed["profile"] == "toyota_common"
     result = session.scan(vin="JTDKB20E503123456")
     assert result.profile == "toyota_common"
     assert result.vin == "JTDKB20E503123456"

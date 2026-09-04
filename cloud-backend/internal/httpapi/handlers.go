@@ -259,3 +259,50 @@ func (s *Server) upsertCustomer(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, saved)
 }
+
+func (s *Server) upsertBusCapture(w http.ResponseWriter, r *http.Request) {
+	v, err := pathVIN(r)
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	p, ok := principalFrom(r.Context())
+	if !ok || p.TechnicianID == "" {
+		writeError(w, http.StatusForbidden, "technician login required")
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "unreadable body")
+		return
+	}
+	if err := pii.RejectCloudPII(body); err != nil {
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	var in ledger.BusCaptureIn
+	if err := json.Unmarshal(body, &in); err != nil {
+		writeError(w, http.StatusBadRequest, "malformed capture")
+		return
+	}
+	if strings.EqualFold(in.AdapterType, "imported_report") {
+		writeError(w, http.StatusUnprocessableEntity, "imported reports are not a live bus capture")
+		return
+	}
+	if in.AdapterType == "" || in.Protocol == "" {
+		writeError(w, http.StatusUnprocessableEntity, "adapter_type and protocol are required")
+		return
+	}
+	if err := s.store.EnsureVehicle(r.Context(), v, in.MakeHint, in.ModelHint, in.YearHint, "capture"); err != nil {
+		s.log.Error("ensure vehicle", "err", err)
+		writeError(w, http.StatusInternalServerError, "vehicle persist failed")
+		return
+	}
+	saved, err := s.store.UpsertBusCapture(r.Context(), v, p.ShopID, p.TechnicianID, in)
+	if err != nil {
+		s.log.Error("capture", "err", err)
+		writeError(w, http.StatusInternalServerError, "capture persist failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, saved)
+}

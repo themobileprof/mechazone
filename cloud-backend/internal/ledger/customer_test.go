@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"mechazone/cloud-backend/internal/vin"
 )
 
 func TestClipRunes(t *testing.T) {
@@ -47,5 +49,27 @@ func TestShopCustomerRoundTrip(t *testing.T) {
 	}
 	if other.DisplayName != "" {
 		t.Fatal("another shop must not see this name")
+	}
+}
+
+func TestSaveVINDecodeFillsUnknownBody(t *testing.T) {
+	s := testStore(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	code := "ZZZZDECODEFAAA001"
+	if err := s.EnsureVehicle(ctx, code, "Toyota", "Unknown", 0, "vpic"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SaveVINDecode(ctx, vin.Decode{
+		VIN: code, Make: "Toyota", Model: "Avensis", Year: 2010, Source: "vpic", Raw: []byte(`{}`),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	h, err := s.History(ctx, code, "00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h.Vehicle == nil || h.Vehicle.Model != "Avensis" || h.Vehicle.Year != 2010 {
+		t.Fatalf("vehicle %+v", h.Vehicle)
 	}
 }

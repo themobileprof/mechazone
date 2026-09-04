@@ -40,6 +40,7 @@ func New(cfg config.Config, store *ledger.Store, vins *vin.Resolver, fuser *ai.F
 	mux.HandleFunc("POST /api/v1/admin/technicians", s.requireAdmin(s.createTechnician))
 	mux.HandleFunc("GET /api/v1/vehicles/{vin}", s.requireTechnician(s.vehicleHistory))
 	mux.HandleFunc("PUT /api/v1/vehicles/{vin}/customer", s.requireTechnician(s.upsertCustomer))
+	mux.HandleFunc("PUT /api/v1/vehicles/{vin}/capture", s.requireTechnician(s.upsertBusCapture))
 	mux.HandleFunc("POST /api/v1/vehicles/{vin}/decode", s.requireAuth(s.decodeVIN))
 	mux.HandleFunc("GET /api/v1/dtcs/{code}", s.requireAuth(s.lookupDTC))
 	mux.HandleFunc("POST /api/v1/sessions", s.requireTechnician(s.ingestSession))

@@ -221,7 +221,21 @@ func (s *Store) SaveVINDecode(ctx context.Context, dec vin.Decode) error {
 	_, err = s.pool.Exec(ctx, `
 		INSERT INTO vehicles (vin, make, model, manufacture_year, decode_source)
 		VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT (vin) DO NOTHING
+		ON CONFLICT (vin) DO UPDATE SET
+			make = CASE
+				WHEN vehicles.make IN ('', 'Unknown') AND EXCLUDED.make NOT IN ('', 'Unknown') THEN EXCLUDED.make
+				ELSE vehicles.make END,
+			model = CASE
+				WHEN vehicles.model IN ('', 'Unknown') AND EXCLUDED.model NOT IN ('', 'Unknown') THEN EXCLUDED.model
+				ELSE vehicles.model END,
+			manufacture_year = CASE
+				WHEN vehicles.manufacture_year = 0 AND EXCLUDED.manufacture_year > 0 THEN EXCLUDED.manufacture_year
+				ELSE vehicles.manufacture_year END,
+			decode_source = CASE
+				WHEN (vehicles.make IN ('', 'Unknown') AND EXCLUDED.make NOT IN ('', 'Unknown'))
+				  OR (vehicles.model IN ('', 'Unknown') AND EXCLUDED.model NOT IN ('', 'Unknown'))
+				THEN EXCLUDED.decode_source
+				ELSE vehicles.decode_source END
 	`, dec.VIN, makeName, model, year, dec.Source)
 	return err
 }
@@ -349,6 +363,11 @@ func (s *Store) History(ctx context.Context, vin, shopID, technicianID string) (
 	if cust.DisplayName != "" || cust.Phone != "" || cust.Plate != "" {
 		h.Customer = &cust
 	}
+	cap, err := s.BusCapture(ctx, vin, shopID, technicianID)
+	if err != nil {
+		return History{}, err
+	}
+	h.Capture = cap
 	return h, nil
 }
 

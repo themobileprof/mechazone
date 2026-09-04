@@ -14,6 +14,10 @@ func TestBuildUserPromptStripsCustomer(t *testing.T) {
 			Phone:       "08030000000",
 			Plate:       "ABC-123",
 		},
+		Capture: &ledger.BusCapture{
+			Profile: "toyota_common",
+			Modules: []ledger.BusModule{{Name: "ECM", TxID: "7E0", EverReachable: true}},
+		},
 	}
 	s, err := buildUserPrompt(Request{VIN: "ZZZZCUSTDEV000001", Language: "en"}, hist, nil, nil, nil, nil, nil, NetworkHint{}, false)
 	if err != nil {
@@ -23,5 +27,8 @@ func TestBuildUserPromptStripsCustomer(t *testing.T) {
 		if strings.Contains(s, leak) {
 			t.Fatalf("playbook prompt must not include %q", leak)
 		}
+	}
+	if strings.Contains(s, `"capture"`) && strings.Contains(s, "toyota_common") {
+		t.Fatal("playbook shop_work must not include the bus capture")
 	}
 }

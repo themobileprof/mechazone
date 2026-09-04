@@ -90,7 +90,7 @@ def _dispatch(state: WorkerState, cmd: str, msg: dict[str, Any]) -> Any:
         state.disconnect()
         return {"connected": False}
     if cmd == "identify":
-        ident = state.require().identify()
+        ident = state.require().identify(vin=str(msg.get("vin") or ""))
         ident["raw_hex"] = state.require().hexlog.lines
         return ident
     if cmd == "scan":

@@ -82,6 +82,7 @@ type Job struct {
 type History struct {
 	Vehicle     *Vehicle      `json:"vehicle"`
 	Customer    *ShopCustomer `json:"customer,omitempty"`
+	Capture     *BusCapture   `json:"capture,omitempty"`
 	FirstSeen   bool          `json:"first_seen"`
 	Jobs        []Job         `json:"jobs"`
 	Sessions    []Session     `json:"sessions"`

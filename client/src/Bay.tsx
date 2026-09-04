@@ -1,6 +1,6 @@
 /** Shop floor: this shop's jobs, OpenPort or attached report, playbook, closeout. */
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { attachImportedReport, buildPlaybook, closeoutSession, decodeVin, fetchHistory, importedReportURL, ingestSession, ledgerOnline, listManuals, lookupDtc, logout, saveCustomer } from './api'
+import { attachImportedReport, buildPlaybook, closeoutSession, decodeVin, fetchHistory, importedReportURL, ingestSession, ledgerOnline, listManuals, lookupDtc, logout, saveCustomer, upsertBusCapture } from './api'
 import { Logo } from './Brand'
 import {
   AttachIcon, BookIcon, ChassisIcon, CheckIcon, ChevronLeftIcon, ChevronRightIcon,
@@ -11,6 +11,7 @@ import { enqueue, flushQueue, pendingCount } from './queue'
 import { ToastStack, useAutoDismiss, type Notice } from './toast'
 import type { DetectedAdapter, DidStream, HistoryResponse, Playbook, Principal, ScanCoverage, ScanResult, Session, WorkshopBook } from './types'
 import { worker } from './worker'
+import { kitVinGap, probePreview } from './vinProbe'
 
 const IMPORT_SOURCES = [
   { id: 'x431', label: 'Launch X431' },
@@ -27,7 +28,7 @@ type JobTab = 'kit' | 'vehicle' | 'capture' | 'playbook' | 'close'
 
 const JOB_TABS = [
   { id: 'kit', n: '01', label: 'KIT', hint: 'Plug the OpenPort, connect' },
-  { id: 'vehicle', n: '02', label: 'VEHICLE', hint: 'VIN, customer, workshop book' },
+  { id: 'vehicle', n: '02', label: 'VEHICLE', hint: 'Type the VIN — the kit rarely fills it' },
   { id: 'capture', n: '03', label: 'CAPTURE', hint: 'Deep scan or attach a report' },
   { id: 'playbook', n: '04', label: 'PLAYBOOK', hint: 'What to test on this car' },
   { id: 'close', n: '05', label: 'CLOSE', hint: 'Log the visit, write what fixed it' },
@@ -50,6 +51,46 @@ function tabLockHint(id: JobTab): string {
 function namedModel(name: string | undefined) {
   const m = (name || '').trim()
   return m !== '' && m.toLowerCase() !== 'unknown'
+}
+
+function hintsFrom(
+  vehicle: HistoryResponse['vehicle'] | null | undefined,
+  book: WorkshopBook | null,
+  scan: ScanResult | null,
+) {
+  const fromDecode = namedModel(vehicle?.model)
+  return {
+    make: (fromDecode ? vehicle?.make : undefined) || book?.make || vehicle?.make || scan?.make,
+    model: (fromDecode ? vehicle?.model : undefined) || book?.model || vehicle?.model || scan?.model,
+    year: vehicle?.manufacture_year || scan?.year || book?.year_from || 0,
+  }
+}
+
+function captureBody(result: ScanResult) {
+  return {
+    profile: result.profile,
+    adapter_type: result.adapter_type,
+    host_os: navigator.platform.toLowerCase().includes('win') ? 'windows' : 'linux',
+    protocol: result.protocol,
+    make_hint: result.make,
+    model_hint: result.model,
+    year_hint: result.year,
+    modules: (result.modules ?? []).map((m) => ({
+      name: m.name,
+      tx_id: m.tx_id,
+      rx_id: m.rx_id,
+      family: m.family,
+      confirmed: m.confirmed,
+      reachable: m.reachable,
+      ever_reachable: m.reachable,
+      dtcs: m.dtcs,
+    })),
+    identity: result.identity ?? [],
+    live: result.live ?? [],
+    active_codes: result.active_codes ?? [],
+    coverage: result.coverage ?? {},
+    raw_hex_stream: result.raw_hex_stream ?? [],
+  }
 }
 
 function matchManualId(books: WorkshopBook[], vehicle: HistoryResponse['vehicle'], scan: ScanResult | null) {
@@ -103,6 +144,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
   const [page, setPage] = useState<BayPage>(() => parseHash().page)
   const [jobTab, setJobTab] = useState<JobTab>(() => parseHash().tab)
   const [lockHint, setLockHint] = useState<string | null>(null)
+  const [kitVinMissed, setKitVinMissed] = useState(false)
 
   const dismissNotice = useCallback((id: number) => {
     setNotices((rows) => rows.filter((n) => n.id !== id))
@@ -214,16 +256,16 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
   const coverage = scan?.coverage ?? preCoverage
   const selectedBook = manuals.find((m) => m.id === manualId) ?? null
   const decodeMissedBody = !namedModel(history?.vehicle?.model) && !namedModel(scan?.model)
+  const kitGaps = (coverage?.gaps ?? []).filter(kitVinGap)
+  const mapGaps = (coverage?.gaps ?? []).filter((g) => !kitVinGap(g))
+  const preview = probePreview({
+    vin,
+    model: history?.vehicle?.model,
+    bookModel: selectedBook?.model,
+    profile: scan?.profile,
+  })
 
-  const platformHints = () => {
-    const v = history?.vehicle
-    const fromDecode = namedModel(v?.model)
-    return {
-      make: (fromDecode ? v?.make : undefined) || selectedBook?.make || v?.make || scan?.make,
-      model: (fromDecode ? v?.model : undefined) || selectedBook?.model || v?.model || scan?.model,
-      year: v?.manufacture_year || scan?.year || selectedBook?.year_from || 0,
-    }
-  }
+  const platformHints = () => hintsFrom(history?.vehicle, selectedBook, scan)
 
   const nextStep = ((): JobTab => {
     if (!connected && vin.length !== 17) return 'kit'
@@ -290,16 +332,21 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
   }
 
   const vehicleLabel = useMemo(() => {
-    if (history?.vehicle) {
+    if (history?.vehicle && namedModel(history.vehicle.model)) {
       return `${history.vehicle.manufacture_year || ''} ${history.vehicle.make} ${history.vehicle.model}`.trim()
+    }
+    if (history?.vehicle?.make && history.vehicle.make.toLowerCase() !== 'unknown') {
+      return `${history.vehicle.make} — pick the workshop book for the body`
     }
     if (scan?.make || scan?.model) return `${scan.year || ''} ${scan.make} ${scan.model}`.trim()
     if (scan?.coverage?.depth === 'captured') return scan.profile.replaceAll('_', ' ')
     if (scan?.profile === 'generic_uds') return 'ISO 15765-4 probe — no captured OEM map'
     if (scan?.profile === 'toyota_common') return 'Toyota 11-bit probe'
-    if (connected) return 'No VIN from the kit yet — type it, or deep-scan anyway'
-    return 'Connect the kit, or type the VIN'
-  }, [history, scan, connected])
+    if (vin.length === 17) return probePreview({ vin, model: history?.vehicle?.model, bookModel: selectedBook?.model }).label
+    if (kitVinMissed) return 'Kit did not answer VIN — type the 17 characters from the plate'
+    if (connected) return 'Type the VIN from the plate — most ECUs do not answer F190'
+    return 'Type the VIN, or connect the kit'
+  }, [history, scan, connected, vin, kitVinMissed, selectedBook?.model])
 
   async function run(label: string, fn: () => Promise<void>, okTitle?: string, okDetail?: string) {
     setBusy(label)
@@ -317,9 +364,8 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
     }
   }
 
-  async function adviseFromScan(result: ScanResult, loggedVin: string) {
+  async function adviseFromScan(result: ScanResult, loggedVin: string, hints = platformHints()) {
     const v = result.vin || loggedVin
-    const hints = platformHints()
     const book = await buildPlaybook({
       vin: v,
       make: hints.make,
@@ -339,10 +385,13 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
   }
 
   function applyHistory(h: HistoryResponse) {
-    setHistory(h)
     setCustomerName(h.customer?.display_name ?? '')
     setCustomerPhone(h.customer?.phone ?? '')
     setCustomerPlate(h.customer?.plate ?? '')
+    setHistory((prev) => ({
+      ...h,
+      capture: h.capture ?? (prev?.capture && (!h.vehicle || prev.capture.vin === h.vehicle.vin) ? prev.capture : undefined),
+    }))
   }
 
   async function persistCustomer() {
@@ -382,6 +431,36 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
     }
   }
 
+  function persistBusCapture(result: ScanResult, v: string) {
+    if (v.length !== 17) return
+    if (!result.adapter_type || !result.protocol) return
+    if (result.adapter_type === 'imported_report') return
+    const path = `/api/v1/vehicles/${v}/capture`
+    const body = captureBody(result)
+    const queue = () => {
+      enqueue({ kind: 'capture', method: 'PUT', path, body })
+      setQueued(pendingCount())
+    }
+    if (!online) {
+      queue()
+      return
+    }
+    void upsertBusCapture(v, body)
+      .then((saved) => {
+        setHistory((h) => {
+          if (saved.vin !== v) return h
+          if (!h) {
+            return { vehicle: null, first_seen: true, jobs: [], sessions: [], resolutions: [], capture: saved }
+          }
+          if (h.vehicle && h.vehicle.vin !== saved.vin) return h
+          return { ...h, capture: saved }
+        })
+      })
+      .catch(() => {
+        queue()
+      })
+  }
+
   async function loadTypedVin() {
     const v = vin.trim().toUpperCase()
     if (v.length !== 17) throw new Error('VIN must be 17 characters')
@@ -389,19 +468,36 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
     applyHistory(await fetchHistory(v))
   }
 
+  useEffect(() => {
+    if (!online || vin.length !== 17) return
+    if (history?.vehicle?.vin === vin) return
+    const id = window.setTimeout(() => {
+      void loadTypedVin().catch((err) => {
+        const msg = err instanceof Error ? err.message : String(err)
+        setError(msg)
+      })
+    }, 400)
+    return () => window.clearTimeout(id)
+  }, [vin, online, history?.vehicle?.vin])
+
   async function readVinFromKit() {
-    const r = await worker.identify()
+    const r = await worker.identify(vin.length === 17 ? vin : undefined)
     if (r.vin) {
+      setKitVinMissed(false)
+      if (r.vin !== vin) {
+        setScan(null)
+        setSession(null)
+        setPlaybook(null)
+      }
       setVin(r.vin)
+    } else {
+      setKitVinMissed(true)
     }
-    setScan(null)
-    setSession(null)
-    setPlaybook(null)
     const cov = r.coverage
     if (!r.vin) {
       const gaps = [...(cov?.gaps ?? [])]
-      if (!gaps.some((g) => g.toLowerCase().includes('f190') || g.toLowerCase().includes('did not answer'))) {
-        gaps.unshift('VIN DID F190 did not answer. Type the 17 characters, or deep-scan anyway — a timeout is a dark node.')
+      if (!gaps.some((g) => kitVinGap(g))) {
+        gaps.unshift('Kit VIN (DID F190) stayed dark — type the 17 characters, then deep-scan. Modules still answer.')
       }
       setPreCoverage({
         id: cov?.id || r.profile || 'generic_uds',
@@ -451,9 +547,21 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
   }
 
   async function deepScan() {
-    const hints = platformHints()
+    const typed = vin.trim().toUpperCase()
+    let vehicle = history?.vehicle ?? null
+    if (typed.length === 17 && online) {
+      await decodeVin(typed).catch(() => undefined)
+      try {
+        const h = await fetchHistory(typed)
+        applyHistory(h)
+        vehicle = h.vehicle
+      } catch {
+        /* scan still runs — playbook uses whatever hints we have */
+      }
+    }
+    const hints = hintsFrom(vehicle, selectedBook, scan)
     const result = await worker.scan({
-      vin: vin || undefined,
+      vin: typed || undefined,
       make: hints.make,
       model: hints.model,
       year: hints.year,
@@ -461,15 +569,22 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
     setScan(result)
     setPlaybook(null)
     setWiggle(null)
-    const v = result.vin || vin
+    const v = (result.vin || typed).trim().toUpperCase()
     if (result.vin && result.vin !== vin) {
       setVin(result.vin)
     }
+    persistBusCapture(result, v)
     goTab('playbook')
     if (online && v.length === 17) {
-      applyHistory(await fetchHistory(v))
+      if (!vehicle || vehicle.vin !== v) {
+        try {
+          applyHistory(await fetchHistory(v))
+        } catch {
+          /* already scanned */
+        }
+      }
       try {
-        await adviseFromScan(result, v)
+        await adviseFromScan(result, v, hintsFrom(vehicle, selectedBook, result))
       } catch {
         /* playbook optional — scan is on the worker; rebuild when the ledger answers */
       }
@@ -616,7 +731,27 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
             </IconBtn>
           </div>
           {!history && <p className="text-steel">Read VIN from the kit, or type the 17-character VIN and load this shop's jobs.</p>}
-          {history?.first_seen && <p className="text-steel">This shop has not worked this vehicle yet. Close the job to start the file.</p>}
+          {history?.capture && (
+            <div className="mb-4 border border-brass/20 bg-oil/50 p-3">
+              <p className="font-mono text-[11px] tracking-[0.25em] text-brass">BUS MAP · NOT A JOB</p>
+              <p className="mt-1 text-sm text-steel">
+                {history.capture.profile || 'no profile'} · {history.capture.adapter_type} · {history.capture.protocol.replaceAll('_', ' ')}
+                {' · '}
+                {history.capture.scan_count === 1 ? '1 scan' : `${history.capture.scan_count} scans`}
+              </p>
+              <p className="mt-1 font-mono text-xs text-steel">
+                {history.capture.modules.filter((m) => m.ever_reachable).length
+                  ? history.capture.modules.filter((m) => m.ever_reachable).map((m) => `${m.name} ${m.tx_id}${m.reachable ? '' : ' (dark now)'}`).join(' · ')
+                  : 'No nodes have answered yet'}
+              </p>
+              {history.capture.active_codes.length > 0 && (
+                <p className="mt-1 font-mono text-xs text-steel">Last codes {history.capture.active_codes.join('  ')}</p>
+              )}
+              <p className="mt-2 text-xs text-steel">Observed on this shop’s cable. Log and close a job to record the work done.</p>
+            </div>
+          )}
+          {history?.first_seen && !history.capture && <p className="text-steel">This shop has not worked this vehicle yet. Close the job to start the file.</p>}
+          {history?.first_seen && history.capture && <p className="mb-3 text-steel">No job closed yet. The bus map above is from scans, not a closeout.</p>}
           <ol className="space-y-3">
             {(history?.jobs ?? []).map((job) => (
               <li key={job.session_id} className={`border-l-2 pl-3 ${job.verified_fix ? 'border-ok' : 'border-steel/50'}`}>
@@ -654,7 +789,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
       {page === 'job' && jobTab === 'kit' && (
         <section className="mb-6 rounded-sm border border-brass/25 bg-panel/80 p-5">
           <p className="font-mono text-[11px] tracking-[0.3em] text-steel">KIT</p>
-          <p className="mt-1 max-w-2xl text-sm text-steel">Plug the OpenPort, pick the adapter, connect. Deep scan lives on Capture after the VIN is in.</p>
+          <p className="mt-1 max-w-2xl text-sm text-steel">Plug the OpenPort and connect. Most cars do not answer VIN DID F190. Type the 17 characters on Vehicle, then deep-scan — that is how module readings and the playbook are chosen.</p>
           <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto_auto_auto] md:items-end">
             <label className="block">
               <span className="font-mono text-[11px] tracking-widest text-steel">ADAPTER</span>
@@ -677,31 +812,32 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
               <RefreshIcon />
             </IconBtn>
             <IconBtn
-              tip={connected ? 'Drop and reconnect the Pass-Thru' : 'Open the adapter and read VIN if F190 answers'}
+              tip={connected ? 'Drop and reconnect the Pass-Thru' : 'Open the Pass-Thru. VIN from the ECU is optional.'}
               label={connected ? 'RECONNECT' : 'CONNECT'}
               tone="brass"
               disabled={selectedKit?.connectable === false}
-              onClick={() => run('connect + VIN', connectKit, 'Kit connected', 'VIN fills if DID F190 answered. Otherwise type it and continue.')}
+              onClick={() => run('connect', connectKit, 'Kit connected', 'Type the VIN on Vehicle if the field is empty — most ECUs do not answer F190. Then deep-scan.')}
             >
               <LinkIcon />
             </IconBtn>
             <IconBtn
-              tip="Ask the ECU for VIN DID F190 again"
+              tip="Ask the ECU for VIN DID F190 — often stays dark; typing it is the normal path"
               label="VIN"
               disabled={!connected}
-              onClick={() => run('read VIN', readVinFromKit, 'VIN read', 'Empty field means the module stayed dark — type the 17 characters.')}
+              onClick={() => run('read VIN', readVinFromKit, 'VIN from kit', 'If the field is still empty, type the plate VIN — F190 staying dark is normal.')}
             >
               <ChassisIcon />
             </IconBtn>
           </div>
           {selectedKit?.gap && <p className="mt-3 text-sm text-steel">{selectedKit.gap}</p>}
-          <p className="mt-4 font-mono text-xs text-steel">{connected ? 'Kit is up. Next: confirm the VIN on Vehicle.' : 'No kit yet — you can still type a VIN on Vehicle.'}</p>
+          <p className="mt-4 font-mono text-xs text-steel">{connected ? (kitVinMissed || vin.length !== 17 ? 'Kit is up. Type the VIN on Vehicle — then Capture.' : 'Kit is up. Confirm the VIN on Vehicle, then Capture.') : 'No kit yet — you can still type a VIN on Vehicle.'}</p>
         </section>
       )}
 
       {page === 'job' && jobTab === 'vehicle' && (
         <section className="mb-6 rounded-sm border border-brass/20 bg-panel p-5">
           <p className="font-mono text-[11px] tracking-[0.3em] text-steel">VEHICLE</p>
+          <p className="mt-1 max-w-2xl text-sm text-steel">Type the VIN from the plate or windscreen. The kit almost never fills this field. Decode and this shop’s file load as soon as all 17 characters are in.</p>
           <div className="mt-1 flex flex-wrap items-end gap-3">
             <label className="min-w-[16rem] flex-1">
               <span className="sr-only">VIN</span>
@@ -731,18 +867,28 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
             {history && (
               <span className={history.first_seen ? 'text-brass' : 'text-ok'}>
                 {history.first_seen ? 'FIRST VISIT TO THIS SHOP' : `${history.jobs?.length ?? history.sessions.length} JOB(S) HERE`}
+                {history.capture ? ` · BUS MAP ×${history.capture.scan_count}` : ''}
                 {customerPlate ? ` · ${customerPlate}` : ''}
               </span>
             )}
             {coverage && (
               <span className="font-mono text-xs text-brass">{coverage.id} · {coverage.depth.replaceAll('_', ' ')}</span>
             )}
+            {vin.length === 17 && (
+              <span className="font-mono text-xs text-brass">{preview.label}</span>
+            )}
           </div>
-          {coverage && coverage.gaps.length > 0 && (
+          {(kitVinMissed || kitGaps.length > 0) && vin.length !== 17 && (
             <div className="mt-3 border border-brass/30 bg-oil/60 px-3 py-3">
-              <p className="font-mono text-[11px] tracking-widest text-brass">WHAT THIS VIN STILL NEEDS</p>
+              <p className="font-mono text-[11px] tracking-widest text-brass">KIT DID NOT READ THE VIN</p>
+              <p className="mt-2 text-sm text-steel">That is a dark DID F190, not a dead scan. Type the 17 characters above, then go to Capture.</p>
+            </div>
+          )}
+          {mapGaps.length > 0 && (
+            <div className="mt-3 border border-brass/30 bg-oil/60 px-3 py-3">
+              <p className="font-mono text-[11px] tracking-widest text-brass">WHAT THIS MAP STILL NEEDS</p>
               <ul className="mt-2 space-y-1 text-sm text-steel">
-                {coverage.gaps.map((g) => <li key={g}>{g}</li>)}
+                {mapGaps.map((g) => <li key={g}>{g}</li>)}
               </ul>
             </div>
           )}
@@ -841,11 +987,13 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
               <p className="font-mono text-[11px] tracking-[0.3em] text-brass">THIS OPENPORT</p>
               <h2 className="mt-1 font-poster text-2xl tracking-wide text-paper">DEEP SCAN</h2>
               <p className="mt-2 max-w-xl text-sm text-steel">
-                UDS module map on the connected kit. Dark nodes stay dark — not a generic PID miss.
+                {vin.length === 17
+                  ? `${preview.label}. Modules that answer still return codes even when the kit never sent a VIN.`
+                  : 'Type the 17-character VIN on Vehicle first. The kit rarely reads it; the typed VIN is what picks Toyota vs a generic 7E0–7E2 probe.'}
               </p>
               <div className="mt-4">
                 <IconBtn
-                  tip={connected ? 'Scan modules, then open the playbook' : 'Connect the kit on the Kit tab first'}
+                  tip={!connected ? 'Connect the kit on the Kit tab first' : vin.length !== 17 ? 'Scan anyway — without a VIN this is a generic 7E0–7E2 probe' : 'Scan modules, then open the playbook'}
                   label="DEEP SCAN"
                   tone="brass"
                   disabled={!connected}
@@ -918,7 +1066,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
           </div>
           <section className="rounded-sm border border-brass/20 bg-panel p-5">
             <h2 className="mb-3 font-mono text-sm tracking-[0.25em] text-brass">LIVE MODULES</h2>
-            {!scan && <p className="text-steel">Deep scan uses the VIN profile: a captured platform map when we have one, otherwise a Toyota 11-bit probe or ISO 15765-4 (7E0–7E2). Dark means no UDS answer — not a generic PID miss.</p>}
+            {!scan && <p className="text-steel">Deep scan uses the typed VIN: a captured platform map when we have one, otherwise a Toyota 11-bit probe or ISO 15765-4 (7E0–7E2). Dark means no UDS answer — not a generic PID miss, and not a missing VIN from the kit.</p>}
             {scan?.network && (
               <p className="mb-3 text-sm text-steel">{scan.network.summary}</p>
             )}
