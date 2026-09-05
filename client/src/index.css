@@ -295,6 +295,30 @@ button {
   background: var(--color-oil);
 }
 
+.ask-sheet {
+  width: min(42rem, 100%);
+}
+
+.ask-thread {
+  max-height: min(38vh, 22rem);
+  overflow: auto;
+  padding-right: 0.25rem;
+}
+
+.ask-turn {
+  border-left: 2px solid color-mix(in srgb, var(--color-brass) 45%, transparent);
+  padding: 0.15rem 0 0.15rem 0.75rem;
+}
+
+.ask-turn-user {
+  border-left-color: color-mix(in srgb, var(--color-paper) 35%, transparent);
+}
+
+.ask-turn-assistant {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--color-brass) 8%, transparent), transparent 8rem);
+}
+
 .howto-missing {
   min-height: 9rem;
   padding: 0.85rem 1rem;

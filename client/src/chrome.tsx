@@ -131,6 +131,14 @@ export function MeterIcon() {
   )
 }
 
+export function DetailIcon() {
+  return (
+    <Glyph>
+      <path {...stroke} d="M6 4h9l5 5v11H6zM15 4v5h5M8 12h8M8 15h5" />
+    </Glyph>
+  )
+}
+
 export function BookIcon() {
   return (
     <Glyph>

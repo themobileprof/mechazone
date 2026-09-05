@@ -20,20 +20,47 @@ type Fuser struct {
 	Log   *slog.Logger
 }
 
-// Build loads this shop's VIN history and retrieved chunks, then asks the hosted LLM.
-func (f *Fuser) Build(ctx context.Context, req Request) (Playbook, error) {
+type gathered struct {
+	req            Request
+	hist           ledger.History
+	matches        []ledger.NetworkMatch
+	titles         map[string]ledger.DTC
+	docs           []ledger.RetrievedChunk
+	figs           []ledger.RetrievedFigure
+	classes        []CircuitClass
+	net            NetworkHint
+	wiring         bool
+	checks         []ledger.PlaybookCheck
+	pinned         *PinnedManual
+	allowedFigures map[string]struct{}
+}
+
+func (g gathered) figures() []ManualFigure {
+	out := make([]ManualFigure, 0, len(g.figs))
+	for _, fig := range g.figs {
+		out = append(out, ManualFigure{
+			ID: fig.ID, Title: fig.Title, Page: fig.Page, Caption: fig.Caption, Language: fig.Language,
+			ImageURL: fig.ImageURL, OCRText: fig.OCRText, Kind: fig.Kind,
+		})
+	}
+	return out
+}
+
+// gather loads this shop's VIN history and retrieved chunks. extraQuery is appended for a step follow-up.
+func (f *Fuser) gather(ctx context.Context, req Request, extraQuery string) (gathered, error) {
+	var zero gathered
 	norm, err := vin.Normalize(req.VIN)
 	if err != nil {
-		return Playbook{}, err
+		return zero, err
 	}
 	req.VIN = norm
 	if len(req.ActiveCodes) == 0 && req.SessionID == "" && len(req.Live) == 0 && len(req.Modules) == 0 {
-		return Playbook{}, fmt.Errorf("a live scan is required")
+		return zero, fmt.Errorf("a live scan is required")
 	}
 
 	hist, err := f.Store.History(ctx, req.VIN, req.ShopID, req.TechnicianID)
 	if err != nil {
-		return Playbook{}, fmt.Errorf("ledger: %w", err)
+		return zero, fmt.Errorf("ledger: %w", err)
 	}
 	if hist.Vehicle != nil {
 		if req.Make == "" {
@@ -49,13 +76,13 @@ func (f *Fuser) Build(ctx context.Context, req Request) (Playbook, error) {
 	if req.SessionID != "" {
 		sess, err := f.Store.SessionByID(ctx, req.SessionID)
 		if err != nil {
-			return Playbook{}, fmt.Errorf("session: %w", err)
+			return zero, fmt.Errorf("session: %w", err)
 		}
 		if sess.VIN != req.VIN {
-			return Playbook{}, fmt.Errorf("session VIN does not match")
+			return zero, fmt.Errorf("session VIN does not match")
 		}
 		if !ledger.InShopScope(req.ShopID, sess.ShopID, req.TechnicianID, sess.TechnicianID) {
-			return Playbook{}, fmt.Errorf("session is not this shop's job")
+			return zero, fmt.Errorf("session is not this shop's job")
 		}
 		if len(req.ActiveCodes) == 0 {
 			req.ActiveCodes = sess.ActiveCodes
@@ -73,11 +100,11 @@ func (f *Fuser) Build(ctx context.Context, req Request) (Playbook, error) {
 
 	matches, err := f.Store.NetworkMatches(ctx, req.VIN, req.ShopID, req.TechnicianID, req.Make, req.Model, req.Year, req.ActiveCodes)
 	if err != nil {
-		return Playbook{}, fmt.Errorf("network: %w", err)
+		return zero, fmt.Errorf("network: %w", err)
 	}
 	titles, err := f.Store.DTCTitles(ctx, req.ActiveCodes)
 	if err != nil {
-		return Playbook{}, fmt.Errorf("dtc: %w", err)
+		return zero, fmt.Errorf("dtc: %w", err)
 	}
 	titleText := map[string]string{}
 	for code, d := range titles {
@@ -91,7 +118,7 @@ func (f *Fuser) Build(ctx context.Context, req Request) (Playbook, error) {
 	if strings.TrimSpace(req.SourceID) != "" {
 		src, err := f.Store.GetManual(ctx, req.SourceID)
 		if err != nil {
-			return Playbook{}, fmt.Errorf("manual: %w", err)
+			return zero, fmt.Errorf("manual: %w", err)
 		}
 		pinned = &PinnedManual{
 			ID: src.ID, Title: src.Title, Make: src.Make, Model: src.Model,
@@ -111,7 +138,7 @@ func (f *Fuser) Build(ctx context.Context, req Request) (Playbook, error) {
 			req.EngineHint = src.Engine
 		}
 	}
-	q := retrievalQuery(req)
+	q := strings.TrimSpace(retrievalQuery(req) + " " + extraQuery)
 	mq := ledger.ManualQuery{
 		Make: req.Make, Model: req.Model, Year: req.Year,
 		Codes: req.ActiveCodes, Query: q, Wiring: wiring, SourceID: req.SourceID,
@@ -119,7 +146,7 @@ func (f *Fuser) Build(ctx context.Context, req Request) (Playbook, error) {
 	if f.Embed != nil && f.Embed.Ready() && q != "" && f.Store.HasChunkEmbeddings() {
 		meta, err := f.Store.EmbeddingMeta(ctx)
 		if err != nil {
-			return Playbook{}, fmt.Errorf("embed meta: %w", err)
+			return zero, fmt.Errorf("embed meta: %w", err)
 		}
 		if meta.Model == "" {
 			if f.Log != nil {
@@ -142,7 +169,7 @@ func (f *Fuser) Build(ctx context.Context, req Request) (Playbook, error) {
 	}
 	docs, figs, err := f.Store.SearchManuals(ctx, mq)
 	if err != nil {
-		return Playbook{}, fmt.Errorf("manuals: %w", err)
+		return zero, fmt.Errorf("manuals: %w", err)
 	}
 	allowedFigures := map[string]struct{}{}
 	for _, fig := range figs {
@@ -153,7 +180,22 @@ func (f *Fuser) Build(ctx context.Context, req Request) (Playbook, error) {
 		req.Language = "en"
 	}
 
-	user, err := buildUserPrompt(req, hist, matches, titles, docs, figs, classes, net, wiring, settledChecks(hist.Checks))
+	return gathered{
+		req: req, hist: hist, matches: matches, titles: titles, docs: docs, figs: figs,
+		classes: classes, net: net, wiring: wiring, checks: settledChecks(hist.Checks),
+		pinned: pinned, allowedFigures: allowedFigures,
+	}, nil
+}
+
+// Build loads this shop's VIN history and retrieved chunks, then asks the hosted LLM.
+func (f *Fuser) Build(ctx context.Context, req Request) (Playbook, error) {
+	g, err := f.gather(ctx, req, "")
+	if err != nil {
+		return Playbook{}, err
+	}
+	req = g.req
+
+	user, err := buildUserPrompt(req, g.hist, g.matches, g.titles, g.docs, g.figs, g.classes, g.net, g.wiring, g.checks)
 	if err != nil {
 		return Playbook{}, err
 	}
@@ -167,14 +209,14 @@ func (f *Fuser) Build(ctx context.Context, req Request) (Playbook, error) {
 	}
 	book.VIN = req.VIN
 	book.Platform = platformKey(req.Make, req.Model, req.Year, req.EngineHint)
-	book.FirstSeen = hist.FirstSeen
+	book.FirstSeen = g.hist.FirstSeen
 	book.Model = f.LLM.Model
-	book = Sanitize(book, allowedFigures)
+	book = Sanitize(book, g.allowedFigures)
 	if strings.EqualFold(req.AdapterType, "imported_report") {
 		gap := "Codes came from an imported scanner report, not this OpenPort. Confirm with a live scan before treating DIDs or module maps as fact."
 		already := false
-		for _, g := range book.Gaps {
-			if g == gap {
+		for _, item := range book.Gaps {
+			if item == gap {
 				already = true
 				break
 			}
@@ -183,19 +225,14 @@ func (f *Fuser) Build(ctx context.Context, req Request) (Playbook, error) {
 			book.Gaps = append(StringList{gap}, book.Gaps...)
 		}
 	}
-	book.CircuitClasses = classes
-	book.Network = net
-	book.Manual = pinned
-	book.RetrievedChunks = len(docs)
-	if pinned != nil && len(docs) == 0 {
+	book.CircuitClasses = g.classes
+	book.Network = g.net
+	book.Manual = g.pinned
+	book.RetrievedChunks = len(g.docs)
+	if g.pinned != nil && len(g.docs) == 0 {
 		book.Gaps = appendUnique(book.Gaps, "This workshop book is on file but no page matched this scan. Adapter tests still apply.")
 	}
-	for _, fig := range figs {
-		book.ManualFigures = append(book.ManualFigures, ManualFigure{
-			ID: fig.ID, Title: fig.Title, Page: fig.Page, Caption: fig.Caption, Language: fig.Language,
-			ImageURL: fig.ImageURL, OCRText: fig.OCRText, Kind: fig.Kind,
-		})
-	}
+	book.ManualFigures = g.figures()
 	if err := f.Store.EnsureVehicle(ctx, req.VIN, req.Make, req.Model, req.Year, "playbook"); err != nil {
 		return Playbook{}, fmt.Errorf("vehicle: %w", err)
 	}

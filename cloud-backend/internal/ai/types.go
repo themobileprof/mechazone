@@ -35,6 +35,30 @@ type Request struct {
 	Language     string          `json:"language"`
 }
 
+// AskTurn is one prior exchange on a step consult. Role is user or assistant.
+type AskTurn struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+// AskRequest is a technician question about one playbook step. Shop/tech IDs from the cookie.
+type AskRequest struct {
+	Request
+	Step     Step      `json:"step"`
+	Question string    `json:"question"`
+	Lookouts []string  `json:"lookouts,omitempty"`
+	Thread   []AskTurn `json:"thread,omitempty"`
+}
+
+// AskReply is the step consult. Figures are retrieved IDs only.
+type AskReply struct {
+	Answer          string         `json:"answer"`
+	Gaps            StringList     `json:"gaps"`
+	Figures         []ManualFigure `json:"figures,omitempty"`
+	Model           string         `json:"model,omitempty"`
+	RetrievedChunks int            `json:"retrieved_chunks,omitempty"`
+}
+
 // StringList accepts a JSON array or a single string. Hosted models often emit evidence as a string.
 type StringList []string
 

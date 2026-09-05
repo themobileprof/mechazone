@@ -1,17 +1,18 @@
 /** Shop floor: this shop's jobs, OpenPort or attached report, playbook, closeout. */
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { attachImportedReport, buildPlaybook, closeoutSession, decodeVin, fetchHistory, importedReportURL, ingestSession, ledgerOnline, listManuals, lookupDtc, logout, saveCustomer, upsertBusCapture, upsertPlaybookCheck } from './api'
+import { attachImportedReport, buildPlaybook, closeoutSession, decodeVin, fetchHistory, importedReportURL, ingestSession, ledgerOnline, listManuals, lookupDtc, logout, saveCustomer, upsertBusCapture, upsertPlaybookCheck, type PlaybookBody } from './api'
 import { Logo } from './Brand'
 import {
   AttachIcon, BookIcon, ChassisIcon, CheckIcon, ChevronLeftIcon, ChevronRightIcon,
-  FolderIcon, IconBtn, LinkIcon, LockIcon, MeterIcon, RefreshIcon, SaveIcon, ScanIcon,
+  FolderIcon, IconBtn, LinkIcon, LockIcon, MeterIcon, DetailIcon, RefreshIcon, SaveIcon, ScanIcon,
   SignOutIcon, StampIcon, Tip, WaveIcon, WrenchIcon,
 } from './chrome'
+import { AskModal } from './AskModal'
 import { HowToModal } from './HowToModal'
 import { matchHowTos, type HowToGuide } from './howto'
 import { enqueue, flushQueue, pendingCount } from './queue'
 import { ToastStack, useAutoDismiss, type Notice } from './toast'
-import type { DetectedAdapter, DidStream, HistoryResponse, Playbook, PlaybookCheck, Principal, ScanCoverage, ScanResult, Session, WorkshopBook } from './types'
+import type { DetectedAdapter, DidStream, HistoryResponse, Playbook, PlaybookCheck, PlaybookStep, Principal, ScanCoverage, ScanResult, Session, WorkshopBook } from './types'
 import { worker } from './worker'
 import { kitVinGap, probePreview } from './vinProbe'
 
@@ -154,6 +155,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
   const [lockHint, setLockHint] = useState<string | null>(null)
   const [kitVinMissed, setKitVinMissed] = useState(false)
   const [howTo, setHowTo] = useState<HowToGuide[] | null>(null)
+  const [askStep, setAskStep] = useState<PlaybookStep | null>(null)
 
   const dismissNotice = useCallback((id: number) => {
     setNotices((rows) => rows.filter((n) => n.id !== id))
@@ -374,24 +376,48 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
   }
 
   async function adviseFromScan(result: ScanResult, loggedVin: string, hints = platformHints()) {
-    const v = result.vin || loggedVin
-    const book = await buildPlaybook({
-      vin: v,
-      make: hints.make,
-      model: hints.model,
-      year: hints.year,
-      engine_hint: result.profile,
-      active_codes: result.active_codes ?? [],
-      live: result.live,
-      modules: result.modules,
-      freeze_frame: result.freeze_frame,
-      adapter_type: result.adapter_type,
-      protocol: result.protocol,
-      language: navigator.language.slice(0, 2) || 'en',
-      source_id: manualId || undefined,
-    })
+    const body = playbookPayload(result, null, hints)
+    if (!body) throw new Error('a live scan is required')
+    body.vin = result.vin || loggedVin
+    const book = await buildPlaybook(body)
     setPlaybook(book)
     if (book.checks) setChecks(book.checks)
+  }
+
+  function playbookPayload(fromScan: ScanResult | null = scan, fromSession: Session | null = session, hints = platformHints()): PlaybookBody | null {
+    const lang = navigator.language.slice(0, 2) || 'en'
+    if (fromScan) {
+      return {
+        vin: fromScan.vin || vin,
+        make: hints.make,
+        model: hints.model,
+        year: hints.year,
+        engine_hint: fromScan.profile,
+        active_codes: fromScan.active_codes ?? [],
+        live: fromScan.live,
+        modules: fromScan.modules,
+        freeze_frame: fromScan.freeze_frame,
+        adapter_type: fromScan.adapter_type,
+        protocol: fromScan.protocol,
+        language: lang,
+        source_id: manualId || undefined,
+      }
+    }
+    if (fromSession) {
+      return {
+        vin: fromSession.vin,
+        session_id: fromSession.id,
+        make: hints.make,
+        model: hints.model,
+        year: hints.year,
+        active_codes: fromSession.active_codes ?? [],
+        adapter_type: 'imported_report',
+        protocol: 'file_import',
+        language: lang,
+        source_id: manualId || undefined,
+      }
+    }
+    return null
   }
 
   function applyHistory(h: HistoryResponse) {
@@ -568,19 +594,10 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
   }
 
   async function adviseFromImport(sess: Session, typedCodes: string[]) {
-    const hints = platformHints()
-    const book = await buildPlaybook({
-      vin: sess.vin,
-      session_id: sess.id,
-      make: hints.make,
-      model: hints.model,
-      year: hints.year,
-      active_codes: typedCodes.length ? typedCodes : sess.active_codes,
-      adapter_type: 'imported_report',
-      protocol: 'file_import',
-      language: navigator.language.slice(0, 2) || 'en',
-      source_id: manualId || undefined,
-    })
+    const body = playbookPayload(null, sess)
+    if (!body) throw new Error('a live scan is required')
+    body.active_codes = typedCodes.length ? typedCodes : sess.active_codes
+    const book = await buildPlaybook(body)
     setPlaybook(book)
     if (book.checks) setChecks(book.checks)
   }
@@ -1283,15 +1300,25 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
                             {st.order} · {st.kind.toUpperCase()}{st.adapter ? ' · ADAPTER' : ''}
                             {status === 'done' ? ' · DID THIS' : status === 'ruled_out' ? ' · NOT THIS' : ''}
                           </p>
-                          {guides.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1">
                             <IconBtn
-                              tip="Beginner card: leads, dial, and what the display should look like — not pins on this car"
-                              label="HOW-TO"
-                              onClick={() => setHowTo(guides)}
+                              tip={!online ? 'Ledger offline — reconnect to ask about this step' : 'Ask about this step using this scan, this shop, and retrieved pages'}
+                              label="DETAILS"
+                              disabled={!online}
+                              onClick={() => setAskStep(st)}
                             >
-                              <MeterIcon />
+                              <DetailIcon />
                             </IconBtn>
-                          )}
+                            {guides.length > 0 && (
+                              <IconBtn
+                                tip="Beginner card: leads, dial, and what the display should look like — not pins on this car"
+                                label="HOW-TO"
+                                onClick={() => setHowTo(guides)}
+                              >
+                                <MeterIcon />
+                              </IconBtn>
+                            )}
+                          </div>
                         </div>
                         <p className="font-semibold">{st.title}</p>
                         <p className="text-sm text-steel">{st.detail}</p>
@@ -1472,6 +1499,15 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
       )}
 
       {howTo && <HowToModal guides={howTo} onClose={() => setHowTo(null)} />}
+      {askStep && (
+        <AskModal
+          step={askStep}
+          lookouts={playbook?.lookouts.map((l) => l.text) ?? []}
+          payload={playbookPayload()}
+          online={online}
+          onClose={() => setAskStep(null)}
+        />
+      )}
       <ToastStack notices={notices} onDismiss={dismissNotice} />
     </div>
   )

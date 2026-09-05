@@ -1,4 +1,4 @@
-// Package pii rejects customer-identity JSON keys on session ingest, closeout, import notes, bus captures, and playbook checks.
+// Package pii rejects customer-identity JSON keys on session ingest, closeout, import notes, bus captures, playbook checks, and playbook ask.
 // Name/phone/plate for this shop go through PUT /api/v1/vehicles/{vin}/customer, not those bodies.
 package pii
 

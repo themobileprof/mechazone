@@ -1,5 +1,5 @@
 /** Ledger REST client. Cookies carry identity; do not set Content-Type on FormData uploads. */
-import type { AccessRequest, BusCapture, HistoryResponse, JobImport, Playbook, PlaybookCheck, Principal, Resolution, Session, Shop, Technician, WorkshopBook } from './types'
+import type { AccessRequest, BusCapture, HistoryResponse, JobImport, Playbook, PlaybookAsk, PlaybookCheck, PlaybookStep, Principal, Resolution, Session, Shop, Technician, WorkshopBook } from './types'
 
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(path, {
@@ -137,7 +137,7 @@ export function importedReportURL(sessionId: string) {
   return `/api/v1/sessions/${sessionId}/import`
 }
 
-export function buildPlaybook(body: {
+export type PlaybookBody = {
   vin: string
   session_id?: string
   make?: string
@@ -152,8 +152,19 @@ export function buildPlaybook(body: {
   protocol?: string
   language?: string
   source_id?: string
-}) {
+}
+
+export function buildPlaybook(body: PlaybookBody) {
   return api<Playbook>('/api/v1/playbooks', { method: 'POST', body: JSON.stringify(body) })
+}
+
+export function askPlaybook(body: PlaybookBody & {
+  step: PlaybookStep
+  question: string
+  lookouts?: string[]
+  thread?: { role: 'user' | 'assistant'; content: string }[]
+}) {
+  return api<PlaybookAsk>('/api/v1/playbooks/ask', { method: 'POST', body: JSON.stringify(body) })
 }
 
 export function upsertPlaybookCheck(vin: string, body: {

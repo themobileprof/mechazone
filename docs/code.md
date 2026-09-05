@@ -64,10 +64,11 @@ Technician cookie required except login, access-request, health, and some decode
 | GET | `/api/v1/sessions/{id}/import` | Shop-scoped file |
 | POST | `/api/v1/sessions/{id}/closeout` | Success/fail + parts |
 | POST | `/api/v1/playbooks` | LLM fuse |
+| POST | `/api/v1/playbooks/ask` | LLM follow-up on one playbook step |
 | GET | `/api/v1/manuals` | Ingested workshop books |
 | GET | `/api/v1/manuals/figures/{id}/image` | Retrieved figure bytes |
 
-Shop/tech IDs are overwritten from `principalFrom` in ingest, import, closeout, playbook, customer PUT, capture PUT, and check PUT.
+Shop/tech IDs are overwritten from `principalFrom` in ingest, import, closeout, playbook, playbook ask, customer PUT, capture PUT, and check PUT.
 
 Handler files (same package):
 
@@ -77,7 +78,7 @@ Handler files (same package):
 | `auth.go` | login cookie, `requireAuth` / `requireAdmin` / `requireTechnician` |
 | `handlers.go` | VIN history, customer PUT, bus capture PUT, playbook check PUT, decode, DTC, live session ingest, closeout |
 | `import.go` | attach / download scanner files |
-| `playbook.go` | LLM fuse |
+| `playbook.go` | LLM fuse and per-step ask |
 | `admin.go` / `access.go` | shops, techs, landing tickets |
 | `ui.go` | `client/dist` SPA when `UI_DIR` is set |
 | `figures.go` | retrieved manual images |
@@ -131,6 +132,7 @@ No J2534 imports. Hardware only through `worker.ts`.
 | `Admin.tsx` | Issue shops and technicians |
 | `Bay.tsx` | Kit, VIN, attach report, playbook, jobs, closeout |
 | `howto.ts` / `HowToModal.tsx` | Beginner meter/DLC/backprobe cards; plates in `client/public/howto/` |
+| `AskModal.tsx` | Per-step LLM consult; same fuse context as the playbook |
 | `api.ts` | `fetch` with credentials; FormData must not set `Content-Type` |
 | `queue.ts` | `localStorage` JSON queue for session/closeout/customer/capture/check when offline |
 | `types.ts` | Shared DTOs |

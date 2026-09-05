@@ -156,28 +156,49 @@ export type Resolution = {
   created_at: string
 }
 
+export type PlaybookStep = {
+  order: number
+  kind: string
+  title: string
+  detail: string
+  pass?: string
+  fail?: string
+  adapter: boolean
+  figures?: string[]
+}
+
+export type PlaybookFigure = {
+  id: string
+  title: string
+  page: number
+  caption: string
+  language: string
+  image_url?: string
+  ocr_text?: string
+  kind?: string
+}
+
+export type PlaybookAsk = {
+  answer: string
+  gaps: string[]
+  figures?: PlaybookFigure[]
+  model?: string
+  retrieved_chunks?: number
+}
+
 export type Playbook = {
   vin: string
   platform: string
   lookouts: { text: string; evidence: string[] }[]
   likely_causes: { title: string; probability: number; evidence: string[] }[]
-  steps: {
-    order: number
-    kind: string
-    title: string
-    detail: string
-    pass?: string
-    fail?: string
-    adapter: boolean
-    figures?: string[]
-  }[]
+  steps: PlaybookStep[]
   validation: string
   gaps: string[]
   model?: string
   first_seen: boolean
   circuit_classes?: { code: string; class: string; reason: string }[]
   network?: { reading: string; summary: string; live: number; dark: number }
-  manual_figures?: { id: string; title: string; page: number; caption: string; language: string; image_url?: string; ocr_text?: string; kind?: string }[]
+  manual_figures?: PlaybookFigure[]
   manual?: WorkshopBook
   retrieved_chunks?: number
   checks?: PlaybookCheck[]

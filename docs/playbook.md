@@ -75,6 +75,8 @@ A ruled-out step stays ruled out across rebuilds. New steps from the next playbo
 
 Playbook steps that mention ohms, volts, continuity, the 16-pin DLC, or backprobing show a **HOW-TO** button. The card teaches leads, dial, and the display. It does not invent pin numbers on a module connector. DLC pins 16 / 4 / 5 are SAE J1962 only. Plates live in `client/public/howto/` (`docs` hunt list in that folder’s README).
 
+**DETAILS** on every step opens a consult sheet. The technician asks a question about that step. The ledger retrieves this shop's jobs and matching manual chunks (query includes the step title and the question), then calls the same hosted LLM. It is not a generic chatbot. Uncited pins stay in `gaps`. Customer name/phone/plate never go in the prompt. The thread is not a closeout.
+
 ## Diagrams
 
 - Source: OSS-parsed TSB/manual PDFs (figure objects) or a photo a technician attached to a **verified** closeout.
