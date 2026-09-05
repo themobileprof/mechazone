@@ -100,6 +100,8 @@ Circuit / U-codes are classified (open, short-to-batt, short-to-gnd, lost commun
 
 A DID wiggle log streams ECM identifiers while the technician moves the loom. There are no captured UDS `$2F` IO-control IDs on any profile yet — do not invent them.
 
+**CLEAR CODES** on Capture and Playbook (after a live OpenPort scan) sends ISO 14229 `$14` through udsoncan. Group `0xFFFFFF`, then `0x000000` if needed. If the ECU NRC-rejects in the default session, one retry in extended diagnostic session (`$10 03`) — not programming, not a seed/key. It is not a repair. Only modules that answered and currently have codes are addressed. Dark nodes are skipped. Imported reports cannot be cleared on this cable. Playbook validation that says “clear codes, road test” is the same action.
+
 ## Implementation home
 
 `cloud-backend/internal/ai/` — retrieve (FTS + optional cosine), cite, call an existing LLM API (`LLM_*` in `.env`). Chunk embeddings are always local Ollama `bge-small-en-v1.5`. Do not train or host a playbook model. Do not rebuild a PDF product; wrap an OSS parser.

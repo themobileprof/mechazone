@@ -1,5 +1,5 @@
 /** Local OpenPort worker over WebSocket. The UI never imports J2534. */
-import type { DetectedAdapter, DidStream, ScanResult } from './types'
+import type { ClearDtcsResult, DetectedAdapter, DidStream, ScanResult } from './types'
 
 const wsUrl = import.meta.env.VITE_WORKER_WS ?? 'ws://127.0.0.1:8765'
 
@@ -80,6 +80,10 @@ export class WorkerClient {
 
   streamDids(seconds = 6) {
     return this.request<DidStream>('stream_dids', { seconds }, 25000)
+  }
+
+  clearDtcs() {
+    return this.request<ClearDtcsResult>('clear_dtcs', {}, 30000)
   }
 }
 

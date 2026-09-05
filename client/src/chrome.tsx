@@ -251,6 +251,15 @@ export function WaveIcon() {
   )
 }
 
+export function ClearCodesIcon() {
+  return (
+    <Glyph>
+      <path {...stroke} d="M6 7h12v12H6zM9 11h6M9 14h4" />
+      <path {...stroke} d="M15 5l4 4M19 5l-4 4" />
+    </Glyph>
+  )
+}
+
 export function SaveIcon() {
   return (
     <Glyph>

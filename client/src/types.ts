@@ -264,6 +264,31 @@ export type ScanResult = {
   network?: { reading: string; summary: string; live: number; dark: number }
   coverage?: ScanCoverage
   identity?: { name: string; did: string; text: string }[]
+  cleared_codes?: string[]
+}
+
+export type ClearDtcModule = {
+  name: string
+  tx_id: string
+  rx_id: string
+  reachable: boolean
+  attempted: boolean
+  cleared: boolean
+  codes_before: string[]
+  codes_after: string[]
+  error?: string
+  gap?: string
+}
+
+export type ClearDtcsResult = {
+  service: string
+  group: string
+  codes_before: string[]
+  codes_after: string[]
+  modules: ClearDtcModule[]
+  circuit_classes?: { code: string; class: string; reason: string }[]
+  raw_hex_stream: string[]
+  gaps: string[]
 }
 
 export type DidStream = {

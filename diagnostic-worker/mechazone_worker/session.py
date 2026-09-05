@@ -1,4 +1,4 @@
-"""Live UDS session: identify VIN, scan modules, stream DIDs via udsoncan.Client.
+"""Live UDS session: identify VIN, scan modules, stream DIDs, clear DTCs via udsoncan.Client.
 
 One PassThru ISO 15765 channel; do not PassThru-close between modules.
 """
@@ -6,6 +6,7 @@ One PassThru ISO 15765 channel; do not PassThru-close between modules.
 from __future__ import annotations
 
 import os
+import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -18,6 +19,7 @@ from udsoncan.exceptions import (
     TimeoutException,
     UnexpectedResponseException,
 )
+from udsoncan.services import DiagnosticSessionControl
 
 _UDS_MISS = (
     TimeoutException,
@@ -90,6 +92,7 @@ class DiagnosticSession:
         self.hexlog = MemoryHexLog()
         self.vin = ""
         self.profile: VehicleProfile = select_profile("")
+        self._last_modules: list[dict[str, Any]] = []
 
     def identify(self, vin: str = "") -> dict[str, Any]:
         typed = (vin or "").strip().upper()
@@ -153,6 +156,7 @@ class DiagnosticSession:
 
         freeze = {item["name"]: item["value"] for item in live}
         classes = classify_codes(codes)
+        self._last_modules = modules
         return ScanResult(
             vin=vin,
             profile=self.profile.id,
@@ -220,6 +224,142 @@ class DiagnosticSession:
             "samples": samples,
             "raw_hex_stream": list(self.hexlog.lines),
         }
+
+    def clear_dtcs(self) -> dict[str, Any]:
+        """UDS $14 ClearDiagnosticInformation (group 0xFFFFFF) on reachable nodes that have codes.
+
+        Dark modules are not addressed. No security access, no session change, no $2F.
+        """
+        self.hexlog = MemoryHexLog()
+        nodes: list[dict[str, Any]] = []
+        before: list[str] = []
+        after: list[str] = []
+        gaps: list[str] = []
+        for module in self.profile.modules:
+            prev = next((m for m in self._last_modules if m.get("name") == module.name), None)
+            if prev is not None and not prev.get("reachable"):
+                nodes.append(
+                    {
+                        "name": module.name,
+                        "tx_id": f"0x{module.tx_id:03X}",
+                        "rx_id": f"0x{module.rx_id:03X}",
+                        "reachable": False,
+                        "attempted": False,
+                        "cleared": False,
+                        "codes_before": [],
+                        "codes_after": [],
+                        "error": "timeout",
+                    }
+                )
+                continue
+            if prev is not None and not (prev.get("dtcs") or []):
+                nodes.append(
+                    {
+                        "name": module.name,
+                        "tx_id": f"0x{module.tx_id:03X}",
+                        "rx_id": f"0x{module.rx_id:03X}",
+                        "reachable": True,
+                        "attempted": False,
+                        "cleared": False,
+                        "codes_before": [],
+                        "codes_after": [],
+                    }
+                )
+                continue
+            timeout = 5.0 if module.name == "ECM" else 2.0
+            info = self._clear_module(module, timeout)
+            nodes.append(info)
+            before.extend(info.get("codes_before") or [])
+            after.extend(info.get("codes_after") or [])
+            if info.get("gap"):
+                gaps.append(str(info["gap"]))
+            if prev is not None:
+                prev["dtcs"] = list(info.get("codes_after") or [])
+                prev["reachable"] = bool(info.get("reachable") or prev.get("reachable"))
+        before_u = _unique(before)
+        after_u = _unique(after)
+        if not any(n.get("attempted") for n in nodes):
+            raise RuntimeError(
+                "No reachable module currently has codes. Deep-scan first. "
+                "Dark nodes are not sent UDS $14."
+            )
+        return {
+            "service": "0x14",
+            "group": "0xFFFFFF",
+            "codes_before": before_u,
+            "codes_after": after_u,
+            "modules": nodes,
+            "circuit_classes": classify_codes(after_u),
+            "raw_hex_stream": list(self.hexlog.lines),
+            "gaps": gaps,
+        }
+
+    def _clear_module(self, module: Any, timeout: float) -> dict[str, Any]:
+        info: dict[str, Any] = {
+            "name": module.name,
+            "tx_id": f"0x{module.tx_id:03X}",
+            "rx_id": f"0x{module.rx_id:03X}",
+            "reachable": False,
+            "attempted": False,
+            "cleared": False,
+            "codes_before": [],
+            "codes_after": [],
+        }
+        conn = self._factory(module.tx_id, module.rx_id, self.hexlog)
+        try:
+            with Client(conn, request_timeout=timeout, config=_uds_config(self.profile, timeout)) as client:
+                try:
+                    codes = _read_dtcs(client)
+                except (TimeoutException, TimeoutError):
+                    info["error"] = "timeout"
+                    return info
+                except NegativeResponseException as exc:
+                    info["reachable"] = True
+                    info["error"] = _nrc_label(exc)
+                    info["gap"] = (
+                        f"{module.name} answered but $19 {info['error']} — $14 not sent (no security access)."
+                    )
+                    return info
+                except (InvalidResponseException, UnexpectedResponseException):
+                    info["error"] = "unexpected"
+                    return info
+                info["reachable"] = True
+                info["codes_before"] = codes
+                if not codes:
+                    return info
+                info["attempted"] = True
+                try:
+                    group, sess = _clear_dtc(client)
+                except NegativeResponseException as exc:
+                    label = _nrc_label(exc)
+                    info["error"] = label
+                    info["codes_after"] = codes
+                    info["gap"] = (
+                        f"{module.name} rejected $14 ({label}). "
+                        "No seed/key retry. Codes left as read."
+                    )
+                    return info
+                info["cleared"] = True
+                info["group"] = group
+                info["session"] = sess
+                time.sleep(0.15)
+                try:
+                    info["codes_after"] = _read_dtcs(client)
+                except _UDS_MISS:
+                    info["codes_after"] = []
+                    info["gap"] = f"{module.name} accepted $14; re-read DTCs missed."
+        except TimeoutException:
+            info["error"] = "timeout"
+        except TimeoutError:
+            info["error"] = "timeout"
+        except InvalidResponseException:
+            info["error"] = "empty_pdu"
+        except UnexpectedResponseException:
+            info["error"] = "unexpected"
+        except NegativeResponseException:
+            info["reachable"] = True
+            info["error"] = "nrc"
+        return info
 
     def _probe_profile(self) -> tuple[str, list[str], list[dict[str, Any]], list[dict[str, str]], list[dict[str, Any]]]:
         vin = self.vin
@@ -309,6 +449,69 @@ def _read_dtcs(client: Client) -> list[str]:
     return out
 
 
+def _unique(codes: list[str]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for code in codes:
+        if code in seen:
+            continue
+        seen.add(code)
+        out.append(code)
+    return out
+
+
+def _nrc_label(exc: NegativeResponseException) -> str:
+    code = _nrc_int(exc)
+    if code is not None:
+        return f"nrc_0x{code:02X}"
+    return "nrc"
+
+
+def _nrc_int(exc: NegativeResponseException) -> int | None:
+    resp = getattr(exc, "response", None)
+    code = getattr(resp, "code", None)
+    return code if isinstance(code, int) else None
+
+
+_SESSION_NRC = {0x22, 0x7F}  # conditionsNotCorrect, serviceNotSupportedInActiveSession
+_RANGE_NRC = {0x31}  # requestOutOfRange
+
+
+def _clear_dtc(client: Client) -> tuple[str, str]:
+    """UDS $14 group 0xFFFFFF, then 0x000000. Extended session (0x10 03) only — never programming."""
+    last: NegativeResponseException | None = None
+    for group in (0xFFFFFF, 0x000000):
+        try:
+            client.clear_dtc(group)
+            return f"0x{group:06X}", "default"
+        except NegativeResponseException as exc:
+            last = exc
+            nrc = _nrc_int(exc)
+            if nrc in _SESSION_NRC:
+                try:
+                    client.change_session(DiagnosticSessionControl.Session.extendedDiagnosticSession)
+                except NegativeResponseException as sess_exc:
+                    raise last from sess_exc
+                except (InvalidResponseException, UnexpectedResponseException):
+                    pass
+                try:
+                    client.clear_dtc(group)
+                    return f"0x{group:06X}", "extended"
+                except NegativeResponseException as exc2:
+                    last = exc2
+                    nrc = _nrc_int(exc2)
+                    if nrc in _RANGE_NRC:
+                        continue
+                    raise
+            elif nrc in _RANGE_NRC:
+                continue
+            else:
+                raise
+    if last is not None:
+        raise last
+    raise RuntimeError("UDS $14 returned no response")
+
+
 def _read_live(client: Client, profile: VehicleProfile) -> list[dict[str, Any]]:
     live: list[dict[str, Any]] = []
     for item in profile.dids:
@@ -367,8 +570,10 @@ def mock_factory(profile_id: str | None = None):
     """Bench ECU via udsoncan FakeConnection. Pin a captured map with MECHAZONE_MOCK_PROFILE."""
     pid = profile_id if profile_id is not None else os.environ.get("MECHAZONE_MOCK_PROFILE", "")
     replies_fn = mock_replies_for(pid)
+    cleared_tx: set[int] = set()
 
     def factory(tx_id: int, rx_id: int, hexlog: MemoryHexLog) -> ScriptedEcu:
+        del rx_id
         replies = replies_fn(tx_id)
         silent = replies is None
         return ScriptedEcu(
@@ -376,6 +581,8 @@ def mock_factory(profile_id: str | None = None):
             hexlog,
             name=f"mock:{tx_id:03X}",
             silent=silent,
+            tx_id=tx_id,
+            cleared_tx=cleared_tx,
         )
 
     return factory

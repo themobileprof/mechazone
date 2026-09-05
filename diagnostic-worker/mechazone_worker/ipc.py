@@ -121,6 +121,8 @@ def _dispatch(state: WorkerState, cmd: str, msg: dict[str, Any]) -> Any:
     if cmd == "stream_dids":
         seconds = float(msg.get("seconds") or 6)
         return state.require().stream_dids(seconds)
+    if cmd == "clear_dtcs":
+        return state.require().clear_dtcs()
     raise ValueError(f"unknown cmd {cmd}")
 
 

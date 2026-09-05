@@ -4,15 +4,16 @@ import { attachImportedReport, buildPlaybook, closeoutSession, decodeVin, fetchH
 import { Logo } from './Brand'
 import {
   AttachIcon, BookIcon, ChassisIcon, CheckIcon, ChevronLeftIcon, ChevronRightIcon,
-  FolderIcon, IconBtn, LinkIcon, LockIcon, MeterIcon, DetailIcon, RefreshIcon, SaveIcon, ScanIcon,
+  ClearCodesIcon, FolderIcon, IconBtn, LinkIcon, LockIcon, MeterIcon, DetailIcon, RefreshIcon, SaveIcon, ScanIcon,
   SignOutIcon, StampIcon, Tip, WaveIcon, WrenchIcon,
 } from './chrome'
 import { AskModal } from './AskModal'
+import { ClearCodesModal } from './ClearCodesModal'
 import { HowToModal } from './HowToModal'
 import { matchHowTos, type HowToGuide } from './howto'
 import { enqueue, flushQueue, pendingCount } from './queue'
 import { ToastStack, useAutoDismiss, type Notice } from './toast'
-import type { DetectedAdapter, DidStream, HistoryResponse, Playbook, PlaybookCheck, PlaybookStep, Principal, ScanCoverage, ScanResult, Session, WorkshopBook } from './types'
+import type { ClearDtcsResult, DetectedAdapter, DidStream, HistoryResponse, Playbook, PlaybookCheck, PlaybookStep, Principal, ScanCoverage, ScanResult, Session, WorkshopBook } from './types'
 import { worker } from './worker'
 import { kitVinGap, probePreview } from './vinProbe'
 
@@ -96,6 +97,23 @@ function captureBody(result: ScanResult) {
   }
 }
 
+function applyClearToScan(from: ScanResult, result: ClearDtcsResult): ScanResult {
+  const byName = new Map(result.modules.map((m) => [m.name, m]))
+  return {
+    ...from,
+    active_codes: result.codes_after,
+    circuit_classes: result.circuit_classes ?? from.circuit_classes,
+    raw_hex_stream: [...(from.raw_hex_stream ?? []), ...(result.raw_hex_stream ?? [])],
+    cleared_codes: result.codes_before,
+    modules: from.modules.map((m) => {
+      const hit = byName.get(m.name)
+      if (!hit) return m
+      const dtcs = hit.attempted || hit.cleared ? hit.codes_after : m.dtcs
+      return { ...m, reachable: hit.reachable || m.reachable, dtcs }
+    }),
+  }
+}
+
 function checkFingerprint(kind: string, title: string) {
   const k = (kind || 'test').trim().toLowerCase() || 'test'
   return `${k}|${title.trim().toLowerCase()}`
@@ -156,6 +174,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
   const [kitVinMissed, setKitVinMissed] = useState(false)
   const [howTo, setHowTo] = useState<HowToGuide[] | null>(null)
   const [askStep, setAskStep] = useState<PlaybookStep | null>(null)
+  const [confirmClear, setConfirmClear] = useState(false)
 
   const dismissNotice = useCallback((id: number) => {
     setNotices((rows) => rows.filter((n) => n.id !== id))
@@ -231,6 +250,20 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
   }, [vin, connected, scan, session])
 
   const codes = scan?.active_codes ?? []
+  const liveOpenPort = Boolean(scan && scan.adapter_type !== 'imported_report')
+  const canClear = Boolean(
+    connected && liveOpenPort && (codes.length > 0 || scan?.modules.some((m) => (m.dtcs?.length ?? 0) > 0)),
+  )
+  const clearing = busy === 'clear codes'
+  const clearTip = !connected
+    ? 'Connect the kit on the Kit tab first'
+    : !scan
+      ? 'Deep-scan first'
+      : !liveOpenPort
+        ? 'Attached reports cannot be cleared on this OpenPort'
+        : !canClear
+          ? 'No codes on reachable modules'
+          : 'Clear DTCs on modules that answered and currently have codes'
   const classFor = (code: string) =>
     scan?.circuit_classes?.find((c) => c.code === code)?.class || dtcClass[code] || ''
 
@@ -644,6 +677,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
       setVin(result.vin)
     }
     persistBusCapture(result, v)
+    setConfirmClear(false)
     goTab('playbook')
     if (online && v.length === 17) {
       if (!vehicle || vehicle.vin !== v) {
@@ -658,6 +692,22 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
       } catch {
         /* playbook optional — scan is on the worker; rebuild when the ledger answers */
       }
+    }
+  }
+
+  async function clearCodes() {
+    if (!scan) return
+    const result = await worker.clearDtcs()
+    const next = applyClearToScan(scan, result)
+    setScan(next)
+    persistBusCapture(next, (next.vin || vin).trim().toUpperCase())
+    const anyCleared = result.modules.some((m) => m.cleared)
+    if (!anyCleared) {
+      throw new Error(result.gaps.join(' ') || 'ECU rejected $14')
+    }
+    setConfirmClear(false)
+    if (result.gaps.length) {
+      pushNotice('fault', result.codes_after.length ? 'Clear incomplete' : 'Cleared with gaps', result.gaps.join(' '))
     }
   }
 
@@ -1073,7 +1123,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
                   ? `${preview.label}. Modules that answer still return codes even when the kit never sent a VIN.`
                   : 'Type the 17-character VIN on Vehicle first. The kit rarely reads it; the typed VIN is what picks Toyota vs a generic 7E0–7E2 probe.'}
               </p>
-              <div className="mt-4">
+              <div className="mt-4 flex flex-wrap items-center gap-3">
                 <IconBtn
                   tip={!connected ? 'Connect the kit on the Kit tab first' : vin.length !== 17 ? 'Scan anyway — without a VIN this is a generic 7E0–7E2 probe' : 'Scan modules, then open the playbook'}
                   label="DEEP SCAN"
@@ -1082,6 +1132,14 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
                   onClick={() => run(online ? 'scan + playbook' : 'scan', deepScan, 'Deep scan complete', online ? 'Playbook fused this scan with this shop and the selected book.' : 'Ledger offline — rebuild the playbook when you reconnect.')}
                 >
                   <ScanIcon />
+                </IconBtn>
+                <IconBtn
+                  tip={clearTip}
+                  label="CLEAR CODES"
+                  disabled={!canClear || clearing}
+                  onClick={() => setConfirmClear(true)}
+                >
+                  <ClearCodesIcon />
                 </IconBtn>
               </div>
             </section>
@@ -1170,6 +1228,12 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
                 </li>
               ))}
             </ul>
+            {scan?.cleared_codes && scan.cleared_codes.length > 0 && (
+              <p className="mb-4 text-sm text-steel">
+                Cleared this visit: <span className="font-mono text-paper">{scan.cleared_codes.join(' ')}</span>
+                {codes.length === 0 ? ' — none remaining on the modules that answered.' : ''}
+              </p>
+            )}
             {scan?.identity && scan.identity.length > 0 && (
               <dl className="mb-3 grid grid-cols-2 gap-2 font-mono text-xs text-steel">
                 {scan.identity.map((row) => (
@@ -1188,7 +1252,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
                 </div>
               ))}
             </dl>
-            <div className="mt-4">
+            <div className="mt-4 flex flex-wrap items-center gap-3">
               <IconBtn
                 tip="Stream ECM DIDs while you wiggle the harness"
                 label="WIGGLE"
@@ -1198,6 +1262,14 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
                 })}
               >
                 <WaveIcon />
+              </IconBtn>
+              <IconBtn
+                tip={clearTip}
+                label="CLEAR CODES"
+                disabled={!canClear || clearing}
+                onClick={() => setConfirmClear(true)}
+              >
+                <ClearCodesIcon />
               </IconBtn>
             </div>
             {wiggle && (
@@ -1226,23 +1298,39 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
               <h2 className="font-mono text-sm tracking-[0.25em] text-brass">AI PLAYBOOK</h2>
               <p className="mt-1 text-sm text-steel">Tick what you ran or ruled out. Rebuild fuses those findings with the live scan so the next tests can move.</p>
             </div>
-            <IconBtn
-              tip={!online ? 'Ledger offline — reconnect to rebuild' : (!scan && !session) ? 'Capture a scan or report first' : 'Fuse this scan with this shop, the pinned book, and the checks you ticked'}
-              label="REBUILD"
-              tone="brass"
-              disabled={!vin || !online || (!scan && !session)}
-              onClick={() => run('playbook', async () => {
-                if (scan) {
-                  await adviseFromScan(scan, vin)
-                  return
-                }
-                if (session) await adviseFromImport(session, session.active_codes ?? [])
-              }, 'Playbook ready', selectedBook ? `Cited ${selectedBook.title}` : 'Next tests use the checks you ticked.')}
-            >
-              <BookIcon />
-            </IconBtn>
+            <div className="flex flex-wrap items-center gap-3">
+              <IconBtn
+                tip={clearTip}
+                label="CLEAR CODES"
+                disabled={!canClear || clearing}
+                onClick={() => setConfirmClear(true)}
+              >
+                <ClearCodesIcon />
+              </IconBtn>
+              <IconBtn
+                tip={!online ? 'Ledger offline — reconnect to rebuild' : (!scan && !session) ? 'Capture a scan or report first' : 'Fuse this scan with this shop, the pinned book, and the checks you ticked'}
+                label="REBUILD"
+                tone="brass"
+                disabled={!vin || !online || (!scan && !session)}
+                onClick={() => run('playbook', async () => {
+                  if (scan) {
+                    await adviseFromScan(scan, vin)
+                    return
+                  }
+                  if (session) await adviseFromImport(session, session.active_codes ?? [])
+                }, 'Playbook ready', selectedBook ? `Cited ${selectedBook.title}` : 'Next tests use the checks you ticked.')}
+              >
+                <BookIcon />
+              </IconBtn>
+            </div>
           </div>
           {!playbook && <p className="text-steel">Deep scan or an attached report writes the playbook when the ledger is online. Offline, scan first and rebuild when you reconnect.</p>}
+          {scan?.cleared_codes && scan.cleared_codes.length > 0 && (
+            <p className="mt-3 text-sm text-steel">
+              Cleared this visit: <span className="font-mono text-paper">{scan.cleared_codes.join(' ')}</span>
+              {codes.length === 0 ? ' — none remaining on the modules that answered.' : ` · remaining ${codes.join(' ')}`}
+            </p>
+          )}
           {playbook && (
             <div className="space-y-4">
               {playbook.manual && (
@@ -1511,6 +1599,26 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
       )}
 
       {howTo && <HowToModal guides={howTo} onClose={() => setHowTo(null)} />}
+      {confirmClear && scan && (
+        <ClearCodesModal
+          codes={codes}
+          modules={scan.modules}
+          logged={Boolean(session)}
+          busy={Boolean(busy)}
+          onCancel={() => setConfirmClear(false)}
+          onConfirm={() => {
+            const remaining = codes
+            void run(
+              'clear codes',
+              clearCodes,
+              'Codes cleared',
+              remaining.length
+                ? 'Road test, then re-scan. They return if the fault is still there.'
+                : 'No codes were stored on reachable modules.',
+            )
+          }}
+        />
+      )}
       {askStep && (
         <AskModal
           step={askStep}

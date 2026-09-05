@@ -20,7 +20,7 @@ Developer loop: `make backend`, `make worker`, `make client` (Vite proxies `/api
 | Process | Entry | Role |
 | --- | --- | --- |
 | Ledger | `cloud-backend/cmd/server` | Auth, VIN, sessions, imports, playbooks, static UI |
-| Worker | `python -m mechazone_worker` | Detect USB, connect kit, identify VIN, deep scan, DID stream |
+| Worker | `python -m mechazone_worker` | Detect USB, connect kit, identify VIN, deep scan, DID stream, UDS $14 clear |
 | Ingest | `cloud-backend/cmd/ingest` | Chunk manuals into Postgres (`make ingest`); `-embed-only` backfills vectors |
 | UI | `client/src/main.tsx` | Landing / login / Admin / Bay |
 
@@ -110,7 +110,7 @@ Do not add a second J2534 ctypes layer. `j2534.py` wraps `udsoncan.j2534`. `tran
 | `__init__.py` | Linux `WINFUNCTYPE` shim |
 | `__main__.py` / `ipc.py` | WebSocket JSON commands from the bay |
 | `detect.py` | USB VID/PID: OpenPort `0403:cc4d` / `0403:cca2`, ELM detect-only |
-| `session.py` | Identify, scan, stream DIDs via `udsoncan.Client` |
+| `session.py` | Identify, scan, stream DIDs, clear DTCs (`$14`) via `udsoncan.Client` |
 | `profiles/` | `select_profile(vin, hints)` — captured map or Toyota/generic probe |
 | `j2534.py` | `PassThruOpen(NULL)`, `J2534_LIB` only |
 | `hexutil.py` | Hex log lines for the ledger excerpt |

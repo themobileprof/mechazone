@@ -95,3 +95,11 @@ Decisions are numbered. Do not reverse one without updating this list.
 ## D11 — Generic DTCs vs manufacturer codes
 
 **Choice:** Seed SAE-style P0xxx from a public CSV into `dtc_codes`. Toyota P1xxx and similar stay for shop history + playbook, not a scraped encyclopedia.
+
+---
+
+## D12 — Clear DTCs is technician-initiated UDS $14
+
+**Choice:** **CLEAR CODES** (Capture and Playbook) calls `udsoncan.Client.clear_dtc`. Group `0xFFFFFF`, then `0x000000` if the ECU NRC-rejects the mask. On session/conditions NRC, one retry in **extended diagnostic session** (`$10 03`) only — never programming session, never security access, never `$2F`. Confirm required. Re-read after. Persist the updated bus capture. Imported reports cannot clear. Dark nodes are not addressed.
+
+**Rejected:** Auto-clear on scan; treating a clear as a repair; seed/key retries; programming session.

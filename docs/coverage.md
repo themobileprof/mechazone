@@ -15,6 +15,7 @@ Linux only adds `CFUNCTYPE` so `udsoncan.j2534` can import (upstream uses `WINFU
 | `toyota_common` | Toyota/Lexus WMI, no capture | 11-bit probe. Identity DIDs only. |
 | `generic_uds` | Everything else | ISO 15765-4 `7E0`–`7E2`. |
 | Tesla / China-EV WMI | listed prefixes | Same probe + an explicit gap. Bring bus type + capture. |
+| Clear DTCs | **CLEAR CODES** on Capture and Playbook | `udsoncan.Client.clear_dtc`. `$14` group `0xFFFFFF` then `0x000000`. Extended session `$10 03` only if the ECU NRC-rejects in default. Re-read after. No security access, no `$2F`. |
 
 ELM327 is **detect only**. `python-can` / `can-isotp` are udsoncan extras, not a PID reader we wrote.
 
