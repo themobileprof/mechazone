@@ -4,9 +4,11 @@ import { attachImportedReport, buildPlaybook, closeoutSession, decodeVin, fetchH
 import { Logo } from './Brand'
 import {
   AttachIcon, BookIcon, ChassisIcon, CheckIcon, ChevronLeftIcon, ChevronRightIcon,
-  FolderIcon, IconBtn, LinkIcon, LockIcon, RefreshIcon, SaveIcon, ScanIcon,
+  FolderIcon, IconBtn, LinkIcon, LockIcon, MeterIcon, RefreshIcon, SaveIcon, ScanIcon,
   SignOutIcon, StampIcon, Tip, WaveIcon, WrenchIcon,
 } from './chrome'
+import { HowToModal } from './HowToModal'
+import { matchHowTos, type HowToGuide } from './howto'
 import { enqueue, flushQueue, pendingCount } from './queue'
 import { ToastStack, useAutoDismiss, type Notice } from './toast'
 import type { DetectedAdapter, DidStream, HistoryResponse, Playbook, PlaybookCheck, Principal, ScanCoverage, ScanResult, Session, WorkshopBook } from './types'
@@ -151,6 +153,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
   const [jobTab, setJobTab] = useState<JobTab>(() => parseHash().tab)
   const [lockHint, setLockHint] = useState<string | null>(null)
   const [kitVinMissed, setKitVinMissed] = useState(false)
+  const [howTo, setHowTo] = useState<HowToGuide[] | null>(null)
 
   const dismissNotice = useCallback((id: number) => {
     setNotices((rows) => rows.filter((n) => n.id !== id))
@@ -1268,16 +1271,28 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
               {playbook.steps.length > 0 && (
                 <ol className="space-y-3">
                   {playbook.steps.map((st) => {
+                    const guides = matchHowTos(st.title, st.detail, st.kind)
                     const fp = checkFingerprint(st.kind, st.title)
                     const row = checks.find((c) => c.fingerprint === fp)
                     const status = row?.status ?? 'open'
                     const note = row?.note ?? ''
                     return (
                       <li key={st.order} className={`border-l-2 pl-3 ${status === 'done' ? 'border-ok' : status === 'ruled_out' ? 'border-fault' : 'border-brass'}`}>
-                        <p className="font-mono text-[11px] text-brass">
-                          {st.order} · {st.kind.toUpperCase()}{st.adapter ? ' · ADAPTER' : ''}
-                          {status === 'done' ? ' · DID THIS' : status === 'ruled_out' ? ' · NOT THIS' : ''}
-                        </p>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="font-mono text-[11px] text-brass">
+                            {st.order} · {st.kind.toUpperCase()}{st.adapter ? ' · ADAPTER' : ''}
+                            {status === 'done' ? ' · DID THIS' : status === 'ruled_out' ? ' · NOT THIS' : ''}
+                          </p>
+                          {guides.length > 0 && (
+                            <IconBtn
+                              tip="Beginner card: leads, dial, and what the display should look like — not pins on this car"
+                              label="HOW-TO"
+                              onClick={() => setHowTo(guides)}
+                            >
+                              <MeterIcon />
+                            </IconBtn>
+                          )}
+                        </div>
                         <p className="font-semibold">{st.title}</p>
                         <p className="text-sm text-steel">{st.detail}</p>
                         {(st.pass || st.fail) && (
@@ -1456,6 +1471,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
         </section>
       )}
 
+      {howTo && <HowToModal guides={howTo} onClose={() => setHowTo(null)} />}
       <ToastStack notices={notices} onDismiss={dismissNotice} />
     </div>
   )

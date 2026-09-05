@@ -245,6 +245,70 @@ button {
   color: var(--color-brass);
 }
 
+.howto-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: end center;
+  padding: 0.75rem;
+  background:
+    linear-gradient(180deg, transparent, color-mix(in srgb, var(--color-oil) 88%, transparent) 28%),
+    color-mix(in srgb, var(--color-oil) 55%, transparent);
+}
+
+@media (min-width: 768px) {
+  .howto-overlay {
+    place-items: center;
+    padding: 2rem;
+  }
+}
+
+.howto-sheet {
+  width: min(40rem, 100%);
+  max-height: min(92vh, 52rem);
+  overflow: auto;
+  padding: 1.15rem 1.15rem 1.4rem;
+  border: 1px solid color-mix(in srgb, var(--color-brass) 45%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-brass) 6%, transparent), transparent 4.5rem),
+    var(--color-panel);
+  box-shadow: 0 -24px 80px color-mix(in srgb, var(--color-oil) 80%, transparent);
+}
+
+.howto-plate {
+  margin: 0.75rem 0 0;
+}
+
+.howto-img {
+  display: block;
+  width: 100%;
+  max-height: 14rem;
+  object-fit: cover;
+  object-position: center;
+  border: 1px solid color-mix(in srgb, var(--color-steel) 40%, transparent);
+}
+
+.howto-img.is-diagram {
+  max-height: 18rem;
+  object-fit: contain;
+  background: var(--color-oil);
+}
+
+.howto-missing {
+  min-height: 9rem;
+  padding: 0.85rem 1rem;
+  border: 1px dashed color-mix(in srgb, var(--color-brass) 50%, transparent);
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 6px,
+      color-mix(in srgb, var(--color-brass) 6%, transparent) 6px,
+      color-mix(in srgb, var(--color-brass) 6%, transparent) 7px
+    );
+}
+
 .grain {
   pointer-events: none;
   position: fixed;

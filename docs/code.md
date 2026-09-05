@@ -130,6 +130,7 @@ No J2534 imports. Hardware only through `worker.ts`.
 | `Landing.tsx` / `Login.tsx` | Access request + cookie login |
 | `Admin.tsx` | Issue shops and technicians |
 | `Bay.tsx` | Kit, VIN, attach report, playbook, jobs, closeout |
+| `howto.ts` / `HowToModal.tsx` | Beginner meter/DLC/backprobe cards; plates in `client/public/howto/` |
 | `api.ts` | `fetch` with credentials; FormData must not set `Content-Type` |
 | `queue.ts` | `localStorage` JSON queue for session/closeout/customer/capture/check when offline |
 | `types.ts` | Shared DTOs |
@@ -143,6 +144,7 @@ No J2534 imports. Hardware only through `worker.ts`.
 | `.env` | Secrets; gitignored |
 | `bin/mechazone-server` | Compiled ledger (Release zip or `install.sh`) |
 | `client/dist` | Built bay UI |
+| `client/public/howto/` | Beginner how-to JPEGs (`howto/README.md` hunt list) |
 | `data/imported-reports/{shop-or-tech}/{session}.*` | Attached scanner files |
 | `data/manuals/` | PDFs / HTML trees + sidecars (`docs/manuals.md`) |
 | `passthru/` | Linux `j2534.so` from pack, or Windows clone DLL (operator) |

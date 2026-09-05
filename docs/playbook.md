@@ -71,6 +71,10 @@ On the bay, stamp **DID THIS** (you ran the test / did the correction) or **NOT 
 
 A ruled-out step stays ruled out across rebuilds. New steps from the next playbook open as new checks. Other shops cannot read this row.
 
+## How-to cards (shop skills, not this VIN)
+
+Playbook steps that mention ohms, volts, continuity, the 16-pin DLC, or backprobing show a **HOW-TO** button. The card teaches leads, dial, and the display. It does not invent pin numbers on a module connector. DLC pins 16 / 4 / 5 are SAE J1962 only. Plates live in `client/public/howto/` (`docs` hunt list in that folder’s README).
+
 ## Diagrams
 
 - Source: OSS-parsed TSB/manual PDFs (figure objects) or a photo a technician attached to a **verified** closeout.
