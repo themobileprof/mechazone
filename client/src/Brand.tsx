@@ -3,7 +3,7 @@
 export function Logo({ className = 'h-12 w-auto md:h-14' }: { className?: string }) {
   return (
     <img
-      src="/mechazone.png"
+      src="/mechazone-logo.png"
       alt="Mechazone"
       className={className}
       draggable={false}
