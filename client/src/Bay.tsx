@@ -1037,14 +1037,26 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
           <p className="mt-2 max-w-2xl text-sm text-steel">
             Name, phone, and plate live on this shop’s ledger so a new laptop still has them. Other shops cannot read them. They never go to the playbook or the OpenPort worker.
           </p>
-          <div className="mt-3">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             <IconBtn
-              tip="Save name, phone, and plate to this shop’s ledger"
+              tip="Save name, phone, and plate to this shop’s ledger, then continue to Capture"
               label="SAVE"
-              disabled={vin.length !== 17}
-              onClick={() => run('customer', persistCustomer, 'Customer saved', 'Follows this shop’s login, not this laptop.')}
+              disabled={vin.length !== 17 || Boolean(busy)}
+              onClick={() => run('customer', async () => {
+                await persistCustomer()
+                goNext()
+              }, 'Customer saved', 'Capture is next. This shop’s file, not this laptop.')}
             >
               <SaveIcon />
+            </IconBtn>
+            <IconBtn
+              tip={canAdvance ? 'Continue to Capture without changing the customer file' : (lockHint || 'VIN must be 17 characters before capture.')}
+              label="NEXT"
+              tone="brass"
+              disabled={!canAdvance || Boolean(busy)}
+              onClick={goNext}
+            >
+              <ChevronRightIcon />
             </IconBtn>
           </div>
         </section>
