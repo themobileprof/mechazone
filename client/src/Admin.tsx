@@ -1,16 +1,18 @@
 /** Super admin: issue shops and technicians from landing tickets. */
 import { useEffect, useMemo, useState } from 'react'
 import { createShop, createTechnician, listAccessRequests, listShops, listTechnicians, logout, setAccessRequestStatus } from './api'
+import { AdminHowTo } from './AdminHowTo'
 import { Logo } from './Brand'
-import { DismissIcon, IconBtn, LoginIcon, QueueIcon, ShopIcon, SignOutIcon, Tip } from './chrome'
+import { BookIcon, DismissIcon, IconBtn, LoginIcon, QueueIcon, ShopIcon, SignOutIcon, Tip } from './chrome'
 import type { AccessRequest, Principal, Shop, Technician } from './types'
 
-type Desk = 'queue' | 'shops' | 'logins'
+type Desk = 'queue' | 'shops' | 'logins' | 'howto'
 
 const DESKS: { id: Desk; n: string; label: string; hint: string }[] = [
   { id: 'queue', n: '01', label: 'QUEUE', hint: 'Pending tickets — fill, then provision' },
   { id: 'shops', n: '02', label: 'SHOPS', hint: 'Create the workshop if it is new' },
   { id: 'logins', n: '03', label: 'LOGINS', hint: 'Issue the technician account' },
+  { id: 'howto', n: '04', label: 'HOW-TO', hint: 'Bay cards for morphed AI actions' },
 ]
 
 export function Admin({ user, onLogout }: { user: Principal; onLogout: () => void }) {
@@ -72,7 +74,7 @@ export function Admin({ user, onLogout }: { user: Principal; onLogout: () => voi
           </IconBtn>
         </div>
       </header>
-      <p className="mb-4 max-w-2xl shrink-0 text-steel">You provision shops and technicians. Nobody self-registers. Work the queue, create the shop if it is new, then issue the login.</p>
+      <p className="mb-4 max-w-2xl shrink-0 text-steel">You provision shops and technicians, and you write the how-to cards the bay shows on playbook steps. Nobody self-registers.</p>
       {error && <p className="mb-4 shrink-0 border border-fault/40 bg-fault/10 px-3 py-2 text-fault">{error}</p>}
 
       <nav className="desk-tabs shrink-0" aria-label="Admin desks">
@@ -84,7 +86,7 @@ export function Admin({ user, onLogout }: { user: Principal; onLogout: () => voi
               aria-current={desk === d.id ? 'page' : undefined}
               onClick={() => setDesk(d.id)}
             >
-              {d.id === 'queue' ? <QueueIcon /> : d.id === 'shops' ? <ShopIcon /> : <LoginIcon />}
+              {d.id === 'queue' ? <QueueIcon /> : d.id === 'shops' ? <ShopIcon /> : d.id === 'howto' ? <BookIcon /> : <LoginIcon />}
               <span>{d.n} {d.label}</span>
               {d.id === 'queue' && pending.length > 0 && (
                 <span className="font-mono text-[10px] text-brass">{pending.length}</span>
@@ -207,6 +209,8 @@ export function Admin({ user, onLogout }: { user: Principal; onLogout: () => voi
           </ol>
         </section>
         )}
+
+        {desk === 'howto' && <AdminHowTo onError={setError} />}
       </div>
     </div>
   )

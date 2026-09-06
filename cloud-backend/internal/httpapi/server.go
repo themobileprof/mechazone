@@ -38,6 +38,12 @@ func New(cfg config.Config, store *ledger.Store, vins *vin.Resolver, fuser *ai.F
 	mux.HandleFunc("POST /api/v1/admin/shops", s.requireAdmin(s.createShop))
 	mux.HandleFunc("GET /api/v1/admin/technicians", s.requireAdmin(s.listTechnicians))
 	mux.HandleFunc("POST /api/v1/admin/technicians", s.requireAdmin(s.createTechnician))
+	mux.HandleFunc("GET /api/v1/howto", s.requireTechnician(s.listPublishedHowTos))
+	mux.HandleFunc("GET /api/v1/admin/howto", s.requireAdmin(s.adminListHowTos))
+	mux.HandleFunc("POST /api/v1/admin/howto", s.requireAdmin(s.adminCreateHowTo))
+	mux.HandleFunc("PUT /api/v1/admin/howto/{id}", s.requireAdmin(s.adminUpdateHowTo))
+	mux.HandleFunc("DELETE /api/v1/admin/howto/{id}", s.requireAdmin(s.adminDeleteHowTo))
+	mux.HandleFunc("GET /api/v1/admin/howto-actions", s.requireAdmin(s.adminListActions))
 	mux.HandleFunc("GET /api/v1/vehicles/{vin}", s.requireTechnician(s.vehicleHistory))
 	mux.HandleFunc("PUT /api/v1/vehicles/{vin}/customer", s.requireTechnician(s.upsertCustomer))
 	mux.HandleFunc("PUT /api/v1/vehicles/{vin}/capture", s.requireTechnician(s.upsertBusCapture))
@@ -79,7 +85,7 @@ func withCORS(next http.Handler) http.Handler {
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 		}
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return

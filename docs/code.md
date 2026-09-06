@@ -52,7 +52,7 @@ Technician cookie required except login, access-request, health, and some decode
 | POST | `/api/v1/auth/logout` | |
 | GET | `/api/v1/auth/me` | |
 | POST | `/api/v1/access-requests` | Landing ticket |
-| GET/POST | `/api/v1/admin/…` | Super admin shops, techs, tickets |
+| GET/POST | `/api/v1/admin/…` | Super admin shops, techs, tickets, how-to cards |
 | GET | `/api/v1/vehicles/{vin}` | This shop’s jobs + customer + bus capture + checks |
 | PUT | `/api/v1/vehicles/{vin}/customer` | This shop’s name/phone/plate on the VIN |
 | PUT | `/api/v1/vehicles/{vin}/capture` | Observed bus map on this VIN (upsert, not a job) |
@@ -65,7 +65,8 @@ Technician cookie required except login, access-request, health, and some decode
 | POST | `/api/v1/sessions/{id}/closeout` | Success/fail + parts |
 | POST | `/api/v1/playbooks` | LLM fuse |
 | POST | `/api/v1/playbooks/ask` | LLM follow-up on one playbook step |
-| GET | `/api/v1/manuals` | Ingested workshop books |
+| GET | `/api/v1/howto` | Published bay cards |
+| GET/POST/PUT/DELETE | `/api/v1/admin/howto…` | Super admin cards + morphed AI action list |
 | GET | `/api/v1/manuals/figures/{id}/image` | Retrieved figure bytes |
 
 Shop/tech IDs are overwritten from `principalFrom` in ingest, import, closeout, playbook, playbook ask, customer PUT, capture PUT, and check PUT.
@@ -83,7 +84,7 @@ Handler files (same package):
 | `ui.go` | `client/dist` SPA when `UI_DIR` is set |
 | `figures.go` | retrieved manual images |
 
-### Postgres (migrations `001`–`014`)
+### Postgres (migrations `001`–`015`)
 
 | Table | Role |
 | --- | --- |
@@ -93,6 +94,7 @@ Handler files (same package):
 | `shop_customers` | This shop’s name/phone/plate on a VIN (`009`) |
 | `bus_captures` | This shop’s observed UDS/bus map on a VIN (`013`); not a closeout |
 | `playbook_checks` | Playbook steps this shop ticked on a VIN (`014`); not a closeout |
+| `playbook_actions`, `howto_guides`, `howto_guide_actions` | Morphed AI steps + admin HTML cards (`015`) |
 | `session_imports` | Attached scanner files (`007`) |
 | `vin_decode_cache` | Forever cache of vPIC/paid decode |
 | `dtc_codes` | Seeded SAE P0xxx |
@@ -129,9 +131,9 @@ No J2534 imports. Hardware only through `worker.ts`.
 | --- | --- |
 | `App.tsx` | Unauthed → Landing; admin → Admin; else Bay |
 | `Landing.tsx` / `Login.tsx` | Access request + cookie login |
-| `Admin.tsx` | Issue shops and technicians |
+| `Admin.tsx` / `AdminHowTo.tsx` / `HowToEditor.tsx` | Issue shops and techs; TipTap how-to cards |
 | `Bay.tsx` | Kit, VIN, attach report, playbook, jobs, closeout |
-| `howto.ts` / `HowToModal.tsx` | Beginner meter/DLC/backprobe cards; plates in `client/public/howto/` |
+| `howto.ts` / `HowToModal.tsx` | Fallback meter/DLC cards; ledger HTML is the live path |
 | `AskModal.tsx` | Per-step LLM consult; same fuse context as the playbook |
 | `api.ts` | `fetch` with credentials; FormData must not set `Content-Type` |
 | `queue.ts` | `localStorage` JSON queue for session/closeout/customer/capture/check when offline |

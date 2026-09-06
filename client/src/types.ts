@@ -156,6 +156,33 @@ export type Resolution = {
   created_at: string
 }
 
+export type HowToGuide = {
+  id: string
+  slug?: string
+  title: string
+  blurb: string
+  warning: string
+  body_html: string
+  match_words: string[]
+  published: boolean
+  action_ids?: string[]
+  created_at?: string
+  updated_at?: string
+}
+
+export type PlaybookAction = {
+  id: string
+  fingerprint: string
+  kind: string
+  title: string
+  tokens: string[]
+  variants: string[]
+  seen_count: number
+  guide_ids?: string[]
+  first_seen_at: string
+  last_seen_at: string
+}
+
 export type PlaybookStep = {
   order: number
   kind: string
@@ -165,7 +192,9 @@ export type PlaybookStep = {
   fail?: string
   adapter: boolean
   figures?: string[]
+  howto_ids?: string[]
 }
+
 
 export type PlaybookFigure = {
   id: string

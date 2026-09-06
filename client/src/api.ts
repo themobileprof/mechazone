@@ -1,5 +1,5 @@
 /** Ledger REST client. Cookies carry identity; do not set Content-Type on FormData uploads. */
-import type { AccessRequest, BusCapture, HistoryResponse, JobImport, Playbook, PlaybookAsk, PlaybookCheck, PlaybookStep, Principal, Resolution, Session, Shop, Technician, WorkshopBook } from './types'
+import type { AccessRequest, BusCapture, HistoryResponse, HowToGuide, JobImport, Playbook, PlaybookAction, PlaybookAsk, PlaybookCheck, PlaybookStep, Principal, Resolution, Session, Shop, Technician, WorkshopBook } from './types'
 
 async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(path, {
@@ -183,6 +183,46 @@ export function upsertPlaybookCheck(vin: string, body: {
 
 export function closeoutSession(id: string, body: unknown) {
   return api<Resolution>(`/api/v1/sessions/${id}/closeout`, { method: 'POST', body: JSON.stringify(body) })
+}
+
+export function listHowTos() {
+  return api<HowToGuide[]>('/api/v1/howto')
+}
+
+export function adminListHowTos() {
+  return api<HowToGuide[]>('/api/v1/admin/howto')
+}
+
+export function adminListHowToActions() {
+  return api<PlaybookAction[]>('/api/v1/admin/howto-actions')
+}
+
+export function adminCreateHowTo(body: {
+  title: string
+  blurb: string
+  warning: string
+  body_html: string
+  match_words: string[]
+  published: boolean
+  action_ids: string[]
+}) {
+  return api<HowToGuide>('/api/v1/admin/howto', { method: 'POST', body: JSON.stringify(body) })
+}
+
+export function adminUpdateHowTo(id: string, body: {
+  title: string
+  blurb: string
+  warning: string
+  body_html: string
+  match_words: string[]
+  published: boolean
+  action_ids: string[]
+}) {
+  return api<HowToGuide>(`/api/v1/admin/howto/${id}`, { method: 'PUT', body: JSON.stringify(body) })
+}
+
+export function adminDeleteHowTo(id: string) {
+  return api<{ status: string }>(`/api/v1/admin/howto/${id}`, { method: 'DELETE' })
 }
 
 export async function ledgerOnline(): Promise<boolean> {

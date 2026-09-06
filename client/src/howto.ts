@@ -227,6 +227,26 @@ export function matchHowTos(title: string, detail: string, kind?: string): HowTo
   return HOWTOS.filter((g) => g.match.test(blob))
 }
 
+export function matchCatalog(
+  title: string,
+  detail: string,
+  kind: string | undefined,
+  catalog: import('./types').HowToGuide[],
+  howtoIds?: string[],
+): import('./types').HowToGuide[] {
+  const blob = `${title} ${detail} ${kind ?? ''}`.toLowerCase()
+  const ids = new Set(howtoIds ?? [])
+  return catalog.filter((g) => {
+    if (g.published === false) return false
+    if (ids.has(g.id)) return true
+    return (g.match_words ?? []).some((w) => w && blob.includes(w.toLowerCase()))
+  })
+}
+
+export function howtoPlateFiles() {
+  return [...new Set(HOWTOS.flatMap((g) => g.steps.map((s) => s.file)))].sort()
+}
+
 export function howtoSrc(file: string) {
   return `/howto/${file}`
 }

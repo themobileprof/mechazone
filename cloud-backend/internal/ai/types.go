@@ -102,14 +102,15 @@ type Cause struct {
 }
 
 type Step struct {
-	Order   int        `json:"order"`
-	Kind    string     `json:"kind"`
-	Title   string     `json:"title"`
-	Detail  string     `json:"detail"`
-	Pass    string     `json:"pass,omitempty"`
-	Fail    string     `json:"fail,omitempty"`
-	Adapter bool       `json:"adapter"`
-	Figures StringList `json:"figures,omitempty"`
+	Order    int        `json:"order"`
+	Kind     string     `json:"kind"`
+	Title    string     `json:"title"`
+	Detail   string     `json:"detail"`
+	Pass     string     `json:"pass,omitempty"`
+	Fail     string     `json:"fail,omitempty"`
+	Adapter  bool       `json:"adapter"`
+	Figures  StringList `json:"figures,omitempty"`
+	HowToIDs []string   `json:"howto_ids,omitempty"`
 }
 
 // Playbook is what to test on this VIN. Uncited pins belong in Gaps; figures are retrieved IDs only.

@@ -51,6 +51,10 @@ func main() {
 		log.Error("dtc seed", "err", err)
 		os.Exit(1)
 	}
+	if err := store.SeedHowTos(ctx); err != nil {
+		log.Error("howto seed", "err", err)
+		os.Exit(1)
+	}
 	if err := store.EnsureSuperAdmin(ctx, cfg.SuperAdminEmail, cfg.SuperAdminPassword); err != nil {
 		log.Error("super admin", "err", err)
 		os.Exit(1)

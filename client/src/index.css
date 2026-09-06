@@ -333,6 +333,113 @@ button {
     );
 }
 
+.howto-body h2,
+.howto-body h3,
+.howto-body h4 {
+  margin: 0.85rem 0 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--color-brass);
+}
+
+.howto-body p,
+.howto-body li {
+  color: var(--color-steel);
+  font-size: 0.9rem;
+}
+
+.howto-body ul,
+.howto-body ol {
+  margin: 0.4rem 0 0.6rem 1.1rem;
+}
+
+.howto-body img {
+  display: block;
+  width: 100%;
+  max-height: 14rem;
+  object-fit: cover;
+  margin: 0.5rem 0 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--color-steel) 40%, transparent);
+}
+
+.howto-body figure img.is-diagram,
+.howto-body img[src$=".svg"] {
+  max-height: 18rem;
+  object-fit: contain;
+  background: var(--color-oil);
+}
+
+.howto-editor {
+  border: 1px solid color-mix(in srgb, var(--color-steel) 35%, transparent);
+  background: var(--color-oil);
+}
+
+.howto-editor-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  padding: 0.4rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-brass) 30%, transparent);
+}
+
+.howto-editor-bar button {
+  min-height: 2rem;
+  min-width: 2rem;
+  padding: 0 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--color-steel) 40%, transparent);
+  color: var(--color-paper);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.howto-editor-bar button.is-on {
+  border-color: var(--color-brass);
+  color: var(--color-brass);
+  background: color-mix(in srgb, var(--color-brass) 12%, transparent);
+}
+
+.howto-editor-plate {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--color-steel);
+}
+
+.howto-editor-plate select {
+  max-width: 12rem;
+  border: 1px solid color-mix(in srgb, var(--color-steel) 40%, transparent);
+  background: var(--color-panel);
+  color: var(--color-paper);
+  padding: 0.25rem 0.4rem;
+}
+
+.howto-editor .tiptap {
+  min-height: 14rem;
+  padding: 0.85rem 1rem 1.1rem;
+  color: var(--color-paper);
+  outline: none;
+}
+
+.howto-editor .tiptap p.is-editor-empty:first-child::before {
+  color: var(--color-steel);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+.howto-editor .tiptap img {
+  max-height: 12rem;
+  object-fit: contain;
+}
+
 .grain {
   pointer-events: none;
   position: fixed;

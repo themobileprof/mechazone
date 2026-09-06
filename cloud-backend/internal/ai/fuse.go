@@ -245,6 +245,18 @@ func (f *Fuser) Build(ctx context.Context, req Request) (Playbook, error) {
 		return Playbook{}, fmt.Errorf("checks: %w", err)
 	}
 	book.Checks = checks
+	observed, err := f.Store.ObservePlaybookSteps(ctx, seeds)
+	if err != nil {
+		if f.Log != nil {
+			f.Log.Error("observe actions", "err", err)
+		}
+	} else {
+		for i := range book.Steps {
+			if i < len(observed) {
+				book.Steps[i].HowToIDs = observed[i].GuideIDs
+			}
+		}
+	}
 	return book, nil
 }
 

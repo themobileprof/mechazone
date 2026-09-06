@@ -103,3 +103,14 @@ Decisions are numbered. Do not reverse one without updating this list.
 **Choice:** **CLEAR CODES** (Capture and Playbook) calls `udsoncan.Client.clear_dtc`. Group `0xFFFFFF`, then `0x000000` if the ECU NRC-rejects the mask. On session/conditions NRC, one retry in **extended diagnostic session** (`$10 03`) only — never programming session, never security access, never `$2F`. Confirm required. Re-read after. Persist the updated bus capture. Imported reports cannot clear. Dark nodes are not addressed.
 
 **Rejected:** Auto-clear on scan; treating a clear as a repair; seed/key retries; programming session.
+
+---
+
+## D13 — How-to cards are admin HTML on morphed AI actions
+
+**Choice:** Every playbook step is recorded as a `playbook_actions` row. Similar titles (same kind, token overlap / shop-skill class) bump one row instead of spawning duplicates. Super admin writes the bay card in a TipTap editor; the ledger stores sanitized HTML (`/howto/` images only). The bay HOW-TO button matches published cards by `match_words` and by actions linked to that morphed row.
+
+**Rejected:** CKEditor (GPL/commercial). Client-only regex cards as the source of truth.
+
+**Why:** The card is a shop skill, not this VIN. The AI keeps inventing new wordings of the same test; morphing keeps one card to maintain.
+

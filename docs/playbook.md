@@ -73,7 +73,7 @@ A ruled-out step stays ruled out across rebuilds. New steps from the next playbo
 
 ## How-to cards (shop skills, not this VIN)
 
-Playbook steps that mention ohms, volts, continuity, the 16-pin DLC, or backprobing show a **HOW-TO** button. The card teaches leads, dial, and the display. It does not invent pin numbers on a module connector. DLC pins 16 / 4 / 5 are SAE J1962 only. Plates live in `client/public/howto/` (`docs` hunt list in that folder’s README).
+Playbook steps that match a published card (match words, or a linked morphed AI action) show **HOW-TO**. Super admin writes those cards on the How-to desk (HTML, plates under `/howto/`). The card teaches leads, dial, and the display. It does not invent pin numbers on a module connector. DLC pins 16 / 4 / 5 are SAE J1962 only. Similar AI titles morph into one `playbook_actions` row so one card covers the variants.
 
 **DETAILS** on every step opens a consult sheet. The technician asks a question about that step. The ledger retrieves this shop's jobs and matching manual chunks (query includes the step title and the question), then calls the same hosted LLM. It is not a generic chatbot. Uncited pins stay in `gaps`. Customer name/phone/plate never go in the prompt. The thread is not a closeout.
 

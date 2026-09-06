@@ -1,5 +1,11 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { howtoSrc, type HowToGuide } from './howto'
+import { howtoSrc, type HowToGuide as FallbackHowTo } from './howto'
+import type { HowToGuide } from './types'
+
+export type HowToCard = Pick<HowToGuide, 'id' | 'title' | 'blurb' | 'warning'> & {
+  body_html?: string
+  steps?: FallbackHowTo['steps']
+}
 
 function Plate({ file, alt, hunt }: { file: string; alt: string; hunt: string }) {
   const [missing, setMissing] = useState(false)
@@ -28,7 +34,7 @@ export function HowToModal({
   guides,
   onClose,
 }: {
-  guides: HowToGuide[]
+  guides: HowToCard[]
   onClose: () => void
 }) {
   const titleId = useId()
@@ -88,20 +94,21 @@ export function HowToModal({
           </div>
         )}
         <p className="mt-3 border border-brass/40 bg-brass/10 px-3 py-2 text-sm">{guide.warning}</p>
-        <ol className="mt-4 space-y-5">
-          {guide.steps.map((st, i) => (
-            <li key={st.file} className="border-l-2 border-brass/40 pl-3">
-              <p className="font-mono text-[11px] tracking-[0.25em] text-brass">
-                {String(i + 1).padStart(2, '0')} · {st.title.toUpperCase()}
-              </p>
-              <p className="mt-1 text-sm text-steel">{st.body}</p>
-              <Plate file={st.file} alt={st.alt} hunt={st.hunt} />
-            </li>
-          ))}
-        </ol>
-        <p className="mt-5 font-mono text-[11px] tracking-wide text-steel">
-          Save JPEGs as the filenames on a missing plate into client/public/howto/. Vite picks them up without a rebuild.
-        </p>
+        {guide.body_html ? (
+          <div className="howto-body mt-4" dangerouslySetInnerHTML={{ __html: guide.body_html }} />
+        ) : (
+          <ol className="mt-4 space-y-5">
+            {(guide.steps ?? []).map((st, i) => (
+              <li key={st.file} className="border-l-2 border-brass/40 pl-3">
+                <p className="font-mono text-[11px] tracking-[0.25em] text-brass">
+                  {String(i + 1).padStart(2, '0')} · {st.title.toUpperCase()}
+                </p>
+                <p className="mt-1 text-sm text-steel">{st.body}</p>
+                <Plate file={st.file} alt={st.alt} hunt={st.hunt} />
+              </li>
+            ))}
+          </ol>
+        )}
       </div>
     </div>
   )

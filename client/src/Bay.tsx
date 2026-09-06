@@ -1,6 +1,6 @@
 /** Shop floor: this shop's jobs, OpenPort or attached report, playbook, closeout. */
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { attachImportedReport, buildPlaybook, closeoutSession, decodeVin, fetchHistory, importedReportURL, ingestSession, ledgerOnline, listManuals, lookupDtc, logout, saveCustomer, upsertBusCapture, upsertPlaybookCheck, type PlaybookBody } from './api'
+import { attachImportedReport, buildPlaybook, closeoutSession, decodeVin, fetchHistory, importedReportURL, ingestSession, ledgerOnline, listHowTos, listManuals, lookupDtc, logout, saveCustomer, upsertBusCapture, upsertPlaybookCheck, type PlaybookBody } from './api'
 import { Logo } from './Brand'
 import {
   AttachIcon, BookIcon, ChassisIcon, CheckIcon, ChevronLeftIcon, ChevronRightIcon,
@@ -10,11 +10,11 @@ import {
 import { AskModal } from './AskModal'
 import { ClearCodesModal } from './ClearCodesModal'
 import { ShopFilePrint } from './ShopFilePrint'
-import { HowToModal } from './HowToModal'
-import { matchHowTos, type HowToGuide } from './howto'
+import { HowToModal, type HowToCard } from './HowToModal'
+import { matchCatalog, matchHowTos } from './howto'
 import { enqueue, flushQueue, pendingCount } from './queue'
 import { ToastStack, useAutoDismiss, type Notice } from './toast'
-import type { ClearDtcsResult, DetectedAdapter, DidStream, HistoryResponse, Playbook, PlaybookCheck, PlaybookStep, Principal, ScanCoverage, ScanResult, Session, WorkshopBook } from './types'
+import type { ClearDtcsResult, DetectedAdapter, DidStream, HistoryResponse, HowToGuide, Playbook, PlaybookCheck, PlaybookStep, Principal, ScanCoverage, ScanResult, Session, WorkshopBook } from './types'
 import { worker } from './worker'
 import { kitVinGap, probePreview } from './vinProbe'
 
@@ -173,7 +173,8 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
   const [jobTab, setJobTab] = useState<JobTab>(() => parseHash().tab)
   const [lockHint, setLockHint] = useState<string | null>(null)
   const [kitVinMissed, setKitVinMissed] = useState(false)
-  const [howTo, setHowTo] = useState<HowToGuide[] | null>(null)
+  const [howTo, setHowTo] = useState<HowToCard[] | null>(null)
+  const [howToCatalog, setHowToCatalog] = useState<HowToGuide[]>([])
   const [askStep, setAskStep] = useState<PlaybookStep | null>(null)
   const [confirmClear, setConfirmClear] = useState(false)
 
@@ -209,6 +210,9 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
     void listManuals()
       .then(setManuals)
       .catch(() => setManuals([]))
+    void listHowTos()
+      .then(setHowToCatalog)
+      .catch(() => setHowToCatalog([]))
   }, [online])
 
   async function refreshKits() {
@@ -751,6 +755,13 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
   }
 
   const canPrintFile = vin.length === 17 && Boolean(history)
+
+  function guidesForStep(st: PlaybookStep): HowToCard[] {
+    if (howToCatalog.length > 0) {
+      return matchCatalog(st.title, st.detail, st.kind, howToCatalog, st.howto_ids)
+    }
+    return matchHowTos(st.title, st.detail, st.kind)
+  }
 
   return (
     <>
@@ -1417,7 +1428,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
               {playbook.steps.length > 0 && (
                 <ol className="space-y-3">
                   {playbook.steps.map((st) => {
-                    const guides = matchHowTos(st.title, st.detail, st.kind)
+                    const guides = guidesForStep(st)
                     const fp = checkFingerprint(st.kind, st.title)
                     const row = checks.find((c) => c.fingerprint === fp)
                     const status = row?.status ?? 'open'
