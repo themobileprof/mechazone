@@ -1,10 +1,5 @@
 /** WMI → probe class for the bay. Same prefixes as the worker; not a diagnosis. */
-const TOYOTA_WMI = new Set([
-  'JTD', 'JTE', 'JTN', 'JT2', 'JT3', 'JT4', 'JT5', 'JT6', 'JT8',
-  '4T1', '4T3', '4T4', '5TD', '5TE', '5TF',
-  'SB1', 'AHT', 'NMT', 'MR0', 'MR2', 'MM7', 'MM8', 'PN1', 'PN4',
-  '2T1', '2T2', '2T3', '3TM', '4TA',
-])
+import { TOYOTA_WMI } from './vinReadout'
 
 export function toyotaClassVin(vin: string): boolean {
   return TOYOTA_WMI.has(vin.trim().toUpperCase().slice(0, 3))

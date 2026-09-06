@@ -179,6 +179,14 @@ export function WrenchIcon() {
   )
 }
 
+export function PlusIcon() {
+  return (
+    <Glyph>
+      <path {...stroke} d="M12 5v14M5 12h14" />
+    </Glyph>
+  )
+}
+
 export function DismissIcon() {
   return (
     <Glyph>

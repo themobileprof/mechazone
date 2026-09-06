@@ -1,10 +1,10 @@
 /** Shop floor: this shop's jobs, OpenPort or attached report, playbook, closeout. */
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { attachImportedReport, buildPlaybook, closeoutSession, decodeVin, fetchHistory, importedReportURL, ingestSession, ledgerOnline, listHowTos, listManuals, lookupDtc, logout, saveCustomer, upsertBusCapture, upsertPlaybookCheck, type PlaybookBody } from './api'
 import { Logo } from './Brand'
 import {
   AttachIcon, BookIcon, ChassisIcon, CheckIcon, ChevronLeftIcon, ChevronRightIcon,
-  ClearCodesIcon, FolderIcon, IconBtn, LinkIcon, LockIcon, MeterIcon, DetailIcon, PrintIcon, RefreshIcon, SaveIcon, ScanIcon,
+  ClearCodesIcon, FolderIcon, IconBtn, LinkIcon, LockIcon, MeterIcon, DetailIcon, PlusIcon, PrintIcon, RefreshIcon, SaveIcon, ScanIcon,
   SignOutIcon, StampIcon, Tip, WaveIcon, WrenchIcon,
 } from './chrome'
 import { AskModal } from './AskModal'
@@ -17,6 +17,9 @@ import { ToastStack, useAutoDismiss, type Notice } from './toast'
 import type { ClearDtcsResult, DetectedAdapter, DidStream, HistoryResponse, HowToGuide, Playbook, PlaybookCheck, PlaybookStep, Principal, ScanCoverage, ScanResult, Session, WorkshopBook } from './types'
 import { worker } from './worker'
 import { kitVinGap, probePreview } from './vinProbe'
+import { namedModel, readVinPlate } from './vinReadout'
+import { VinIdentity } from './VinIdentity'
+import { dropStall, loadStalls, stallDirty, stallHeadline, stallScope, tabLabel as stallTabLabel, upsertStall, type JobStall } from './jobStall'
 
 const IMPORT_SOURCES = [
   { id: 'x431', label: 'Launch X431' },
@@ -51,11 +54,6 @@ function tabLockHint(id: JobTab): string {
   if (id === 'capture') return 'Connect the kit or type a 17-character VIN first.'
   if (id === 'playbook' || id === 'close') return 'Deep-scan or attach a report first.'
   return ''
-}
-
-function namedModel(name: string | undefined) {
-  const m = (name || '').trim()
-  return m !== '' && m.toLowerCase() !== 'unknown'
 }
 
 function hintsFrom(
@@ -157,6 +155,9 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
   const [rootCause, setRootCause] = useState('')
   const [parts, setParts] = useState('')
   const [playbook, setPlaybook] = useState<Playbook | null>(null)
+  const [playbookWait, setPlaybookWait] = useState<'off' | 'fusing' | 'failed'>('off')
+  const [stalls, setStalls] = useState<JobStall[]>(() => loadStalls(stallScope(user.shop_id, user.technician_id)))
+  const stallKey = stallScope(user.shop_id, user.technician_id)
   const [checks, setChecks] = useState<PlaybookCheck[]>([])
   const [wiggle, setWiggle] = useState<DidStream | null>(null)
   const [dtcClass, setDtcClass] = useState<Record<string, string>>({})
@@ -381,11 +382,14 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
   }
 
   const vehicleLabel = useMemo(() => {
-    if (history?.vehicle && namedModel(history.vehicle.model)) {
-      return `${history.vehicle.manufacture_year || ''} ${history.vehicle.make} ${history.vehicle.model}`.trim()
+    const plate = readVinPlate(vin)
+    const vehicle = history?.vehicle?.vin === vin ? history.vehicle : null
+    if (vehicle && namedModel(vehicle.model)) {
+      return `${vehicle.manufacture_year || plate?.year || ''} ${vehicle.make} ${vehicle.model}`.trim()
     }
-    if (history?.vehicle?.make && history.vehicle.make.toLowerCase() !== 'unknown') {
-      return `${history.vehicle.make} — pick the workshop book for the body`
+    if (plate?.headline) {
+      const needBook = !namedModel(vehicle?.model) && manuals.length > 0 && !manualId
+      return needBook ? `${plate.headline} — pick the workshop book for the body` : plate.headline
     }
     if (scan?.make || scan?.model) return `${scan.year || ''} ${scan.make} ${scan.model}`.trim()
     if (scan?.coverage?.depth === 'captured') return scan.profile.replaceAll('_', ' ')
@@ -395,7 +399,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
     if (kitVinMissed) return 'Kit did not answer VIN — type the 17 characters from the plate'
     if (connected) return 'Type the VIN from the plate — most ECUs do not answer F190'
     return 'Type the VIN, or connect the kit'
-  }, [history, scan, connected, vin, kitVinMissed, selectedBook?.model])
+  }, [history, scan, connected, vin, kitVinMissed, selectedBook?.model, manuals.length, manualId])
 
   async function run(label: string, fn: () => Promise<void>, okTitle?: string, okDetail?: string) {
     setBusy(label)
@@ -577,9 +581,116 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
     void upsertPlaybookCheck(v, body).then(apply).catch(queue)
   }
 
+  function takeStallFor(heldVin: string): JobStall | null {
+    if (heldVin.length !== 17) return null
+    const row: JobStall = {
+      vin: heldVin,
+      savedAt: Date.now(),
+      page,
+      jobTab,
+      headline: stallHeadline(heldVin, history?.vehicle?.vin === heldVin ? history.vehicle : null, scan),
+      tabLabel: stallTabLabel(jobTab),
+      scan,
+      session,
+      playbook,
+      checks,
+      mileage,
+      outcome,
+      rootCause,
+      parts,
+      wiggle,
+      dtcTitles,
+      dtcClass,
+      preCoverage,
+      manualId,
+      manualLocked,
+      kitVinMissed,
+    }
+    return stallDirty(row) ? row : null
+  }
+
+  function parkHeld(heldVin: string) {
+    const row = takeStallFor(heldVin)
+    if (!row) return
+    setStalls(upsertStall(stallKey, row))
+  }
+
+  function wipeWork(clearVin = false) {
+    if (clearVin) setVin('')
+    setHistory(null)
+    setScan(null)
+    setSession(null)
+    setPlaybook(null)
+    setPlaybookWait('off')
+    setChecks([])
+    setWiggle(null)
+    setDtcTitles({})
+    setDtcClass({})
+    setPreCoverage(null)
+    setMileage('')
+    setCustomerName('')
+    setCustomerPhone('')
+    setCustomerPlate('')
+    setOutcome('success')
+    setRootCause('')
+    setParts('')
+    setManualId('')
+    setManualLocked(false)
+    setKitVinMissed(false)
+    setImportFile(null)
+    setImportCodes('')
+    setImportNote('')
+    setError(null)
+    setLockHint(null)
+    setConfirmClear(false)
+    setAskStep(null)
+    setHowTo(null)
+  }
+
+  function applyStall(row: JobStall) {
+    setVin(row.vin)
+    setScan(row.scan)
+    setSession(row.session)
+    setPlaybook(row.playbook)
+    setPlaybookWait('off')
+    setChecks(row.checks)
+    setMileage(row.mileage)
+    setOutcome(row.outcome)
+    setRootCause(row.rootCause)
+    setParts(row.parts)
+    setWiggle(row.wiggle)
+    setDtcTitles(row.dtcTitles)
+    setDtcClass(row.dtcClass)
+    setPreCoverage(row.preCoverage)
+    setManualId(row.manualId)
+    setManualLocked(row.manualLocked)
+    setKitVinMissed(row.kitVinMissed)
+    setStalls(dropStall(stallKey, row.vin))
+  }
+
+  function newJob() {
+    if (vin.length === 17) parkHeld(vin)
+    wipeWork(true)
+    goTab('vehicle')
+  }
+
+  function resumeStall(row: JobStall) {
+    if (vin.length === 17 && vin !== row.vin) parkHeld(vin)
+    applyStall(row)
+    if (row.page === 'file') goPage('file')
+    else goTab(row.jobTab, { force: true })
+  }
+
   async function loadTypedVin() {
     const v = vin.trim().toUpperCase()
     if (v.length !== 17) throw new Error('VIN must be 17 characters')
+    const heldVin = (scan?.vin || session?.vin || '').toUpperCase()
+    if (heldVin && heldVin !== v) {
+      parkHeld(heldVin)
+      wipeWork()
+      const parked = loadStalls(stallKey).find((r) => r.vin === v)
+      if (parked) applyStall(parked)
+    }
     await decodeVin(v).catch(() => undefined)
     applyHistory(await fetchHistory(v))
   }
@@ -596,14 +707,29 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
     return () => window.clearTimeout(id)
   }, [vin, online, history?.vehicle?.vin])
 
+  const stallSnap = useRef<JobStall | null>(null)
+  stallSnap.current = vin.length === 17 ? takeStallFor(vin) : null
+  useEffect(() => {
+    const flush = () => {
+      if (stallSnap.current) upsertStall(stallKey, stallSnap.current)
+    }
+    window.addEventListener('beforeunload', flush)
+    return () => {
+      flush()
+      window.removeEventListener('beforeunload', flush)
+    }
+  }, [stallKey])
+
   async function readVinFromKit() {
     const r = await worker.identify(vin.length === 17 ? vin : undefined)
     if (r.vin) {
       setKitVinMissed(false)
       if (r.vin !== vin) {
+        if (vin.length === 17) parkHeld(vin)
         setScan(null)
         setSession(null)
         setPlaybook(null)
+        setPlaybookWait('off')
       }
       setVin(r.vin)
     } else {
@@ -641,6 +767,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
   }
 
   const affiliation = user.freelancer ? 'Freelancer' : (user.shop_name || 'Shop')
+  const fusingPlaybook = playbookWait === 'fusing' || ((busy === 'playbook' || busy === 'scan + playbook') && !playbook)
   const tabIndex = JOB_TABS.findIndex((t) => t.id === jobTab)
   const nextTab = JOB_TABS[tabIndex + 1]
   const canAdvance = tabComplete(jobTab) && Boolean(nextTab) && tabUnlocked(nextTab.id)
@@ -676,6 +803,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
     })
     setScan(result)
     setPlaybook(null)
+    setPlaybookWait('off')
     setWiggle(null)
     const v = (result.vin || typed).trim().toUpperCase()
     if (result.vin && result.vin !== vin) {
@@ -683,8 +811,9 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
     }
     persistBusCapture(result, v)
     setConfirmClear(false)
-    goTab('playbook')
     if (online && v.length === 17) {
+      setPlaybookWait('fusing')
+      goTab('playbook')
       if (!vehicle || vehicle.vin !== v) {
         try {
           applyHistory(await fetchHistory(v))
@@ -692,11 +821,18 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
           /* already scanned */
         }
       }
+      setBusy('playbook')
+      pushNotice('busy', 'FUSING PLAYBOOK', 'Stay on Playbook. Rebuild stays locked until this first book lands.')
       try {
         await adviseFromScan(result, v, hintsFrom(vehicle, selectedBook, result))
-      } catch {
-        /* playbook optional — scan is on the worker; rebuild when the ledger answers */
+        setPlaybookWait('off')
+      } catch (err) {
+        setPlaybookWait('failed')
+        const msg = err instanceof Error ? err.message : String(err)
+        pushNotice('fault', 'Playbook did not land', msg)
       }
+    } else {
+      goTab('playbook')
     }
   }
 
@@ -733,13 +869,19 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
     setImportFile(null)
     const typed = saved.session.active_codes ?? []
     if (online && (typed.length > 0 || saved.session.id)) {
+      setPlaybookWait('fusing')
+      goTab('playbook')
       try {
         await adviseFromImport(saved.session, typed)
-      } catch {
-        /* playbook optional — file is on the ledger */
+        setPlaybookWait('off')
+      } catch (err) {
+        setPlaybookWait('failed')
+        const msg = err instanceof Error ? err.message : String(err)
+        pushNotice('fault', 'Playbook did not land', msg)
       }
+    } else {
+      goTab('playbook')
     }
-    goTab('playbook')
   }
 
   function printShopFile() {
@@ -793,6 +935,24 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
             </Tip>
           </div>
         </div>
+        <div className="stall-rail" aria-label="Parked jobs on this laptop">
+          <IconBtn
+            tip="Park this visit on this laptop and type another VIN. Closeout is not required. Come back from the chips."
+            label="NEW JOB"
+            onClick={newJob}
+            disabled={Boolean(busy)}
+          >
+            <PlusIcon />
+          </IconBtn>
+          {stalls.filter((s) => s.vin !== vin).map((s) => (
+            <Tip key={s.vin} label={`Resume ${s.headline} on ${s.tabLabel}. This visit parks first.`}>
+              <button type="button" className="stall-chip" onClick={() => resumeStall(s)}>
+                <span className="stall-chip-title">{s.headline}</span>
+                <span className="stall-chip-meta">{s.tabLabel} · {s.vin.slice(-6)}</span>
+              </button>
+            </Tip>
+          ))}
+        </div>
         <div className="flex flex-wrap items-center gap-3 font-mono text-xs">
           <Tip label={online ? 'Ledger reachable — jobs sync' : 'Offline — work queues until reconnect'}>
             <span className="inline-flex items-center gap-2">
@@ -819,9 +979,12 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
                 const done = tabComplete(step.id)
                 const active = jobTab === step.id
                 const recommended = nextStep === step.id
-                const tip = unlocked
-                  ? (done && !active ? `${step.hint} — done` : step.hint)
-                  : tabLockHint(step.id)
+                const fusing = step.id === 'playbook' && fusingPlaybook
+                const tip = fusing
+                  ? 'Still fusing this scan — Rebuild is locked until the first book lands'
+                  : unlocked
+                    ? (done && !active ? `${step.hint} — done` : step.hint)
+                    : tabLockHint(step.id)
                 return (
                   <Tip key={step.id} label={tip}>
                     <button
@@ -829,12 +992,13 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
                       role="tab"
                       aria-selected={active}
                       aria-disabled={!unlocked}
-                      className={`job-tab ${active ? 'is-active' : ''} ${recommended && !active ? 'is-next' : ''} ${unlocked ? '' : 'is-locked'}`}
+                      aria-busy={fusing}
+                      className={`job-tab ${active ? 'is-active' : ''} ${recommended && !active ? 'is-next' : ''} ${unlocked ? '' : 'is-locked'} ${fusing ? 'is-fusing' : ''}`}
                       onClick={() => goTab(step.id)}
                     >
                       {unlocked ? (done ? <CheckIcon /> : null) : <LockIcon />}
                       <span className="font-mono text-[10px] tracking-[0.28em]">{step.n}</span>
-                      <span className="font-semibold tracking-wide">{step.label}</span>
+                      <span className="font-semibold tracking-wide">{fusing ? 'FUSING' : step.label}</span>
                     </button>
                   </Tip>
                 )
@@ -857,7 +1021,10 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
               )}
             </div>
           </div>
-          <p className="mt-2 max-w-xl text-xs text-steel">{JOB_TABS[tabIndex]?.hint}</p>
+          <p className="mt-2 max-w-xl text-xs text-steel">
+            {fusingPlaybook ? 'Fusing this scan into a playbook. Rebuild is locked until it lands.' : JOB_TABS[tabIndex]?.hint}
+          </p>
+          <VinIdentity vin={vin} vehicle={history?.vehicle} variant="rail" />
           {(lockHint || busy || error) && (
             <p className={`mt-1 font-mono text-xs tracking-wide ${error ? 'text-fault' : lockHint ? 'text-brass' : 'text-brass'}`}>
               {error || lockHint || `${busy?.toUpperCase()}…`}
@@ -871,7 +1038,9 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
           <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
             <div>
               <h2 className="font-mono text-sm tracking-[0.25em] text-brass">THIS SHOP'S WORK</h2>
-              <p className="mt-1 text-sm text-steel">{vin.length === 17 ? vin : 'No VIN loaded — switch to Job and type or read one.'}</p>
+              {vin.length !== 17 && (
+                <p className="mt-1 text-sm text-steel">No VIN loaded — switch to Job and type or read one.</p>
+              )}
               {canPrintFile && (
                 <p className="mt-1 text-xs text-steel">PRINT opens this shop’s jobs. Save as PDF in the browser dialog. Phone numbers stay off the sheet.</p>
               )}
@@ -890,7 +1059,15 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
               </IconBtn>
             </div>
           </div>
-          {!history && <p className="text-steel">Read VIN from the kit, or type the 17-character VIN and load this shop's jobs.</p>}
+          {vin.length === 17 && (
+            <VinIdentity
+              vin={vin}
+              vehicle={history?.vehicle}
+              bookLabel={selectedBook ? `${selectedBook.make} ${selectedBook.model} book` : undefined}
+              variant="compact"
+            />
+          )}
+          {!history && <p className="mt-3 text-steel">Read VIN from the kit, or type the 17-character VIN and load this shop's jobs.</p>}
           {history?.capture && (
             <div className="mb-4 border border-brass/20 bg-oil/50 p-3">
               <p className="font-mono text-[11px] tracking-[0.25em] text-brass">BUS MAP · NOT A JOB</p>
@@ -1022,8 +1199,14 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
               <ChassisIcon />
             </IconBtn>
           </div>
+          <VinIdentity
+            vin={vin}
+            vehicle={history?.vehicle}
+            bookLabel={selectedBook ? `${selectedBook.make} ${selectedBook.model} book` : undefined}
+            probeLabel={vin.length === 17 ? preview.label : undefined}
+          />
           <div className="mt-2 flex flex-wrap gap-4 text-sm text-steel">
-            <span>{vehicleLabel}</span>
+            {vin.length !== 17 && <span>{vehicleLabel}</span>}
             {history && (
               <span className={history.first_seen ? 'text-brass' : 'text-ok'}>
                 {history.first_seen ? 'FIRST VISIT TO THIS SHOP' : `${history.jobs?.length ?? history.sessions.length} JOB(S) HERE`}
@@ -1158,6 +1341,13 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
             <section className="rounded-sm border border-brass/25 bg-panel p-5">
               <p className="font-mono text-[11px] tracking-[0.3em] text-brass">THIS OPENPORT</p>
               <h2 className="mt-1 font-poster text-2xl tracking-wide text-paper">DEEP SCAN</h2>
+              <VinIdentity
+                vin={vin}
+                vehicle={history?.vehicle}
+                bookLabel={selectedBook ? `${selectedBook.make} ${selectedBook.model} book` : undefined}
+                probeLabel={vin.length === 17 ? preview.label : undefined}
+                variant="compact"
+              />
               <p className="mt-2 max-w-xl text-sm text-steel">
                 {vin.length === 17
                   ? `${preview.label}. Modules that answer still return codes even when the kit never sent a VIN.`
@@ -1168,7 +1358,7 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
                   tip={!connected ? 'Connect the kit on the Kit tab first' : vin.length !== 17 ? 'Scan anyway — without a VIN this is a generic 7E0–7E2 probe' : 'Scan modules, then open the playbook'}
                   label="DEEP SCAN"
                   tone="brass"
-                  disabled={!connected}
+                  disabled={!connected || Boolean(busy)}
                   onClick={() => run(online ? 'scan + playbook' : 'scan', deepScan, 'Deep scan complete', online ? 'Playbook fused this scan with this shop and the selected book.' : 'Ledger offline — rebuild the playbook when you reconnect.')}
                 >
                   <ScanIcon />
@@ -1348,23 +1538,49 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
                 <ClearCodesIcon />
               </IconBtn>
               <IconBtn
-                tip={!online ? 'Ledger offline — reconnect to rebuild' : (!scan && !session) ? 'Capture a scan or report first' : 'Fuse this scan with this shop, the pinned book, and the checks you ticked'}
-                label="REBUILD"
+                tip={
+                  fusingPlaybook
+                    ? 'The first playbook is still building. Wait for it.'
+                    : !online
+                      ? 'Ledger offline — reconnect to rebuild'
+                      : (!scan && !session)
+                        ? 'Capture a scan or report first'
+                        : busy
+                          ? 'Wait for the current request to finish'
+                          : 'Fuse this scan with this shop, the pinned book, and the checks you ticked'
+                }
+                label={fusingPlaybook ? 'FUSING' : 'REBUILD'}
                 tone="brass"
-                disabled={!vin || !online || (!scan && !session)}
+                disabled={!vin || !online || (!scan && !session) || Boolean(busy) || fusingPlaybook}
                 onClick={() => run('playbook', async () => {
                   if (scan) {
                     await adviseFromScan(scan, vin)
+                    setPlaybookWait('off')
                     return
                   }
-                  if (session) await adviseFromImport(session, session.active_codes ?? [])
+                  if (session) {
+                    await adviseFromImport(session, session.active_codes ?? [])
+                    setPlaybookWait('off')
+                  }
                 }, 'Playbook ready', selectedBook ? `Cited ${selectedBook.title}` : 'Next tests use the checks you ticked.')}
               >
                 <BookIcon />
               </IconBtn>
             </div>
           </div>
-          {!playbook && <p className="text-steel">Deep scan or an attached report writes the playbook when the ledger is online. Offline, scan first and rebuild when you reconnect.</p>}
+          {fusingPlaybook && (
+            <div className="playbook-fuse" role="status" aria-live="polite">
+              <p className="playbook-fuse-kicker">FUSING</p>
+              <p className="playbook-fuse-title">Playbook still building</p>
+              <p className="playbook-fuse-copy">This scan is being fused with this shop’s jobs and the selected book. Rebuild is locked so a second request cannot stack on the first.</p>
+            </div>
+          )}
+          {playbookWait === 'failed' && !playbook && !fusingPlaybook && (
+            <p className="border border-fault/50 bg-oil/60 px-3 py-3 text-sm text-paper">The first playbook did not land. Rebuild when you are ready — do not mash it while the ledger is still working.</p>
+          )}
+          {!playbook && !fusingPlaybook && playbookWait !== 'failed' && (
+            <p className="text-steel">Deep scan or an attached report writes the playbook when the ledger is online. Offline, scan first and rebuild when you reconnect.</p>
+          )}
           {scan?.cleared_codes && scan.cleared_codes.length > 0 && (
             <p className="mt-3 text-sm text-steel">
               Cleared this visit: <span className="font-mono text-paper">{scan.cleared_codes.join(' ')}</span>

@@ -25,6 +25,9 @@ func (s *Server) vehicleHistory(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "technician login required")
 		return
 	}
+	if err := s.store.ApplyPlateIfBlank(r.Context(), v, vin.ReadPlate(v)); err != nil {
+		s.log.Error("vin plate fill", "err", err, "vin", v)
+	}
 	h, err := s.store.History(r.Context(), v, p.ShopID, p.TechnicianID)
 	if err != nil {
 		s.log.Error("history", "err", err, "vin", v)
@@ -40,17 +43,22 @@ func (s *Server) decodeVIN(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
+	plate := vin.ReadPlate(v)
 	payload, source, hit, err := s.store.CachedVIN(r.Context(), v)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "cache read failed")
 		return
 	}
 	if hit {
+		if err := s.store.ApplyPlateIfBlank(r.Context(), v, plate); err != nil {
+			s.log.Error("vin plate fill", "err", err, "vin", v)
+		}
 		writeJSON(w, http.StatusOK, map[string]any{
 			"vin":     v,
 			"source":  source,
 			"cached":  true,
 			"payload": json.RawMessage(payload),
+			"plate":   plate,
 		})
 		return
 	}
@@ -60,6 +68,9 @@ func (s *Server) decodeVIN(w http.ResponseWriter, r *http.Request) {
 	dec, err := s.vins.Decode(ctx, v)
 	if err != nil {
 		s.log.Warn("vpic", "err", err, "vin", v)
+		if perr := s.store.ApplyPlateIfBlank(r.Context(), v, plate); perr != nil {
+			s.log.Error("vin plate fill", "err", perr, "vin", v)
+		}
 		writeError(w, http.StatusBadGateway, "vpic unavailable")
 		return
 	}
@@ -77,6 +88,7 @@ func (s *Server) decodeVIN(w http.ResponseWriter, r *http.Request) {
 		"cached":  false,
 		"empty":   dec.Empty,
 		"payload": dec.Raw,
+		"plate":   plate,
 	})
 }
 

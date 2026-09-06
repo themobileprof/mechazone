@@ -26,6 +26,7 @@ func (r *Resolver) Decode(ctx context.Context, vin string) (Decode, error) {
 		if err != nil {
 			return Decode{}, err
 		}
+		EnrichEmpty(&dec, ReadPlate(vin))
 		return dec, nil
 	}
 	fb, fbErr := r.Fallbacks.Decode(ctx, vin)
@@ -34,9 +35,13 @@ func (r *Resolver) Decode(ctx context.Context, vin string) (Decode, error) {
 			r.Log.Warn("vin fallback", "err", fbErr, "vin", vin)
 		}
 		if err == nil {
+			EnrichEmpty(&dec, ReadPlate(vin))
 			return dec, nil
 		}
 		return Decode{}, fbErr
+	}
+	if fb.Empty {
+		EnrichEmpty(&fb, ReadPlate(vin))
 	}
 	return fb, nil
 }

@@ -240,6 +240,35 @@ func (s *Store) SaveVINDecode(ctx context.Context, dec vin.Decode) error {
 	return err
 }
 
+// ApplyPlateIfBlank writes WMI maker/year onto a vehicle that vPIC left Unknown/0.
+// It never overwrites a named make/model or a non-zero year.
+func (s *Store) ApplyPlateIfBlank(ctx context.Context, vin string, plate vin.Plate) error {
+	if !plate.Useful() {
+		return nil
+	}
+	makeName := plate.Maker
+	if makeName == "" {
+		makeName = "Unknown"
+	}
+	_, err := s.pool.Exec(ctx, `
+		INSERT INTO vehicles (vin, make, model, manufacture_year, decode_source)
+		VALUES ($1, $2, 'Unknown', $3, 'vin_plate')
+		ON CONFLICT (vin) DO UPDATE SET
+			make = CASE
+				WHEN vehicles.make IN ('', 'Unknown') AND EXCLUDED.make NOT IN ('', 'Unknown') THEN EXCLUDED.make
+				ELSE vehicles.make END,
+			manufacture_year = CASE
+				WHEN vehicles.manufacture_year = 0 AND EXCLUDED.manufacture_year > 0 THEN EXCLUDED.manufacture_year
+				ELSE vehicles.manufacture_year END,
+			decode_source = CASE
+				WHEN (vehicles.make IN ('', 'Unknown') AND EXCLUDED.make NOT IN ('', 'Unknown'))
+				  OR (vehicles.manufacture_year = 0 AND EXCLUDED.manufacture_year > 0)
+				THEN 'vin_plate'
+				ELSE vehicles.decode_source END
+	`, vin, makeName, plate.Year)
+	return err
+}
+
 func (s *Store) EnsureVehicle(ctx context.Context, vin, makeName, model string, year int, source string) error {
 	if makeName == "" {
 		makeName = "Unknown"

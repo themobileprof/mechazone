@@ -73,3 +73,26 @@ func TestSaveVINDecodeFillsUnknownBody(t *testing.T) {
 		t.Fatalf("vehicle %+v", h.Vehicle)
 	}
 }
+
+func TestApplyPlateIfBlankFillsUnknownYear(t *testing.T) {
+	s := testStore(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	code := "2T1BR32EX7C733665"
+	if err := s.EnsureVehicle(ctx, code, "Unknown", "Unknown", 0, "vpic"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ApplyPlateIfBlank(ctx, code, vin.ReadPlate(code)); err != nil {
+		t.Fatal(err)
+	}
+	h, err := s.History(ctx, code, "00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h.Vehicle == nil || h.Vehicle.Make != "Toyota" || h.Vehicle.Year != 2007 {
+		t.Fatalf("vehicle %+v", h.Vehicle)
+	}
+	if h.Vehicle.Model != "Unknown" {
+		t.Fatalf("must not invent a body: %+v", h.Vehicle)
+	}
+}

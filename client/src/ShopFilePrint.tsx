@@ -1,6 +1,7 @@
 /** Print / Save-as-PDF sheet of this shop's jobs on one VIN. Hidden on screen. */
 import { Logo } from './Brand'
 import type { HistoryResponse, Principal } from './types'
+import { namedModel, readVinPlate } from './vinReadout'
 
 function stamp(iso: string) {
   const d = new Date(iso)
@@ -24,7 +25,12 @@ export function ShopFilePrint({
 }) {
   const shop = shopLine(user)
   const vehicle = history.vehicle
-  const plate = history.customer?.plate?.trim()
+  const plate = vin.length === 17 ? readVinPlate(vin) : null
+  const named = namedModel(vehicle?.model)
+  const vehicleLine = named
+    ? [vehicle?.manufacture_year || plate?.year || null, vehicle?.make, vehicle?.model].filter(Boolean).join(' ')
+    : plate?.headline || [vehicle?.make, vehicle?.manufacture_year || null].filter(Boolean).join(' ')
+  const vehicleFacts = plate?.factLine || ''
   const jobs = history.jobs ?? []
   const printed = new Date().toLocaleString()
 
@@ -44,18 +50,19 @@ export function ShopFilePrint({
           <dt>VIN</dt>
           <dd className="shop-file-print-vin">{vin}</dd>
         </div>
-        {(vehicle?.make || vehicle?.model || vehicle?.manufacture_year) && (
+        {(vehicleLine || vehicle?.make || vehicle?.model || vehicle?.manufacture_year) && (
           <div>
             <dt>Vehicle</dt>
             <dd>
-              {[vehicle?.make, vehicle?.model, vehicle?.manufacture_year || null].filter(Boolean).join(' ')}
+              {vehicleLine}
+              {vehicleFacts && !named ? ` — ${vehicleFacts}` : ''}
             </dd>
           </div>
         )}
-        {plate && (
+        {history.customer?.plate?.trim() && (
           <div>
             <dt>Plate</dt>
-            <dd>{plate}</dd>
+            <dd>{history.customer.plate.trim()}</dd>
           </div>
         )}
       </dl>
