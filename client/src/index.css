@@ -340,3 +340,126 @@ button {
   opacity: 0.07;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
+
+.shop-file-print {
+  display: none;
+}
+
+@media print {
+  @page {
+    margin: 14mm;
+  }
+
+  html,
+  body,
+  #root {
+    background: #fff !important;
+    color: #111 !important;
+    min-height: 0;
+  }
+
+  .no-print,
+  .bay-wash,
+  .grain {
+    display: none !important;
+  }
+
+  .shop-file-print {
+    display: block;
+    color: #111;
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    font-size: 11pt;
+    line-height: 1.45;
+  }
+
+  .shop-file-print-head {
+    display: flex;
+    align-items: flex-end;
+    gap: 1rem;
+    padding-bottom: 0.85rem;
+    border-bottom: 2px solid #111;
+  }
+
+  .shop-file-print-logo {
+    height: 3.2rem;
+    width: auto;
+  }
+
+  .shop-file-print-kicker {
+    margin: 0;
+    font-size: 8.5pt;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .shop-file-print h1 {
+    margin: 0.15rem 0 0;
+    font-size: 18pt;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+
+  .shop-file-print-head p {
+    margin: 0.2rem 0 0;
+    font-size: 9pt;
+  }
+
+  .shop-file-print-meta {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem 1.25rem;
+    margin: 1rem 0 1.25rem;
+  }
+
+  .shop-file-print-meta dt {
+    font-size: 8pt;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .shop-file-print-meta dd {
+    margin: 0.15rem 0 0;
+  }
+
+  .shop-file-print-vin {
+    font-family: ui-monospace, monospace;
+    letter-spacing: 0.06em;
+  }
+
+  .shop-file-print-empty,
+  .shop-file-print-muted {
+    color: #444;
+  }
+
+  .shop-file-print-jobs {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .shop-file-print-jobs li {
+    padding: 0.7rem 0 0.7rem 0.75rem;
+    border-top: 1px solid #ccc;
+    border-left: 3px solid #111;
+    break-inside: avoid;
+  }
+
+  .shop-file-print-when,
+  .shop-file-print-codes {
+    font-family: ui-monospace, monospace;
+    font-size: 9pt;
+  }
+
+  .shop-file-print-jobs p {
+    margin: 0.2rem 0 0;
+  }
+
+  .shop-file-print-foot {
+    margin-top: 1.5rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #111;
+    font-size: 8.5pt;
+    color: #333;
+  }
+}

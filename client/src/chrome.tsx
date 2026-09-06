@@ -163,6 +163,14 @@ export function FolderIcon() {
   )
 }
 
+export function PrintIcon() {
+  return (
+    <Glyph>
+      <path {...stroke} d="M7 9V4h10v5M6 14H4V9h16v5h-2M7 14h10v6H7z" />
+    </Glyph>
+  )
+}
+
 export function WrenchIcon() {
   return (
     <Glyph>

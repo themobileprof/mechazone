@@ -4,11 +4,12 @@ import { attachImportedReport, buildPlaybook, closeoutSession, decodeVin, fetchH
 import { Logo } from './Brand'
 import {
   AttachIcon, BookIcon, ChassisIcon, CheckIcon, ChevronLeftIcon, ChevronRightIcon,
-  ClearCodesIcon, FolderIcon, IconBtn, LinkIcon, LockIcon, MeterIcon, DetailIcon, RefreshIcon, SaveIcon, ScanIcon,
+  ClearCodesIcon, FolderIcon, IconBtn, LinkIcon, LockIcon, MeterIcon, DetailIcon, PrintIcon, RefreshIcon, SaveIcon, ScanIcon,
   SignOutIcon, StampIcon, Tip, WaveIcon, WrenchIcon,
 } from './chrome'
 import { AskModal } from './AskModal'
 import { ClearCodesModal } from './ClearCodesModal'
+import { ShopFilePrint } from './ShopFilePrint'
 import { HowToModal } from './HowToModal'
 import { matchHowTos, type HowToGuide } from './howto'
 import { enqueue, flushQueue, pendingCount } from './queue'
@@ -737,8 +738,23 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
     goTab('playbook')
   }
 
+  function printShopFile() {
+    const prev = document.title
+    const shop = user.freelancer ? (user.technician_name || 'Freelancer') : (user.shop_name || 'Shop')
+    document.title = `${shop} ${vin}`
+    const restore = () => {
+      document.title = prev
+      window.removeEventListener('afterprint', restore)
+    }
+    window.addEventListener('afterprint', restore)
+    window.print()
+  }
+
+  const canPrintFile = vin.length === 17 && Boolean(history)
+
   return (
-    <div className="relative min-h-svh px-5 py-4 md:px-8">
+    <>
+    <div className="no-print relative min-h-svh px-5 py-4 md:px-8">
       <div className="grain" />
       <header className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-brass/30 pb-4">
         <div className="flex items-center gap-4">
@@ -845,10 +861,23 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
             <div>
               <h2 className="font-mono text-sm tracking-[0.25em] text-brass">THIS SHOP'S WORK</h2>
               <p className="mt-1 text-sm text-steel">{vin.length === 17 ? vin : 'No VIN loaded — switch to Job and type or read one.'}</p>
+              {canPrintFile && (
+                <p className="mt-1 text-xs text-steel">PRINT opens this shop’s jobs. Save as PDF in the browser dialog. Phone numbers stay off the sheet.</p>
+              )}
             </div>
-            <IconBtn tip="Back to the current visit" label="JOB" onClick={() => goPage('job')}>
-              <WrenchIcon />
-            </IconBtn>
+            <div className="flex items-center gap-2">
+              <IconBtn
+                tip={canPrintFile ? 'Print or save this shop’s jobs as PDF' : 'Load a 17-character VIN first'}
+                label="PRINT"
+                disabled={!canPrintFile}
+                onClick={printShopFile}
+              >
+                <PrintIcon />
+              </IconBtn>
+              <IconBtn tip="Back to the current visit" label="JOB" onClick={() => goPage('job')}>
+                <WrenchIcon />
+              </IconBtn>
+            </div>
           </div>
           {!history && <p className="text-steel">Read VIN from the kit, or type the 17-character VIN and load this shop's jobs.</p>}
           {history?.capture && (
@@ -1630,5 +1659,9 @@ export function Bay({ user, onLogout }: { user: Principal; onLogout: () => void 
       )}
       <ToastStack notices={notices} onDismiss={dismissNotice} />
     </div>
+    {page === 'file' && canPrintFile && history && (
+      <ShopFilePrint user={user} vin={vin} history={history} />
+    )}
+    </>
   )
 }
